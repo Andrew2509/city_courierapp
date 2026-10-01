@@ -1,0 +1,95 @@
+import 'package:flutter/material.dart';
+import 'package:city_courierapp/screens/widgets/home/home_header.dart';
+import 'package:city_courierapp/screens/widgets/home/search_bar_widget.dart';
+import 'package:city_courierapp/screens/widgets/home/services_section.dart';
+import 'package:city_courierapp/screens/widgets/home/pickup_dropoff.dart';
+import 'package:city_courierapp/screens/widgets/home/courier_banner.dart';
+import 'package:city_courierapp/screens/widgets/home/other_features_section.dart';
+import 'package:city_courierapp/screens/widgets/home/bottom_nav_bar.dart';
+import 'package:city_courierapp/screens/widgets/home/theme_toggle_fab.dart';
+import 'package:city_courierapp/services/api_service.dart';
+import 'package:city_courierapp/screens/widgets/home/complete_profile_sheet.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Map<String, dynamic>? _userData;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkProfileCompletion();
+    });
+  }
+
+  Future<void> _checkProfileCompletion() async {
+    final profileData = await ApiService.getProfile();
+    
+    if (profileData != null) {
+      final user = profileData['user'];
+      final String name = user['name'] ?? '';
+      final String email = user['email'] ?? '';
+
+      bool isIncomplete = name.startsWith('User ') || 
+                          email.contains('@citycourier.local') ||
+                          name.isEmpty ||
+                          email.isEmpty;
+
+      if (mounted) {
+        setState(() {
+          _userData = user;
+        });
+      }
+
+      if (isIncomplete && mounted) {
+        _showCompleteProfileSheet(user);
+      }
+    }
+  }
+
+  void _showCompleteProfileSheet(Map<String, dynamic> user) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false, 
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CompleteProfileSheet(
+        userData: user,
+        onComplete: () {
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                const HomeHeader(),
+                const SearchBarWidget(),
+                const PickupDropoff(),
+                const ServicesSection(),
+                CourierBanner(userData: _userData),
+                OtherFeaturesSection(userData: _userData),
+                const SizedBox(height: 100),
+              ],
+            ),
+          ),
+          const BottomNavBar(activeIndex: 0),
+          const ThemeToggleFab(),
+        ],
+      ),
+    );
+  }
+}
