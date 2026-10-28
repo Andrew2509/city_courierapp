@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/main.dart' show routeObserver;
 import 'package:city_courierapp/screens/widgets/home/home_header.dart';
 import 'package:city_courierapp/screens/widgets/home/search_bar_widget.dart';
 import 'package:city_courierapp/screens/widgets/home/services_section.dart';
@@ -17,7 +18,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   Map<String, dynamic>? _userData;
 
   @override
@@ -26,6 +27,26 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkProfileCompletion();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    _checkProfileCompletion();
   }
 
   Future<void> _checkProfileCompletion() async {
@@ -49,6 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (isIncomplete && mounted) {
         _showCompleteProfileSheet(user);
+      }
+    } else {
+      if (mounted && _userData != null) {
+        setState(() {
+          _userData = null;
+        });
       }
     }
   }
@@ -76,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
           SingleChildScrollView(
             child: Column(
               children: [
-                const HomeHeader(),
+                HomeHeader(userData: _userData),
                 const SearchBarWidget(),
                 const PickupDropoff(),
                 const ServicesSection(),

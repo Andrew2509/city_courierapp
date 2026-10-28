@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../widgets/daftar_kurir_constants.dart';
+import '../daftar_kurir_data.dart';
 
 class StatusPendaftaranScreen extends StatelessWidget {
   const StatusPendaftaranScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final data = context.watch<DaftarKurirData>();
+    final bool isSubmitted = data.token != null;
+
     return Scaffold(
       backgroundColor: DaftarKurirColors.bgLight,
       appBar: AppBar(
@@ -34,7 +39,6 @@ class StatusPendaftaranScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Status Header Card
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -62,18 +66,18 @@ class StatusPendaftaranScreen extends StatelessWidget {
                                 width: 2,
                               ),
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Icon(
-                                Icons.hourglass_empty,
+                                isSubmitted ? Icons.check_circle : Icons.hourglass_empty,
                                 color: DaftarKurirColors.primary,
                                 size: 32,
                               ),
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'Sedang Diverifikasi',
-                            style: TextStyle(
+                          Text(
+                            isSubmitted ? 'Pendaftaran Terkirim' : 'Sedang Diverifikasi',
+                            style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: DaftarKurirColors.textDark,
@@ -81,21 +85,30 @@ class StatusPendaftaranScreen extends StatelessWidget {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Tim sedang memeriksa data dan dokumen Anda. Proses ini biasanya memakan waktu 1-2 hari kerja.',
-                            style: TextStyle(
+                          Text(
+                            isSubmitted
+                                ? 'Pendaftaran Anda telah terkirim. Admin akan memverifikasi data Anda.'
+                                : 'Data Anda sedang diproses.',
+                            style: const TextStyle(
                               fontSize: 14,
                               color: DaftarKurirColors.textSub,
                               height: 1.5,
                             ),
                             textAlign: TextAlign.center,
                           ),
+                          if (isSubmitted && data.name != null) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              'Nama: ${data.name}',
+                              style: const TextStyle(fontSize: 14, color: DaftarKurirColors.textDark),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Timeline Section
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -115,8 +128,7 @@ class StatusPendaftaranScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          
-                          // Timeline Items
+
                           _buildTimelineItem(
                             title: 'Data pendaftaran',
                             subtitle: 'Informasi dasar telah dikirim',
@@ -125,7 +137,7 @@ class StatusPendaftaranScreen extends StatelessWidget {
                           ),
                           _buildTimelineItem(
                             title: 'Dokumen diterima',
-                            subtitle: 'KTP, SIM, dan STNK berhasil diunggah',
+                            subtitle: 'KTP, SIM berhasil diunggah',
                             status: _TimelineStatus.done,
                             isLast: false,
                           ),
@@ -149,7 +161,6 @@ class StatusPendaftaranScreen extends StatelessWidget {
               ),
             ),
 
-            // Bottom CTA
             Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
@@ -160,7 +171,6 @@ class StatusPendaftaranScreen extends StatelessWidget {
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  // Back to home
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 style: ElevatedButton.styleFrom(

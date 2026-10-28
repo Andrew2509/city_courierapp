@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/shipping/rajaongkir_service.dart';
+import '../../../services/shipping/rajaongkir_parser.dart';
 
 class EstimationResultScreen extends StatefulWidget {
   final String origin;
@@ -48,31 +49,22 @@ class _EstimationResultScreenState extends State<EstimationResultScreen> {
         courier: 'jne:pos:tiki:sicepat:jnt', // Fetch multiple couriers
       );
 
-      if (response['success'] == true) {
-        final List<dynamic> courierList = response['data'];
+      if (response['success'] == true && response['data'] != null) {
+        final List<Map<String, dynamic>> parsedServices =
+            RajaOngkirParser.parseCouriers(response['data']);
+
         List<Map<String, dynamic>> services = [];
-
-        for (var courier in courierList) {
-          final String courierName = courier['name'];
-          final String courierCode = courier['code'];
-          final List<dynamic> costs = courier['costs'];
-
-          for (var costItem in costs) {
-            final String serviceName = costItem['service'];
-            final String description = costItem['description'];
-            final int price = costItem['cost'][0]['value'];
-            final String etd = costItem['cost'][0]['etd'];
-
-            services.add({
-              'courier_name': courierName,
-              'courier_code': courierCode,
-              'service': serviceName,
-              'description': description,
-              'price': price,
-              'etd': etd,
-              'display_title': '$courierName - $serviceName',
-            });
-          }
+        for (var s in parsedServices) {
+          services.add({
+            'courier_name': s['name'],
+            'courier_code': s['code'],
+            'service': s['service'],
+            'description': s['description'],
+            'price': s['price'],
+            'etd': s['etd'],
+            'duration': s['duration'],
+            'display_title': '${s['name']} - ${s['service']}',
+          });
         }
 
         // Sort by price (lowest first)
@@ -198,7 +190,7 @@ class _EstimationResultScreenState extends State<EstimationResultScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.sentiment_dissatisfied, size: 48, color: Colors.grey),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             'Tidak ada layanan pengiriman tersedia\nuntuk rute ini.',
             textAlign: TextAlign.center,
@@ -367,7 +359,7 @@ class _EstimationResultScreenState extends State<EstimationResultScreen> {
                     ),
                   ),
                   Text(
-                    'Estimasi ${service['etd']} Hari',
+                    service['duration'] ?? 'Estimasi tidak tersedia',
                     style: TextStyle(
                       fontSize: 10,
                       color: Colors.grey.shade500,

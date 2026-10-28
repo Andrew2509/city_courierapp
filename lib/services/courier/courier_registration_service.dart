@@ -6,6 +6,80 @@ import 'package:city_courierapp/services/token_store.dart';
 class CourierRegistrationService {
   static String get baseUrl => ApiService.baseUrl;
 
+  /// Normalisasi nomor HP ke format internasional (62...), hanya digit.
+  /// Dipakai untuk request & verify OTP agar cache key di backend konsisten.
+  static String normalizePhone(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('0')) {
+      digits = '62${digits.substring(1)}';
+    } else if (!digits.startsWith('62')) {
+      digits = '62$digits';
+    }
+    return digits;
+  }
+
+  /// Minta kode OTP pendaftaran kurir (6 digit) via WhatsApp/Fonnte.
+  static Future<Map<String, dynamic>> requestPhoneOtp(String phone) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/courier/request-phone-otp'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'phone': normalizePhone(phone)}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'message': data['message'] ?? 'Gagal mengirim kode verifikasi.',
+        'errors': data['errors'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Tidak dapat terhubung ke server. ${e.toString()}',
+      };
+    }
+  }
+
+  /// Verifikasi kode OTP pendaftaran kurir.
+  static Future<Map<String, dynamic>> verifyPhoneOtp(
+    String phone,
+    String otp,
+  ) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/courier/verify-phone-otp'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'phone': normalizePhone(phone),
+              'otp': otp,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'message': data['message'] ?? 'Verifikasi gagal.',
+        'data': data['data'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Tidak dapat terhubung ke server. ${e.toString()}',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> register({
     required String name,
     required String email,

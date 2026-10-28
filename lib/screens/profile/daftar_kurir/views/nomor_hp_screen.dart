@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:city_courierapp/services/courier/courier_registration_service.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
+import '../daftar_kurir_data.dart';
 import 'verifikasi_otp_screen.dart';
 
 class NomorHpScreen extends StatefulWidget {
@@ -12,12 +15,49 @@ class NomorHpScreen extends StatefulWidget {
 
 class _NomorHpScreenState extends State<NomorHpScreen> {
   bool _isAgreed = false;
+  bool _isLoading = false;
   final TextEditingController _phoneController = TextEditingController();
 
   @override
   void dispose() {
     _phoneController.dispose();
     super.dispose();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _sendOtp() async {
+    final phone = CourierRegistrationService.normalizePhone(_phoneController.text);
+
+    if (phone.length < 10) {
+      _showMessage('Nomor HP tidak valid.');
+      return;
+    }
+
+    context.read<DaftarKurirData>().phone = phone;
+    setState(() => _isLoading = true);
+
+    final result =
+        await CourierRegistrationService.requestPhoneOtp(_phoneController.text);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result['success'] == true) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VerifikasiOtpScreen(phoneNumber: phone),
+        ),
+      );
+    } else {
+      _showMessage(result['message']?.toString() ?? 'Gagal mengirim OTP.');
+    }
   }
 
   @override
@@ -28,17 +68,9 @@ class _NomorHpScreenState extends State<NomorHpScreen> {
       totalSteps: 4,
       bottomAction: PrimaryButton(
         text: 'Lanjutkan',
+        isLoading: _isLoading,
         onPressed: _isAgreed && _phoneController.text.isNotEmpty
-            ? () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => VerifikasiOtpScreen(
-                      phoneNumber: _phoneController.text,
-                    ),
-                  ),
-                );
-              }
+            ? _sendOtp
             : null,
       ),
       child: Column(
@@ -133,7 +165,7 @@ class _NomorHpScreenState extends State<NomorHpScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Pastikan nomor aktif untuk menerima SMS.',
+            'Pastikan nomor aktif untuk menerima kode WhatsApp.',
             style: TextStyle(
               fontSize: 12,
               color: DaftarKurirColors.textMuted,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/widgets/home/bottom_nav_bar.dart';
 import 'package:city_courierapp/screens/widgets/profile/profile_header.dart';
 import 'package:city_courierapp/screens/widgets/profile/profile_stats_grid.dart';
@@ -28,6 +29,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fetchProfile() async {
+    final isAuthed = await AuthGuard.guardScreen(context);
+    if (!isAuthed) return;
+
     try {
       final profile = await ApiService.getProfile();
       if (mounted) {

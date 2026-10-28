@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/home/shipping/select_sender_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/item_info_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/select_service_screen.dart';
@@ -29,6 +30,14 @@ class _DropoffScreenState extends State<DropoffScreen> {
   final TextEditingController senderController = TextEditingController();
   final TextEditingController receiverController = TextEditingController();
   final TextEditingController dropoffPointController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AuthGuard.guardScreen(context);
+    });
+  }
 
   @override
   void dispose() {

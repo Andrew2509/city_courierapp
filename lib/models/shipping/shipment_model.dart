@@ -32,6 +32,9 @@ class ShipmentModel {
   final DateTime createdAt;
   final DateTime updatedAt;
   final PaymentInfo? paymentInfo;
+  final String? vehicleType;
+  final bool? scheduledPickup;
+  final String? pickupTime;
 
   ShipmentModel({
     required this.id,
@@ -67,6 +70,9 @@ class ShipmentModel {
     required this.createdAt,
     required this.updatedAt,
     this.paymentInfo,
+    this.vehicleType,
+    this.scheduledPickup,
+    this.pickupTime,
   });
 
   factory ShipmentModel.fromJson(Map<String, dynamic> json) {
@@ -123,6 +129,11 @@ class ShipmentModel {
       paymentInfo: json['payment_info'] != null 
           ? PaymentInfo.fromJson(json['payment_info']) 
           : null,
+      vehicleType: json['vehicle_type']?.toString() ?? json['vehicle']?.toString(),
+      scheduledPickup: json['scheduled_pickup'] == true ||
+          json['is_scheduled_pickup'] == true ||
+          json['scheduled_pickup'] == 1,
+      pickupTime: json['pickup_time']?.toString(),
     );
   }
 
@@ -149,7 +160,12 @@ class ShipmentModel {
       'courier_name': courierName,
       'courier_phone': courierPhone,
       'order_date': orderDate?.toIso8601String(),
-      'pickup_scheduled_at': pickupScheduledAt?.toIso8601String(),
+      'scheduled_pickup': scheduledPickup ?? false,
+      if (scheduledPickup == true && pickupScheduledAt != null)
+        'pickup_scheduled_at': pickupScheduledAt!.toIso8601String(),
+      if (scheduledPickup == true && pickupScheduledAt != null)
+        'pickup_date': pickupScheduledAt!.toIso8601String().substring(0, 10),
+      if (scheduledPickup == true && pickupTime != null) 'pickup_time': pickupTime,
       'estimated_delivery': estimatedDelivery?.toIso8601String(),
       'picked_up_at': pickedUpAt?.toIso8601String(),
       'delivered_at': deliveredAt?.toIso8601String(),
@@ -161,6 +177,7 @@ class ShipmentModel {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'payment_info': paymentInfo?.toJson(),
+      'vehicle_type': vehicleType,
     };
   }
 }

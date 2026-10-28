@@ -40,11 +40,12 @@ class _WelcomeViewState extends State<WelcomeView> {
 
       if (success && mounted) {
         // Berhasil login, arahkan ke Home
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) => const HomeScreen(),
           ),
+          (route) => false,
         );
       } else if (mounted) {
         // Gagal di sisi backend

@@ -162,15 +162,17 @@ class _LoginViewState extends State<LoginView> {
           
           if (role == 'courier') {
             // Navigate to courier/driver home screen
-            Navigator.pushReplacement(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
             );
           } else {
             // Navigate to customer home screen
-            Navigator.pushReplacement(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
             );
           }
         }
@@ -222,9 +224,10 @@ class _LoginViewState extends State<LoginView> {
         
         if (success) {
           if (mounted) {
-            Navigator.pushReplacement(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
             );
           }
         } else {

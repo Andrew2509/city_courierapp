@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
-import 'pilih_tipe_kurir_screen.dart';
+import '../daftar_kurir_data.dart';
+import 'data_diri_screen.dart';
 
 class PilihKendaraanScreen extends StatefulWidget {
   const PilihKendaraanScreen({super.key});
@@ -17,16 +19,17 @@ class _PilihKendaraanScreenState extends State<PilihKendaraanScreen> {
   Widget build(BuildContext context) {
     return ScreenLayout(
       title: 'Jenis Kendaraan',
-      currentStep: 2, // 50% width for step 2 of 4
+      currentStep: 2,
       totalSteps: 4,
       bottomAction: PrimaryButton(
         text: 'Pilih & Lanjutkan',
         onPressed: _selectedKendaraan != null
             ? () {
+                context.read<DaftarKurirData>().vehicleType = _selectedKendaraan;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const PilihTipeKurirScreen(),
+                    builder: (context) => const DataDiriScreen(),
                   ),
                 );
               }

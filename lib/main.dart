@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'package:city_courierapp/screens/landing_screen.dart';
+import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/widgets/home/theme_toggle_fab.dart';
 import 'package:city_courierapp/services/courier/courier_status_service.dart';
 import 'package:city_courierapp/services/deep_link_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
+import 'package:city_courierapp/screens/profile/daftar_kurir/daftar_kurir_data.dart';
 
 /// Global route observer – screens can subscribe to detect when they become
 /// visible again (e.g. after Navigator.pop from a child screen).
@@ -27,6 +28,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CourierStatusService()),
+        ChangeNotifierProvider(create: (_) => DaftarKurirData()),
       ],
       child: const MyApp(),
     ),
@@ -91,7 +93,7 @@ class MyApp extends StatelessWidget {
           ),
           navigatorObservers: [routeObserver],
           navigatorKey: navigatorKey,
-          home: const LandingScreen(),
+          home: const HomeScreen(),
         );
       },
     );

@@ -1,5 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/home/shipping/pickup_screen.dart';
 import 'package:city_courierapp/screens/home/dropoff/dropoff_screen.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
@@ -25,9 +25,15 @@ class PickupDropoff extends StatelessWidget {
               isDarkMode: isDarkMode,
               accentColor: AppColors.primaryOrange,
               onTap: () {
-                Navigator.push(
+                AuthGuard.runWithAuth(
                   context,
-                  MaterialPageRoute(builder: (context) => const PickupScreen()),
+                  onAuthenticated: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const PickupScreen()),
+                    );
+                  },
                 );
               },
             ),
@@ -42,11 +48,16 @@ class PickupDropoff extends StatelessWidget {
               isDarkMode: isDarkMode,
               accentColor: AppColors.primaryTeal,
               onTap: () {
-                Navigator.push(
+                AuthGuard.runWithAuth(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const DropoffScreen(),
-                  ),
+                  onAuthenticated: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DropoffScreen(),
+                      ),
+                    );
+                  },
                 );
               },
             ),

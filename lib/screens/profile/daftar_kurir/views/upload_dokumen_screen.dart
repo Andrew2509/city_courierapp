@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
 import '../widgets/dashed_border.dart';
+import '../daftar_kurir_data.dart';
 import 'foto_wajah_screen.dart';
 import 'verifikasi_ktp_screen.dart';
 
@@ -33,9 +35,17 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
+        final data = context.read<DaftarKurirData>();
         setState(() {
           _uploadStatus[id] = true;
         });
+        if (id == 'SIM') {
+          data.licensePath = image.path;
+        } else if (id == 'STNK') {
+          data.skckPath = image.path;
+        } else if (id == 'SKCK') {
+          data.skckPath = image.path;
+        }
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
@@ -43,17 +53,18 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
   }
 
   Future<void> _navigateAndVerifyKtp() async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const VerifikasiKtpScreen(),
       ),
     );
-    // Asumsikan KTP terverifikasi saat kembali (untuk mock)
-    // Jika tidak membutuhkan pengembalian nilai, bisa langsung di set true untuk dummy.
-    setState(() {
-      _uploadStatus['KTP'] = true;
-    });
+    final data = context.read<DaftarKurirData>();
+    if (data.idCardPath != null) {
+      setState(() {
+        _uploadStatus['KTP'] = true;
+      });
+    }
   }
 
   @override

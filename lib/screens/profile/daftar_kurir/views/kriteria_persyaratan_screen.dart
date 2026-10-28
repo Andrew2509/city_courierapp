@@ -9,7 +9,7 @@ class KriteriaPersyaratanScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ScreenLayout(
-      title: 'Kriteria & Persyaratan',
+      title: 'Siapkan Dokumen Anda',
       bottomAction: PrimaryButton(
         text: 'Lanjutkan Pendaftaran',
         onPressed: () {

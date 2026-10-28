@@ -10,13 +10,13 @@ class ProfileHeader extends StatefulWidget {
   final bool initialCourierMode;
 
   const ProfileHeader({
-    Key? key,
+    super.key,
     required this.primaryColor,
     this.userData,
     this.isLoading = false,
     this.onEditProfile,
     this.initialCourierMode = false,
-  }) : super(key: key);
+  });
 
   @override
   State<ProfileHeader> createState() => _ProfileHeaderState();
@@ -351,7 +351,9 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const DriverProfileScreen(),
+                                    builder: (context) =>
+                                        const DriverProfileScreen(
+                                            fromPersonalProfile: true),
                                   ),
                                 ).then((_) {
                                   if (mounted) setState(() => _isCourierMode = false);

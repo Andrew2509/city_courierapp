@@ -1,10 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
 import '../widgets/dashed_border.dart';
+import '../daftar_kurir_data.dart';
 import 'review_pendaftaran_screen.dart';
-
-import 'package:camera/camera.dart';
 
 class FotoWajahScreen extends StatefulWidget {
   const FotoWajahScreen({super.key});
@@ -16,6 +18,7 @@ class FotoWajahScreen extends StatefulWidget {
 class _FotoWajahScreenState extends State<FotoWajahScreen> {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
+  File? _capturedImage;
 
   @override
   void initState() {
@@ -245,14 +248,24 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
               ),
               child: Center(
                 child: GestureDetector(
-                  onTap: () {
-                    // Navigate to next screen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ReviewPendaftaranScreen(),
-                      ),
-                    );
+                  onTap: () async {
+                    if (_cameraController != null && _cameraController!.value.isInitialized) {
+                      try {
+                        final XFile picture = await _cameraController!.takePicture();
+                        _capturedImage = File(picture.path);
+                        context.read<DaftarKurirData>().photoPath = _capturedImage!.path;
+                      } catch (e) {
+                        debugPrint('Error taking selfie: $e');
+                      }
+                    }
+                    if (context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ReviewPendaftaranScreen(),
+                        ),
+                      );
+                    }
                   },
                   child: Container(
                     width: 80,
@@ -343,7 +356,6 @@ class _ViewfinderBracketPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final double w = size.width;
-    final double h = size.height;
 
     // Corner curves (matches the SVG in HTML: <path d="M 64 32 Q 32 32 32 64" /> etc. for a 256x256 view)
     // 64 is 1/4 of 256, 32 is 1/8 of 256

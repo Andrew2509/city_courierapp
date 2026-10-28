@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/widgets/history/shipping_card_widget.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_detail_screen.dart';
 import 'package:city_courierapp/screens/widgets/home/bottom_nav_bar.dart';
@@ -27,6 +28,9 @@ class _ShippingHistoryScreenState extends State<ShippingHistoryScreen> {
   }
 
   Future<void> _fetchData() async {
+    final isAuthed = await AuthGuard.guardScreen(context);
+    if (!isAuthed) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;

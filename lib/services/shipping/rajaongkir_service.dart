@@ -92,4 +92,20 @@ class RajaOngkirService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  static Future<Map<String, dynamic>> reverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/geocoding/reverse?lat=$latitude&lng=$longitude'),
+        headers: await _getHeaders(),
+      );
+
+      return json.decode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

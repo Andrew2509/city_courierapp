@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 
 class HomeHeader extends StatelessWidget {
-  const HomeHeader({Key? key}) : super(key: key);
+  final Map<String, dynamic>? userData;
+  const HomeHeader({super.key, this.userData});
 
   @override
   Widget build(BuildContext context) {
@@ -56,60 +58,65 @@ class HomeHeader extends StatelessWidget {
                     height: 80,
                     fit: BoxFit.contain,
                   ),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Icon(
-                          Icons.notifications_rounded,
-                          color: Colors.white,
-                        ),
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFFEC5B13),
-                                width: 2,
+                  GestureDetector(
+                    onTap: () {
+                      AuthGuard.runWithAuth(context, onAuthenticated: () {});
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Icon(
+                            Icons.notifications_rounded,
+                            color: Colors.white,
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFEC5B13),
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 15),
-              const Text(
-                'Selamat Datang',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 12,
+              if (userData != null &&
+                  (userData!['name'] as String?)?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 15),
+                const Text(
+                  'Selamat Datang',
+                  style: TextStyle(color: Colors.black, fontSize: 12),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Princenton Andrew Brightly...',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(height: 4),
+                Text(
+                  (userData!['name'] as String).trim(),
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ],
           ),
         ],

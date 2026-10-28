@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:city_courierapp/screens/home/shipping/payment_method_screen.dart';
 import 'package:city_courierapp/services/api_service.dart';
+import 'package:city_courierapp/services/shipping/shipment_service.dart';
+import 'package:city_courierapp/models/shipping/shipment_model.dart';
+import 'package:city_courierapp/screens/history/shipping_history_screen.dart';
+import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 
 class DashedLinePainter extends CustomPainter {
   final Color color;
@@ -35,6 +39,19 @@ class ConfirmationScreen extends StatefulWidget {
   final bool packingKayu;
   final Map<String, dynamic>? senderData;
   final Map<String, dynamic>? receiverData;
+  final String selectedVehicle;
+  final double? itemPanjang;
+  final double? itemLebar;
+  final double? itemTinggi;
+  final double? itemVolumeCm3;
+  final double? itemBeratVolumetrik;
+  final double? itemBeratPengiriman;
+  final bool isScheduledPickup;
+  final DateTime? pickupScheduledAt;
+  final DateTime? estimatedDelivery;
+  final String? pickupTimeText;
+  final String? deliveryTimeText;
+  final bool isDeliveryCrossDay;
 
   const ConfirmationScreen({
     super.key,
@@ -47,6 +64,19 @@ class ConfirmationScreen extends StatefulWidget {
     required this.packingKayu,
     this.senderData,
     this.receiverData,
+    this.selectedVehicle = 'motor',
+    this.itemPanjang,
+    this.itemLebar,
+    this.itemTinggi,
+    this.itemVolumeCm3,
+    this.itemBeratVolumetrik,
+    this.itemBeratPengiriman,
+    this.isScheduledPickup = false,
+    this.pickupScheduledAt,
+    this.estimatedDelivery,
+    this.pickupTimeText,
+    this.deliveryTimeText,
+    this.isDeliveryCrossDay = false,
   });
 
   @override
@@ -96,38 +126,109 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       final sender = widget.senderData;
       final receiver = widget.receiverData;
 
+      final double actualWeight = widget.itemBerat;
+      final double volumetricWeight = widget.itemBeratVolumetrik ?? widget.itemBeratVolume;
+      final double shippingWeight = widget.itemBeratPengiriman ??
+          (actualWeight > volumetricWeight ? actualWeight : volumetricWeight);
+
+      // Ambil etd bersih (misal "1-2" dari API) agar tidak mengirim string panjang "Estimasi 1–2 hari"
+      final rawEtd = (courier?['etd'] ?? '').toString().trim();
+      final cleanEtd = rawEtd.isNotEmpty ? rawEtd : (courier?['duration'] ?? '');
+
+      final originId = sender?['subdistrict_id'] ?? sender?['city_id'];
+      final destId = receiver?['subdistrict_id'] ?? receiver?['city_id'];
+
       final body = {
         'customer_name': sender?['name'] ?? 'Pengirim',
         'customer_phone': sender?['phone'] ?? '',
         'sender_name': sender?['name'] ?? 'Pengirim',
         'sender_phone': sender?['phone'] ?? '',
         'sender_address': (sender?['address'] ?? '').toString().trim(),
-        'sender_latitude': sender?['latitude'],
-        'sender_longitude': sender?['longitude'],
+        if (sender?['latitude'] != null) 'sender_latitude': sender!['latitude'],
+        if (sender?['longitude'] != null) 'sender_longitude': sender!['longitude'],
         'origin_name': sender?['kecamatan_name'] ?? sender?['subdistrict_name'] ?? sender?['city_name'] ?? '',
-        'origin_id': (sender?['subdistrict_id'] ?? sender?['city_id'])?.toString() ?? '',
+        if (originId != null && originId.toString().trim().isNotEmpty)
+          'origin_id': originId.toString(),
         'receiver_name': receiver?['name'] ?? 'Penerima',
         'receiver_phone': receiver?['phone'] ?? '',
         'receiver_address': (receiver?['address'] ?? '').toString().trim(),
-        'receiver_latitude': receiver?['latitude'],
-        'receiver_longitude': receiver?['longitude'],
+        if (receiver?['latitude'] != null) 'receiver_latitude': receiver!['latitude'],
+        if (receiver?['longitude'] != null) 'receiver_longitude': receiver!['longitude'],
         'destination_name': receiver?['kecamatan_name'] ?? receiver?['subdistrict_name'] ?? receiver?['city_name'] ?? '',
-        'destination_id': (receiver?['subdistrict_id'] ?? receiver?['city_id'])?.toString() ?? '',
+        if (destId != null && destId.toString().trim().isNotEmpty)
+          'destination_id': destId.toString(),
         'package_description': widget.itemDeskripsi,
-        'package_weight': widget.itemBerat,
-        'courier_code': courier?['code'] ?? '',
-        'courier_name': courier?['name'] ?? courier?['courier_name'] ?? 'Kurir',
-        'courier_service': courier?['service'] ?? courier?['courier_service'] ?? 'REG',
-        'etd': courier?['duration'] ?? '',
+        'package_weight': shippingWeight,
+        'actual_weight': actualWeight,
+        'volumetric_weight': volumetricWeight,
+        'shipping_weight': shippingWeight,
+        'chargeable_weight': shippingWeight,
+        'courier_code': (() {
+          for (final candidate in [
+            courier?['code'],
+            courier?['courier_code'],
+            courier?['vehicle'],
+            widget.selectedVehicle,
+          ]) {
+            final s = candidate?.toString().trim() ?? '';
+            if (s.isNotEmpty) return s;
+          }
+          return 'motor';
+        })(),
+        'courier_name': (() {
+          for (final candidate in [
+            courier?['name'],
+            courier?['courier_name'],
+          ]) {
+            final s = candidate?.toString().trim() ?? '';
+            if (s.isNotEmpty) return s;
+          }
+          return widget.selectedVehicle == 'mobil' ? 'Mobil' : 'Motor';
+        })(),
+        'courier_service': (() {
+          for (final candidate in [
+            courier?['service'],
+            courier?['courier_service'],
+          ]) {
+            final s = candidate?.toString().trim() ?? '';
+            if (s.isNotEmpty) return s;
+          }
+          return 'Instant';
+        })(),
+        'vehicle_type': widget.selectedVehicle.isNotEmpty ? widget.selectedVehicle : 'motor',
+        'vehicle': widget.selectedVehicle.isNotEmpty ? widget.selectedVehicle : 'motor',
+        if (widget.itemPanjang != null) 'length': widget.itemPanjang,
+        if (widget.itemLebar != null) 'width': widget.itemLebar,
+        if (widget.itemTinggi != null) 'height': widget.itemTinggi,
+        if (widget.itemVolumeCm3 != null) 'volume': widget.itemVolumeCm3,
+        'etd': cleanEtd,
+        'duration': courier?['duration'] ?? cleanEtd,
         'shipping_cost': courier?['price'] ?? 0,
         'insurance': widget.asuransiPengiriman,
         'wood_packing': widget.packingKayu,
         'total_cost': totalPrice,
+        'scheduled_pickup': widget.isScheduledPickup,
+        if (widget.isScheduledPickup && widget.pickupScheduledAt != null) ...{
+          'pickup_scheduled_at': widget.pickupScheduledAt!.toIso8601String(),
+          'pickup_date': widget.pickupScheduledAt!.toIso8601String().substring(0, 10),
+          if (widget.pickupTimeText != null) 'pickup_time': widget.pickupTimeText,
+        },
+        'estimated_delivery': (widget.estimatedDelivery ??
+                ScheduleTimeConfig.calculateEstimatedDeliveryDate(
+                  widget.pickupScheduledAt ?? DateTime.now(),
+                  courier?['duration'],
+                ))
+            .toIso8601String(),
       };
 
-      print('DEBUG: Shipment Payload: $body');
+      debugPrint('DEBUG: Shipment Payload: $body');
 
-      final response = await ApiService.post('/shipments', body);
+      // Gunakan timeout 60 detik untuk operasi pembuatan shipment di backend
+      final response = await ApiService.post(
+        '/shipments',
+        body,
+        timeout: const Duration(seconds: 60),
+      );
 
       if (!mounted) return;
 
@@ -143,8 +244,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                               response['data']?['order_number'] ?? 
                               response['data']?['shipment_number'] ?? 
                               shipmentId;
-                              
-        // Ambil data barcode/QR dari backend (bisa berupa teks atau URL)
+                               
         final barcodeData = response['data']?['barcode'] ?? 
                            response['data']?['qr_code'] ?? 
                            response['data']?['qr_string'];
@@ -152,6 +252,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         final barcodeUrl = response['data']?['barcode_url'] ?? 
                           response['data']?['qr_url'];
                               
+        if (!context.mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -161,12 +262,117 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               trackingNumber: trackingNumber.toString(),
               barcodeData: barcodeData?.toString(),
               barcodeUrl: barcodeUrl?.toString(),
-              senderCity: widget.senderData?['city_name'],
-              receiverCity: widget.receiverData?['city_name'],
+              senderName: widget.senderData?['name'],
+              senderCity: widget.senderData?['kecamatan_name'] ?? widget.senderData?['city_name'],
+              receiverName: widget.receiverData?['name'],
+              receiverCity: widget.receiverData?['kecamatan_name'] ?? widget.receiverData?['city_name'],
+              vehicle: widget.selectedVehicle,
+              trackingUrl: response['data']?['tracking_url']?.toString(),
+              shipmentData: response['data'] is Map<String, dynamic> ? (response['data'] as Map<String, dynamic>) : null,
             ),
           ),
         );
       } else {
+        // Cek jika kegagalan karena timeout jaringan
+        if (response?['is_timeout'] == true) {
+          // Recovery check: Periksa apakah pesanan sebenarnya sempat terbuat di server
+          try {
+            final recentResult = await ShipmentService.getUserShipments(
+              status: 'pending',
+              page: 1,
+              perPage: 5,
+            ).timeout(const Duration(seconds: 10));
+
+            if (recentResult['success'] == true &&
+                recentResult['data'] is List &&
+                (recentResult['data'] as List).isNotEmpty) {
+              final List<ShipmentModel> list =
+                  recentResult['data'] as List<ShipmentModel>;
+              final now = DateTime.now();
+              ShipmentModel? matched;
+              for (final s in list) {
+                final diff = now.difference(s.createdAt).inMinutes.abs();
+                if (diff <= 5) {
+                  matched = s;
+                  break;
+                }
+              }
+
+              if (matched != null) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Pesanan berhasil tercatat di server. Membuka pembayaran...'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+
+                final shipmentId = matched.id.toString();
+                final trackingNumber = matched.trackingNumber ?? matched.orderNumber;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PaymentMethodScreen(
+                      totalAmount: totalPrice,
+                      shipmentId: shipmentId,
+                      trackingNumber: trackingNumber,
+                      barcodeData: trackingNumber,
+                      senderCity: widget.senderData?['city_name'],
+                      receiverCity: widget.receiverData?['city_name'],
+                    ),
+                  ),
+                );
+                return;
+              }
+            }
+          } catch (_) {}
+
+          // Jika recovery tidak menemukan pesanan baru, tampilkan dialog aksi
+          if (!context.mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.schedule, color: Colors.orange, size: 24),
+                  SizedBox(width: 8),
+                  Text('Koneksi Timeout', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: const Text(
+                'Server memerlukan waktu lebih lama dari biasanya untuk memproses pesanan pengiriman.\n\nSilakan cek Riwayat Pesanan untuk melihat apakah pesanan Anda sudah tercatat, atau coba kembali.',
+                style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ShippingHistoryScreen()),
+                    );
+                  },
+                  child: const Text('Cek Riwayat Pesanan'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEC5B13),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _submitShipment(context, totalPrice);
+                  },
+                  child: const Text('Coba Lagi'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+
         // Show error from server
         String errorMessage = response?['message'] ?? 'Gagal membuat pesanan pengiriman';
         
@@ -177,10 +383,13 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             final firstErrorList = errors.values.first;
             if (firstErrorList is List && firstErrorList.isNotEmpty) {
               errorMessage = firstErrorList.first.toString();
+            } else if (firstErrorList is String) {
+              errorMessage = firstErrorList;
             }
           }
         }
 
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -190,14 +399,13 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Terjadi kesalahan: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -250,6 +458,10 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               children: [
                 _buildInformasiPengiriman(isDarkMode, primaryColor),
                 const SizedBox(height: 16),
+                _buildJadwalPengirimanCard(isDarkMode, primaryColor),
+                const SizedBox(height: 16),
+                _buildKendaraanCard(isDarkMode, primaryColor),
+                const SizedBox(height: 16),
                 _buildDetailBarang(isDarkMode, primaryColor),
                 const SizedBox(height: 16),
                 _buildLayananKurir(isDarkMode, primaryColor),
@@ -273,6 +485,332 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     );
   }
 
+
+  Widget _buildJadwalPengirimanCard(bool isDarkMode, Color primaryColor) {
+    final bool isScheduled = widget.isScheduledPickup;
+    final DateTime baseDate = (isScheduled && widget.pickupScheduledAt != null)
+        ? widget.pickupScheduledAt!
+        : DateTime.now();
+
+    final estDeliveryDate = widget.pickupScheduledAt != null
+        ? ScheduleTimeConfig.calculateEstimatedDeliveryDate(
+            widget.pickupScheduledAt!,
+            widget.selectedCourier?['duration'],
+          )
+        : ScheduleTimeConfig.calculateEstimatedDeliveryDate(
+            baseDate,
+            widget.selectedCourier?['duration'],
+          );
+
+    final rawDuration = widget.selectedCourier?['duration'] ?? '30–60 menit';
+    final cleanDuration = rawDuration.startsWith('Estimasi ')
+        ? rawDuration.substring(9)
+        : rawDuration;
+    final String estDeliveryText = widget.deliveryTimeText ??
+        '${ScheduleTimeConfig.formatDate(estDeliveryDate)} (Estimasi $cleanDuration)';
+
+    final String pickupDisplay = isScheduled
+        ? (widget.pickupTimeText ??
+            (widget.pickupScheduledAt != null
+                ? ScheduleTimeConfig.formatFull(widget.pickupScheduledAt!)
+                : 'Pickup Standar'))
+        : 'Pickup Standar (Segera Diproses)';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'JADWAL PENGIRIMAN',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400,
+                  letterSpacing: 1,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isScheduled
+                      ? primaryColor.withValues(alpha: 0.1)
+                      : Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isScheduled ? 'Format 12 Jam' : 'Pickup Standar',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: isScheduled ? primaryColor : Colors.green.shade700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade100,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Waktu Pickup
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? Colors.orange.shade900.withValues(alpha: 0.25)
+                          : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.access_time_rounded, color: primaryColor, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'WAKTU PICKUP',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade500,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          pickupDisplay,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.grey.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Divider(
+                  height: 1,
+                  color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade100,
+                ),
+              ),
+              // Estimasi Pengantaran (Otomatis dari Sistem Kurir)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? Colors.blue.shade900.withValues(alpha: 0.25)
+                          : Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.local_shipping_outlined, color: Colors.blue.shade700, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'ESTIMASI PENGANTARAN',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade500,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.blue.withValues(alpha: 0.3), width: 0.5),
+                              ),
+                              child: Text(
+                                widget.isDeliveryCrossDay ? 'Hari Berikutnya' : 'Otomatis Sistem',
+                                style: const TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          estDeliveryText,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.grey.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Waktu pengantaran ditentukan sistem kurir setelah pickup.',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKendaraanCard(bool isDarkMode, Color primaryColor) {
+    final isMobil = widget.selectedVehicle.toLowerCase() == 'mobil';
+    final vehicleName = isMobil ? 'Mobil' : 'Motor';
+    final vehicleDesc = isMobil
+        ? 'Kapasitas besar / banyak barang'
+        : 'Standar reguler (Maks. 20 kg)';
+    final vehicleIcon = isMobil ? Icons.directions_car : Icons.two_wheeler;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'JENIS KENDARAAN',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade100,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? Colors.orange.shade900.withValues(alpha: 0.2)
+                          : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(vehicleIcon, color: primaryColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        vehicleName,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode
+                              ? Colors.white
+                              : Colors.grey.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        vehicleDesc,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDarkMode
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? primaryColor.withValues(alpha: 0.15)
+                      : primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, size: 12, color: primaryColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Dipilih',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildInformasiPengiriman(bool isDarkMode, Color primaryColor) {
     return Column(
@@ -374,7 +912,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              ((widget.senderData?['address'] ?? '') + (widget.senderData?['kecamatan_name'] != null ? ', ' + widget.senderData!['kecamatan_name'] : '')).trim().isEmpty ? 'Alamat Pengirim' : ((widget.senderData?['address'] ?? '') + (widget.senderData?['kecamatan_name'] != null ? ', ' + widget.senderData!['kecamatan_name'] : '')),
+                              ((widget.senderData?['address'] ?? '') + (widget.senderData?['kecamatan_name'] != null ? ', ${widget.senderData!['kecamatan_name']}' : '')).trim().isEmpty ? 'Alamat Pengirim' : ((widget.senderData?['address'] ?? '') + (widget.senderData?['kecamatan_name'] != null ? ', ${widget.senderData!['kecamatan_name']}' : '')),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isDarkMode
@@ -436,7 +974,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              ((widget.receiverData?['address'] ?? '') + (widget.receiverData?['kecamatan_name'] != null ? ', ' + widget.receiverData!['kecamatan_name'] : '')).trim().isEmpty ? 'Alamat Penerima' : ((widget.receiverData?['address'] ?? '') + (widget.receiverData?['kecamatan_name'] != null ? ', ' + widget.receiverData!['kecamatan_name'] : '')),
+                              ((widget.receiverData?['address'] ?? '') + (widget.receiverData?['kecamatan_name'] != null ? ', ${widget.receiverData!['kecamatan_name']}' : '')).trim().isEmpty ? 'Alamat Penerima' : ((widget.receiverData?['address'] ?? '') + (widget.receiverData?['kecamatan_name'] != null ? ', ${widget.receiverData!['kecamatan_name']}' : '')),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isDarkMode
@@ -510,58 +1048,89 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.itemDeskripsi,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.grey.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
+                child: Builder(
+                  builder: (context) {
+                    final double actualWeight = widget.itemBerat;
+                    final double volumetricWeight = widget.itemBeratVolumetrik ?? widget.itemBeratVolume;
+                    final double shippingWeight = widget.itemBeratPengiriman ??
+                        (actualWeight > volumetricWeight ? actualWeight : volumetricWeight);
+                    final String formatActual = actualWeight % 1 == 0 ? '${actualWeight.toInt()}' : actualWeight.toStringAsFixed(1);
+                    final String formatVol = volumetricWeight % 1 == 0 ? '${volumetricWeight.toInt()}' : volumetricWeight.toStringAsFixed(1);
+                    final String formatShip = shippingWeight % 1 == 0 ? '${shippingWeight.toInt()}' : shippingWeight.toStringAsFixed(1);
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Text(
+                          widget.itemDeskripsi,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.grey.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Icon(
-                              Icons.monitor_weight_outlined,
-                              size: 10,
-                              color: Colors.grey.shade400,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.scale,
+                                  size: 11,
+                                  color: primaryColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Berat: $formatShip kg',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryColor,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${widget.itemBerat} kg',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey.shade500,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '(Aktual $formatActual kg • Vol $formatVol kg)',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        const SizedBox(width: 12),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.straighten,
-                              size: 10,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${widget.itemBeratVolume.toStringAsFixed(1)} kg (Vol)',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey.shade500,
+                        if (widget.itemPanjang != null && widget.itemLebar != null && widget.itemTinggi != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.straighten,
+                                size: 10,
+                                color: Colors.grey.shade400,
                               ),
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${widget.itemPanjang!.toInt()}×${widget.itemLebar!.toInt()}×${widget.itemTinggi!.toInt()} cm',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -638,7 +1207,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                         ),
                       ),
                       Text(
-                        'Estimasi $courierDur sampai',
+                        courierDur.startsWith('Estimasi') || courierDur.startsWith('Tiba')
+                            ? courierDur
+                            : 'Estimasi $courierDur sampai',
                         style: TextStyle(
                           fontSize: 10,
                           color: isDarkMode
@@ -884,13 +1455,27 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             ),
             alignment: Alignment.center,
             child: _isSubmitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Memproses Pesanan...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   )
                 : const Text(
                     'Bayar Sekarang',

@@ -8,9 +8,17 @@ import 'package:city_courierapp/services/courier/courier_profile_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_account_info_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_help_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_settings_screen.dart';
+import 'package:city_courierapp/screens/profile/profile_screen.dart';
 
 class DriverProfileScreen extends StatefulWidget {
-  const DriverProfileScreen({super.key});
+  final bool fromPersonalProfile;
+  final Map<String, dynamic>? initialProfileData;
+
+  const DriverProfileScreen({
+    super.key,
+    this.fromPersonalProfile = false,
+    this.initialProfileData,
+  });
 
   @override
   State<DriverProfileScreen> createState() => _DriverProfileScreenState();
@@ -20,18 +28,25 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _profileData;
   String? _errorMessage;
+  bool _isCourierMode = true;
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialProfileData != null) {
+      _profileData = widget.initialProfileData;
+      _isLoading = false;
+    }
     _loadProfile();
   }
 
   Future<void> _loadProfile() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (_profileData == null) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final result = await CourierProfileService.getProfile();
@@ -39,7 +54,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         setState(() {
           if (result['success'] == true) {
             _profileData = result['data'];
-          } else {
+            _errorMessage = null;
+          } else if (_profileData == null) {
             _errorMessage = result['message'];
           }
           _isLoading = false;
@@ -48,7 +64,9 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          if (_profileData == null) {
+            _errorMessage = e.toString();
+          }
           _isLoading = false;
         });
       }
@@ -196,7 +214,9 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         ),
       ),
       padding: const EdgeInsets.all(20),
-      child: Row(
+      child: Column(
+        children: [
+          Row(
         children: [
           Container(
             width: 80,
@@ -217,14 +237,40 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                           : 'https://citycourier.pabm.space/storage/${user?['photo_url'] ?? user?['photo']}',
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
-                          Image.network(
-                        'https://ui-avatars.com/api/?name=${Uri.encodeComponent(user?['name'] ?? 'Driver')}&background=F1F5F9&color=1A1A1A&size=100',
-                        fit: BoxFit.cover,
+                          Container(
+                        color: const Color(0xFFF1F5F9),
+                        child: Center(
+                          child: Text(
+                            (user?['name'] as String?)?.isNotEmpty == true
+                                ? (user!['name'] as String)
+                                    .substring(0, 1)
+                                    .toUpperCase()
+                                : 'D',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ),
                       ),
                     )
-                  : Image.network(
-                      'https://ui-avatars.com/api/?name=${Uri.encodeComponent(user?['name'] ?? 'Driver')}&background=F1F5F9&color=1A1A1A&size=100',
-                      fit: BoxFit.cover,
+                  : Container(
+                      color: const Color(0xFFF1F5F9),
+                      child: Center(
+                        child: Text(
+                          (user?['name'] as String?)?.isNotEmpty == true
+                              ? (user!['name'] as String)
+                                  .substring(0, 1)
+                                  .toUpperCase()
+                              : 'D',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        ),
+                      ),
                     ),
             ),
           ),
@@ -293,7 +339,133 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           ),
         ],
       ),
-    );
+      const SizedBox(height: 16),
+      // Bottom Section: Mode Switch (Akun Personal vs Akun Kurir)
+      Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  if (!_isCourierMode) return;
+                  setState(() => _isCourierMode = false);
+                  if (widget.fromPersonalProfile && Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                      (route) => route.isFirst,
+                    );
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: !_isCourierMode
+                        ? primaryColor
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(100),
+                    boxShadow: !_isCourierMode
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            )
+                          ]
+                        : [],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        color: !_isCourierMode
+                            ? Colors.white
+                            : const Color(0xFF9CA3AF),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Akun Personal',
+                        style: TextStyle(
+                          color: !_isCourierMode
+                              ? Colors.white
+                              : const Color(0xFF9CA3AF),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  if (_isCourierMode) return;
+                  setState(() => _isCourierMode = true);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _isCourierMode
+                        ? primaryColor
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(100),
+                    boxShadow: _isCourierMode
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            )
+                          ]
+                        : [],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.work_outline,
+                        color: _isCourierMode
+                            ? Colors.white
+                            : const Color(0xFF9CA3AF),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Akun Kurir',
+                        style: TextStyle(
+                          color: _isCourierMode
+                              ? Colors.white
+                              : const Color(0xFF9CA3AF),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+);
   }
 
   bool _hasEmptyFields() {

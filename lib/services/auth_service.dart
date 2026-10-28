@@ -1,9 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:city_courierapp/services/token_store.dart';
 
 class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
+
+  /// Memeriksa apakah pengguna saat ini telah login (memiliki sesi aktif)
+  static Future<bool> isLoggedIn() async {
+    return await TokenStore.isLoggedIn();
+  }
 
   static Future<String?> getGoogleIdToken() async {
     try {

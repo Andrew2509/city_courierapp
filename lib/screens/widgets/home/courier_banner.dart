@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
-import 'package:city_courierapp/screens/profile/daftar_kurir/courier_registration_screen.dart';
+import 'package:city_courierapp/screens/profile/daftar_kurir/views/informasi_pendaftaran_screen.dart';
 import 'package:city_courierapp/services/courier/courier_api_service.dart';
 
 class CourierBanner extends StatelessWidget {
   final Map<String, dynamic>? userData;
-  const CourierBanner({Key? key, this.userData}) : super(key: key);
+  const CourierBanner({super.key, this.userData});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +18,12 @@ class CourierBanner extends StatelessWidget {
       child: Column(
         children: [
           GestureDetector(
-            onTap: () => _handleCourierNavigation(context),
+            onTap: () {
+              AuthGuard.runWithAuth(
+                context,
+                onAuthenticated: () => _handleCourierNavigation(context),
+              );
+            },
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
@@ -96,18 +102,45 @@ class CourierBanner extends StatelessWidget {
         Navigator.pop(context); // Close loading dialog
 
         if (result['success'] == true) {
-          // User is already a courier, go to dashboard
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-          );
+          final isVerified = result['data']['is_verified'] == true ||
+              result['data']['is_verified'] == 1;
+
+          if (isVerified) {
+            // User is already a courier and verified, go to dashboard
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
+            );
+          } else {
+            // Courier exists but not yet verified
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.hourglass_empty, color: Color(0xFFEC5B13)),
+                    SizedBox(width: 10),
+                    Text('Menunggu Verifikasi'),
+                  ],
+                ),
+                content: const Text(
+                  'Pendaftaran Anda sedang ditinjau oleh admin. Silakan cek kembali nanti atau hubungi bantuan jika sudah lebih dari 2x24 jam.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Tutup'),
+                  ),
+                ],
+              ),
+            );
+          }
         } else {
-          // User is not a courier, go to registration screen
+          // User is not a courier, go to new registration screen from profile
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  CourierRegistrationScreen(userData: userData),
+              builder: (context) => const InformasiPendaftaranScreen(),
             ),
           );
         }

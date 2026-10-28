@@ -20,6 +20,12 @@ class TokenStore {
 
   static String? _cache;
 
+  /// Cek apakah saat ini login (memiliki token aktif).
+  static Future<bool> isLoggedIn() async {
+    final token = await read();
+    return token != null && token.isNotEmpty;
+  }
+
   /// Baca token sesi (cache in-memory terlebih dahulu).
   static Future<String?> read() async {
     if (_cache != null) return _cache;

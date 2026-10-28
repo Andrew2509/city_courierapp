@@ -354,6 +354,11 @@ class _ShipmentStatusListScreenState extends State<ShipmentStatusListScreen> {
               _detailRow('Alamat Tujuan', shipment.deliveryAddress),
               _detailRow('Berat', '${shipment.weight} kg'),
               _detailRow('Total Biaya', _formatCurrency(shipment.totalPrice)),
+              if (shipment.vehicleType != null && shipment.vehicleType!.isNotEmpty)
+                _detailRow(
+                  'Jenis Kendaraan',
+                  shipment.vehicleType!.toLowerCase() == 'mobil' ? 'Mobil' : 'Motor',
+                ),
               if (shipment.courierName != null)
                 _detailRow('Kurir', shipment.courierName!),
               if (shipment.trackingNumber != null)

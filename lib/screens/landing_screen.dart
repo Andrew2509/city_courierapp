@@ -81,6 +81,29 @@ class _LandingScreenState extends State<LandingScreen> {
                           ),
                         ),
                       ),
+
+                      // Close / Back button if opened as a pushed route
+                      if (Navigator.canPop(context))
+                        Positioned(
+                          top: 14,
+                          right: 20,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.25),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
 

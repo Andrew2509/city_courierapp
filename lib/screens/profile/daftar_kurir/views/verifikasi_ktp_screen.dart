@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
+import '../daftar_kurir_data.dart';
 
 class VerifikasiKtpScreen extends StatefulWidget {
   const VerifikasiKtpScreen({super.key});
@@ -147,6 +149,9 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
                 PrimaryButton(
                   text: 'Simpan',
                   onPressed: () {
+                    if (_imageFile != null) {
+                      context.read<DaftarKurirData>().idCardPath = _imageFile!.path;
+                    }
                     Navigator.pop(context);
                   },
                 ),

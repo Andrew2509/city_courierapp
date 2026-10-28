@@ -217,6 +217,8 @@ class CustomTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final int maxLines;
   final bool isRequired;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
 
   const CustomTextField({
     super.key,
@@ -226,6 +228,8 @@ class CustomTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.maxLines = 1,
     this.isRequired = false,
+    this.controller,
+    this.onChanged,
   });
 
   @override
@@ -248,8 +252,10 @@ class CustomTextField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextFormField(
+          controller: controller,
           maxLines: maxLines,
           keyboardType: keyboardType,
+          onChanged: onChanged,
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,

@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:city_courierapp/services/courier/courier_registration_service.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
-import 'pilih_kota_screen.dart';
+import '../daftar_kurir_data.dart';
+import 'pilih_area_screen.dart';
 
 class VerifikasiOtpScreen extends StatefulWidget {
   final String phoneNumber;
@@ -21,18 +26,32 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
     6,
     (index) => TextEditingController(),
   );
-  
+
   final List<FocusNode> _focusNodes = List.generate(
     6,
     (index) => FocusNode(),
   );
 
+  bool _isVerifying = false;
+  int _resendSeconds = 60;
+  Timer? _resendTimer;
+
   bool get _isOtpComplete {
     return _controllers.every((controller) => controller.text.isNotEmpty);
   }
 
+  String get _otpCode =>
+      _controllers.map((controller) => controller.text).join();
+
+  @override
+  void initState() {
+    super.initState();
+    _startResendTimer();
+  }
+
   @override
   void dispose() {
+    _resendTimer?.cancel();
     for (var controller in _controllers) {
       controller.dispose();
     }
@@ -40,6 +59,84 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
       node.dispose();
     }
     super.dispose();
+  }
+
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() => _resendSeconds = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendSeconds <= 1) {
+        timer.cancel();
+        setState(() => _resendSeconds = 0);
+      } else {
+        setState(() => _resendSeconds--);
+      }
+    });
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  String get _formattedTimer {
+    final minutes = (_resendSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_resendSeconds % 60).toString().padLeft(2, '0');
+    return '($minutes:$seconds)';
+  }
+
+  Future<void> _resendOtp() async {
+    if (_resendSeconds > 0) return;
+
+    final result = await CourierRegistrationService.requestPhoneOtp(
+      widget.phoneNumber,
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      _showMessage('Kode verifikasi telah dikirim ulang ke WhatsApp.');
+      _startResendTimer();
+    } else {
+      _showMessage(result['message']?.toString() ?? 'Gagal mengirim ulang kode.');
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    if (!_isOtpComplete) return;
+
+    setState(() => _isVerifying = true);
+
+    final result = await CourierRegistrationService.verifyPhoneOtp(
+      widget.phoneNumber,
+      _otpCode,
+    );
+
+    if (!mounted) return;
+    setState(() => _isVerifying = false);
+
+    if (result['success'] == true) {
+      context.read<DaftarKurirData>().phone = widget.phoneNumber;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const PilihAreaScreen(),
+        ),
+      );
+    } else {
+      _showMessage(result['message']?.toString() ?? 'Kode OTP salah.');
+      for (var controller in _controllers) {
+        controller.clear();
+      }
+      _focusNodes.first.requestFocus();
+      setState(() {});
+    }
   }
 
   @override
@@ -50,16 +147,8 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
       totalSteps: 4,
       bottomAction: PrimaryButton(
         text: 'Verifikasi',
-        onPressed: _isOtpComplete
-            ? () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PilihKotaScreen(),
-                  ),
-                );
-              }
-            : null,
+        isLoading: _isVerifying,
+        onPressed: _isOtpComplete ? _verifyOtp : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -86,7 +175,7 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
               children: [
                 const TextSpan(text: 'Kode verifikasi telah dikirimkan melalui WhatsApp ke\n'),
                 TextSpan(
-                  text: '+62 ${widget.phoneNumber}',
+                  text: '+${widget.phoneNumber}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: DaftarKurirColors.textDark,
@@ -151,25 +240,36 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
           const SizedBox(height: 32),
           Center(
             child: RichText(
-              text: const TextSpan(
-                style: TextStyle(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: const TextStyle(
                   fontSize: 14,
                   color: DaftarKurirColors.textMuted,
                 ),
                 children: [
-                  TextSpan(text: 'Belum menerima kode? '),
-                  TextSpan(
-                    text: 'Kirim ulang kode ',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: DaftarKurirColors.primary,
+                  const TextSpan(text: 'Belum menerima kode? '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: GestureDetector(
+                      onTap: _resendSeconds == 0 ? _resendOtp : null,
+                      child: Text(
+                        'Kirim ulang kode ',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _resendSeconds == 0
+                              ? DaftarKurirColors.primary
+                              : DaftarKurirColors.textMuted,
+                        ),
+                      ),
                     ),
                   ),
                   TextSpan(
-                    text: '(00:59)',
+                    text: _formattedTimer,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: DaftarKurirColors.primary,
+                      color: _resendSeconds == 0
+                          ? DaftarKurirColors.primary
+                          : DaftarKurirColors.textMuted,
                     ),
                   ),
                 ],

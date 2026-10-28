@@ -14,8 +14,13 @@ class PaymentMethodScreen extends StatefulWidget {
   final String? trackingNumber;
   final String? barcodeData;
   final String? barcodeUrl;
+  final String? senderName;
   final String? senderCity;
+  final String? receiverName;
   final String? receiverCity;
+  final String? vehicle;
+  final String? trackingUrl;
+  final Map<String, dynamic>? shipmentData;
 
   const PaymentMethodScreen({
     super.key,
@@ -24,8 +29,13 @@ class PaymentMethodScreen extends StatefulWidget {
     this.trackingNumber,
     this.barcodeData,
     this.barcodeUrl,
+    this.senderName,
     this.senderCity,
+    this.receiverName,
     this.receiverCity,
+    this.vehicle,
+    this.trackingUrl,
+    this.shipmentData,
   });
 
   @override
@@ -455,8 +465,6 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                   ],
                 ),
               ),
-                // ignore: deprecated_member_use
-                // ignore: deprecated_member_use
               Radio<String>(
                 value: method.code,
                 groupValue: selectedMethodCode,
@@ -742,7 +750,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
 
     setState(() => isLoading = true);
     try {
-      print('DEBUG: Creating Payment - ShipmentId: ${widget.shipmentId}, Type: $selectedMethodGroup, Channel: $selectedMethodCode, Amount: ${widget.totalAmount}');
+      debugPrint('DEBUG: Creating Payment - ShipmentId: ${widget.shipmentId}, Type: $selectedMethodGroup, Channel: $selectedMethodCode, Amount: ${widget.totalAmount}');
       
       // 1. COD & TUNAI: Konfirmasi pembayaran ke backend (status pending → confirmed)
       if (selectedMethodCode!.toUpperCase() == 'COD' || selectedMethodCode!.toUpperCase() == 'TUNAI') {
@@ -751,7 +759,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             'payment_method': selectedMethodCode!.toUpperCase(),
           });
         } catch (e) {
-          print('DEBUG: COD/TUNAI confirmPayment error: $e');
+          debugPrint('DEBUG: COD/TUNAI confirmPayment error: $e');
         }
 
         if (mounted) {
@@ -765,6 +773,13 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 amount: widget.totalAmount,
                 barcodeData: widget.barcodeData,
                 barcodeUrl: widget.barcodeUrl,
+                senderName: widget.senderName,
+                senderCity: widget.senderCity,
+                receiverName: widget.receiverName,
+                receiverCity: widget.receiverCity,
+                vehicle: widget.vehicle,
+                trackingUrl: widget.trackingUrl,
+                shipmentData: widget.shipmentData,
               ),
             ),
             (route) => false,

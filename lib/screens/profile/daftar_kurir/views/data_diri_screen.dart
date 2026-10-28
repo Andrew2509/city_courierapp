@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
+import '../daftar_kurir_data.dart';
 import 'data_kendaraan_screen.dart';
 
 class DataDiriScreen extends StatefulWidget {
@@ -12,9 +14,28 @@ class DataDiriScreen extends StatefulWidget {
 
 class _DataDiriScreenState extends State<DataDiriScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _nikController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _nikController.dispose();
+    _emailController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final existingData = context.read<DaftarKurirData>();
+    if (_cityController.text.isEmpty && existingData.city != null) {
+      _cityController.text = existingData.city!;
+    }
     return ScreenLayout(
       title: 'Data Diri',
       currentStep: 2,
@@ -22,6 +43,18 @@ class _DataDiriScreenState extends State<DataDiriScreen> {
       bottomAction: PrimaryButton(
         text: 'Lanjutkan',
         onPressed: () {
+          if (_nameController.text.isEmpty || _nikController.text.isEmpty || _emailController.text.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mohon lengkapi semua data.')));
+            return;
+          }
+          final data = context.read<DaftarKurirData>();
+          data.name = _nameController.text;
+          data.nik = _nikController.text;
+          data.email = _emailController.text;
+          data.address = _addressController.text;
+          if (_cityController.text.isNotEmpty) {
+            data.city = _cityController.text;
+          }
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -67,15 +100,17 @@ class _DataDiriScreenState extends State<DataDiriScreen> {
                     label: 'Nama Lengkap',
                     hintText: 'Sesuai KTP',
                     prefixIcon: Icons.person_outline,
+                    controller: _nameController,
                     isRequired: false,
                   ),
                   const SizedBox(height: 16),
-                  
+
                   CustomTextField(
                     label: 'Nomor Induk Kependudukan (NIK)',
                     hintText: '16 digit NIK',
                     keyboardType: TextInputType.number,
                     prefixIcon: Icons.badge_outlined,
+                    controller: _nikController,
                     isRequired: false,
                   ),
                   const SizedBox(height: 16),
@@ -160,6 +195,7 @@ class _DataDiriScreenState extends State<DataDiriScreen> {
                     hintText: 'contoh@email.com',
                     keyboardType: TextInputType.emailAddress,
                     prefixIcon: Icons.mail_outline,
+                    controller: _emailController,
                     isRequired: false,
                   ),
                   const SizedBox(height: 4),
@@ -169,6 +205,22 @@ class _DataDiriScreenState extends State<DataDiriScreen> {
                       fontSize: 12,
                       color: DaftarKurirColors.textSub,
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    label: 'Alamat Lengkap',
+                    hintText: 'Jl. Contoh No. 123, RT/RW, Kelurahan',
+                    prefixIcon: Icons.home_outlined,
+                    controller: _addressController,
+                    isRequired: false,
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    label: 'Kota',
+                    hintText: 'Isi kota sesuai area operasional',
+                    prefixIcon: Icons.location_city_outlined,
+                    controller: _cityController,
+                    isRequired: false,
                   ),
                 ],
               ),

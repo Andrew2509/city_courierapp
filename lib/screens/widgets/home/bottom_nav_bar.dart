@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/history/shipping_history_screen.dart';
-
 import 'package:city_courierapp/screens/profile/profile_screen.dart';
 
 class BottomNavBar extends StatelessWidget {
@@ -44,19 +44,69 @@ class BottomNavBar extends StatelessWidget {
                     (route) => false,
                   );
                 }),
-                _buildNavItem(context, 'Laporan', Icons.analytics_outlined, activeIndex == 1, isDarkMode, primaryColor),
-                _buildNavItem(context, 'Riwayat', Icons.history_rounded, activeIndex == 2, isDarkMode, primaryColor, onTap: activeIndex == 2 ? null : () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ShippingHistoryScreen()),
-                  );
-                }),
-                _buildNavItem(context, 'Profile', Icons.person_outline_rounded, activeIndex == 3, isDarkMode, primaryColor, onTap: activeIndex == 3 ? null : () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                  );
-                }),
+                _buildNavItem(
+                  context,
+                  'Laporan',
+                  Icons.analytics_outlined,
+                  activeIndex == 1,
+                  isDarkMode,
+                  primaryColor,
+                  onTap: activeIndex == 1
+                      ? null
+                      : () {
+                          AuthGuard.runWithAuth(
+                            context,
+                            onAuthenticated: () {},
+                          );
+                        },
+                ),
+                _buildNavItem(
+                  context,
+                  'Riwayat',
+                  Icons.history_rounded,
+                  activeIndex == 2,
+                  isDarkMode,
+                  primaryColor,
+                  onTap: activeIndex == 2
+                      ? null
+                      : () {
+                          AuthGuard.runWithAuth(
+                            context,
+                            onAuthenticated: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ShippingHistoryScreen(),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                ),
+                _buildNavItem(
+                  context,
+                  'Profile',
+                  Icons.person_outline_rounded,
+                  activeIndex == 3,
+                  isDarkMode,
+                  primaryColor,
+                  onTap: activeIndex == 3
+                      ? null
+                      : () {
+                          AuthGuard.runWithAuth(
+                            context,
+                            onAuthenticated: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ProfileScreen(),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                ),
               ],
             ),
           ),

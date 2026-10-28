@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 
@@ -90,7 +91,12 @@ class ServicesSection extends StatelessWidget {
       children: [
         GestureDetector(
           onTap: () {
-            // Handle service navigation
+            AuthGuard.runWithAuth(
+              context,
+              onAuthenticated: () {
+                // Handle service navigation
+              },
+            );
           },
           child: Container(
             width: 60,

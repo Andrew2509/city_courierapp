@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:city_courierapp/services/token_store.dart';
+import 'package:city_courierapp/services/auth_service.dart';
 
 class ApiService {
   // Gunakan 10.0.2.2 untuk Android Emulator, 127.0.0.1 untuk iOS Simulator / Web
@@ -191,6 +193,12 @@ class ApiService {
 
   static Future<void> logout() async {
     await TokenStore.clear();
+    try {
+      await AuthService.signOut().timeout(
+        const Duration(milliseconds: 300),
+        onTimeout: () {},
+      );
+    } catch (_) {}
   }
 
   static Future<List<dynamic>> getDropPoints() async {
@@ -239,11 +247,12 @@ class ApiService {
   }
 
   /// Generic authenticated POST helper.
-  /// Returns decoded JSON map or null on failure.
+  /// Returns decoded JSON map or error structure on failure.
   static Future<Map<String, dynamic>?> post(
     String endpoint,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
     try {
       final token = await TokenStore.read();
 
@@ -257,16 +266,43 @@ class ApiService {
             },
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(timeout);
+
+      Map<String, dynamic>? decodedBody;
+      try {
+        final parsed = jsonDecode(response.body);
+        if (parsed is Map<String, dynamic>) {
+          decodedBody = parsed;
+        }
+      } catch (_) {}
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        return decodedBody ?? {'success': true};
       }
+
       print('ApiService.post error ${response.statusCode}: ${response.body}');
-      return null;
+      if (decodedBody != null) {
+        return decodedBody;
+      }
+
+      return {
+        'success': false,
+        'status_code': response.statusCode,
+        'message': 'Gagal memproses permintaan (Kode ${response.statusCode})',
+      };
+    } on TimeoutException catch (e) {
+      print('ApiService.post exception: TimeoutException on $endpoint after ${timeout.inSeconds}s: $e');
+      return {
+        'success': false,
+        'is_timeout': true,
+        'message': 'Koneksi ke server timeout (${timeout.inSeconds} detik). Server membutuhkan waktu lebih lama untuk memproses pesanan.',
+      };
     } catch (e) {
       print('ApiService.post exception: $e');
-      return null;
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan jaringan: $e',
+      };
     }
   }
 

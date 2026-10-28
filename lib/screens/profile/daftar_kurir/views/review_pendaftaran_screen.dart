@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
+import '../daftar_kurir_data.dart';
 import 'persetujuan_screen.dart';
 
 class ReviewPendaftaranScreen extends StatelessWidget {
@@ -8,6 +10,7 @@ class ReviewPendaftaranScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final data = context.watch<DaftarKurirData>();
     return ScreenLayout(
       bottomAction: PrimaryButton(
         text: 'Lanjutkan ke Persetujuan',
@@ -33,49 +36,45 @@ class ReviewPendaftaranScreen extends StatelessWidget {
             style: DaftarKurirTextStyles.subtitle,
           ),
           const SizedBox(height: 32),
-          
+
           _buildSection(
             title: 'Informasi Pendaftaran',
             children: [
-              _buildDataRow('Kota', 'Surabaya'),
-              _buildDataRow('Kendaraan', 'Motor'),
-              _buildDataRow('Tipe Kurir', 'Kurir Umum'),
-              _buildDataRow('Layanan', 'Pengiriman Paket, Instant'),
-              _buildDataRow('Area', 'Kecamatan Tegalsari'),
+              _buildDataRow('Area Operasional', data.area ?? '-'),
+              _buildDataRow('Jenis Kendaraan', data.vehicleType ?? '-'),
             ],
           ),
           const SizedBox(height: 24),
-          
+
           _buildSection(
             title: 'Data Diri',
             children: [
-              _buildDataRow('Nama Lengkap', 'Budi Santoso'),
-              _buildDataRow('Nomor KTP', '3578000000000001'),
-              _buildDataRow('Tanggal Lahir', '01-01-1990'),
-              _buildDataRow('Alamat', 'Jl. Merdeka No. 1, Surabaya'),
+              _buildDataRow('Nama Lengkap', data.name ?? '-'),
+              _buildDataRow('Nomor KTP', data.nik ?? '-'),
+              _buildDataRow('Email', data.email ?? '-'),
+              _buildDataRow('Alamat', data.address ?? '-'),
+              _buildDataRow('Kota', data.city ?? '-'),
             ],
           ),
           const SizedBox(height: 24),
-          
+
           _buildSection(
             title: 'Data Kendaraan',
             children: [
-              _buildDataRow('Merek', 'Honda'),
-              _buildDataRow('Tipe', 'Vario 150'),
-              _buildDataRow('Tahun', '2020'),
-              _buildDataRow('Plat Nomor', 'L 1234 AB'),
+              _buildDataRow('Merek', data.vehicleBrand ?? '-'),
+              _buildDataRow('Tahun', data.vehicleYear ?? '-'),
+              _buildDataRow('Plat Nomor', data.vehiclePlate ?? '-'),
             ],
           ),
           const SizedBox(height: 24),
-          
+
           _buildSection(
             title: 'Dokumen Terlampir',
             children: [
-              _buildDocumentRow('Foto KTP', true),
-              _buildDocumentRow('Foto Wajah', true),
-              _buildDocumentRow('SIM', true),
-              _buildDocumentRow('STNK', true),
-              _buildDocumentRow('SKCK', true),
+              _buildDocumentRow('Foto KTP', data.idCardPath != null),
+              _buildDocumentRow('Foto Wajah', data.photoPath != null),
+              _buildDocumentRow('SIM', data.licensePath != null),
+              _buildDocumentRow('SKCK', data.skckPath != null),
             ],
           ),
         ],

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
-import 'pendaftaran_berhasil_screen.dart';
+import '../daftar_kurir_data.dart';
+import 'package:city_courierapp/services/courier/courier_registration_service.dart';
+import 'status_pendaftaran_screen.dart';
 
 class PersetujuanScreen extends StatefulWidget {
   const PersetujuanScreen({super.key});
@@ -12,22 +15,84 @@ class PersetujuanScreen extends StatefulWidget {
 
 class _PersetujuanScreenState extends State<PersetujuanScreen> {
   bool _isAgreed = false;
+  bool _isSubmitting = false;
+
+  Future<void> _submitRegistration() async {
+    final data = context.read<DaftarKurirData>();
+
+    if (data.name == null || data.email == null || data.nik == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data diri tidak lengkap. Kembali ke sebelumnya.')),
+      );
+      return;
+    }
+    if (data.phone == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nomor HP tidak tersedia.')),
+      );
+      return;
+    }
+    if (data.photoPath == null || data.idCardPath == null || data.licensePath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dokumen belum lengkap. Mohon unggah semua dokumen.')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    final result = await CourierRegistrationService.register(
+      name: data.name!,
+      email: data.email!,
+      password: 'password123',
+      passwordConfirmation: 'password123',
+      nik: data.nik!,
+      phone: data.phone!,
+      address: data.address ?? '',
+      city: data.city ?? '',
+      vehicleType: data.vehicleType ?? 'motor',
+      vehicleBrand: data.vehicleBrand ?? '',
+      vehicleYear: data.vehicleYear ?? '',
+      vehiclePlate: data.vehiclePlate ?? '',
+      photoPath: data.photoPath!,
+      idCardPath: data.idCardPath!,
+      licensePath: data.licensePath!,
+      skckPath: data.skckPath,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (result['success'] == true) {
+      final token = result['data']?['token'] as String?;
+      if (token != null) {
+        data.token = token;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const StatusPendaftaranScreen(),
+        ),
+      );
+    } else {
+      final errors = result['errors'];
+      String errorMsg = result['message']?.toString() ?? 'Registrasi gagal.';
+      if (errors is Map) {
+        errorMsg = errors.values.map((v) => v.toString()).join('\n');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMsg)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return ScreenLayout(
       bottomAction: PrimaryButton(
-        text: 'Kirim Pendaftaran',
-        onPressed: _isAgreed
-            ? () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PendaftaranBerhasilScreen(),
-                  ),
-                );
-              }
-            : null,
+        text: _isSubmitting ? 'Mengirim...' : 'Kirim Pendaftaran',
+        isLoading: _isSubmitting,
+        onPressed: _isAgreed && !_isSubmitting ? _submitRegistration : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
