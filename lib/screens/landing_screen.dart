@@ -55,7 +55,7 @@ class _LandingScreenState extends State<LandingScreen> {
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Image.asset(
-                            'assets/images/Logo City Courie.png',
+                            'assets/images/Logo City Courie1.png',
                             height: 100,
                             fit: BoxFit.contain,
                           ),
