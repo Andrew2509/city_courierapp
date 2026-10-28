@@ -560,7 +560,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              'assets/images/Logo_City_Courier.png',
+              'assets/images/Logo City Courie.png',
               height: 32,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) => Container(
