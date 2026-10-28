@@ -473,8 +473,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    // Dynamic bottom position for the floating buttons directly above the bottom card
-    final buttonBottom = bottomInset + 205.0;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -711,202 +709,206 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               ),
             ),
 
-          // ── 5. Floating Back Button (Bottom-Left above sheet, matching GoSend) ──
-          Positioned(
-            left: 16,
-            bottom: buttonBottom,
-            child: _CircleMapButton(
-              icon: Icons.arrow_back,
-              onTap: () => Navigator.pop(context),
-            ),
-          ),
-
-          // ── 6. Floating Current Location Button (Bottom-Right above sheet, matching GoSend) ──
-          Positioned(
-            right: 16,
-            bottom: buttonBottom,
-            child: _CircleMapButton(
-              icon: Icons.my_location,
-              isLoading: _isGettingGps,
-              onTap: _isGettingGps ? null : _useCurrentLocation,
-            ),
-          ),
-
-          // ── 7. GoSend Bottom Sheet Card ("Set lokasi pengiriman") ──
+          // ── 5. Floating Controls & GoSend Bottom Sheet Card ──
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, -4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Floating Action Buttons (Back on Left, GPS on Right)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _CircleMapButton(
+                        icon: Icons.arrow_back,
+                        onTap: () => Navigator.pop(context),
+                      ),
+                      _CircleMapButton(
+                        icon: Icons.my_location,
+                        isLoading: _isGettingGps,
+                        onTap: _isGettingGps ? null : _useCurrentLocation,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: bottomInset + 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title: "Set lokasi pengiriman"
-                  Text(
-                    widget.title.isNotEmpty ? widget.title : 'Set lokasi pengiriman',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
+                ),
 
-                  // Address Row: [Orange Square with Down Arrow] + [Title & Subtitle]
-                  Row(
+                // GoSend Bottom Sheet Card ("Set lokasi pengiriman")
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 20,
+                    bottom: bottomInset + 16,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Orange square badge matching GoSend
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEC5B13),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_downward_rounded,
-                          color: Colors.white,
-                          size: 22,
+                      // Title: "Set lokasi pengiriman"
+                      Text(
+                        widget.title.isNotEmpty ? widget.title : 'Set lokasi pengiriman',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(height: 14),
 
-                      // Address Text block
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Main Street/Place Title
-                            Text(
-                              _addressMainTitle,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF111827),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                      // Address Row: [Orange Square with Down Arrow] + [Title & Subtitle]
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Orange square badge matching GoSend
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEC5B13),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 2),
-
-                            // Subtitle Full Address
-                            Text(
-                              _addressSubTitle,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: Colors.grey.shade600,
-                                height: 1.3,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                            child: const Icon(
+                              Icons.arrow_downward_rounded,
+                              color: Colors.white,
+                              size: 22,
                             ),
+                          ),
+                          const SizedBox(width: 12),
 
-                            // Subtle RajaOngkir region tag
-                            if (_rajaOngkirMatch?['matched'] == true)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle,
-                                      size: 13,
-                                      color: Color(0xFF16A34A),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        'Wilayah: ${_rajaOngkirMatch!['full_label'] ?? _rajaOngkirMatch!['district_name']}',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF15803D),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                          // Address Text block
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Main Street/Place Title
+                                Text(
+                                  _addressMainTitle,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF111827),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              )
-                            else if (!_isReverseGeocoding &&
-                                !_isMatchingRegion &&
-                                _currentAddress != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.info_outline,
-                                      size: 13,
-                                      color: Color(0xFFD97706),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Expanded(
-                                      child: Text(
-                                        'Wilayah RajaOngkir dipilih di langkah berikutnya',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Color(0xFF92400E),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                                const SizedBox(height: 2),
+
+                                // Subtitle Full Address
+                                Text(
+                                  _addressSubTitle,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Colors.grey.shade600,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                          ],
+
+                                // Subtle RajaOngkir region tag
+                                if (_rajaOngkirMatch?['matched'] == true)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle,
+                                          size: 13,
+                                          color: Color(0xFF16A34A),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            'Wilayah: ${_rajaOngkirMatch!['full_label'] ?? _rajaOngkirMatch!['district_name']}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF15803D),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else if (!_isReverseGeocoding &&
+                                    !_isMatchingRegion &&
+                                    _currentAddress != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.info_outline,
+                                          size: 13,
+                                          color: Color(0xFFD97706),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Expanded(
+                                          child: Text(
+                                            'Wilayah RajaOngkir dipilih di langkah berikutnya',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF92400E),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Button "Lanjut" (GoSend Solid Green Pill Button)
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00880D), // GoSend Green
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                          onPressed: _confirmLocation,
+                          child: const Text(
+                            'Lanjut',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-
-                  // Button "Lanjut" (GoSend Solid Green Pill Button)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00880D), // GoSend Green
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                      ),
-                      onPressed: _confirmLocation,
-                      child: const Text(
-                        'Lanjut',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],

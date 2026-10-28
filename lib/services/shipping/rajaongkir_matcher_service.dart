@@ -83,6 +83,17 @@ class RajaOngkirMatcherService {
   ) {
     final dataset = _getMasterDataset();
 
+    // If cleanCit is empty, extract city from full address string
+    if (cleanCit.isEmpty && fullAddress != null) {
+      final addrLower = fullAddress.toLowerCase();
+      for (final c in dataset) {
+        if (addrLower.contains(c['clean_city'])) {
+          cleanCit = c['clean_city'];
+          break;
+        }
+      }
+    }
+
     // 1. Precise Match: Village / Kelurahan
     if (cleanVil.isNotEmpty) {
       for (final c in dataset) {
