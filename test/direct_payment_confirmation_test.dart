@@ -30,7 +30,9 @@ void main() {
       expect(find.text('Pesanan Berhasil'), findsOneWidget);
       expect(find.text('Menunggu Kurir'), findsOneWidget);
       expect(find.text('CC261028E5F6'), findsOneWidget);
-      expect(find.text('Bayar di Tempat (COD)'), findsOneWidget);
+      expect(find.text('COD'), findsOneWidget);
+      expect(find.text('Pembayaran Tunai'), findsOneWidget);
+      expect(find.text('Estimasi Penjemputan'), findsOneWidget);
       expect(find.text('Tunjukkan Resi / QR ini ke Kurir'), findsOneWidget);
 
       // Verifikasi tombol [ 🚚 Live Tracking ]
