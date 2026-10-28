@@ -443,6 +443,7 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
                                 MaterialPageRoute(
                                   builder: (context) => TrackingDetailScreen(
                                     trackingNumber: orderId,
+                                    shipmentData: shipmentData,
                                   ),
                                 ),
                               );

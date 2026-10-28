@@ -106,6 +106,17 @@ class TrackingModel {
   final DateTime? pickedUpAt;
   final DateTime? deliveredAt;
   final DateTime createdAt;
+  final String? senderName;
+  final String? senderPhone;
+  final String? receiverName;
+  final String? receiverPhone;
+  final String? vehicle;
+  final double? packageWeight;
+  final String? paymentMethod;
+  final int? totalCost;
+  final String? scheduleText;
+  final String? qrCodeUrl;
+  final Map<String, dynamic>? rawJson;
 
   const TrackingModel({
     required this.trackingNumber,
@@ -122,6 +133,17 @@ class TrackingModel {
     this.pickedUpAt,
     this.deliveredAt,
     required this.createdAt,
+    this.senderName,
+    this.senderPhone,
+    this.receiverName,
+    this.receiverPhone,
+    this.vehicle,
+    this.packageWeight,
+    this.paymentMethod,
+    this.totalCost,
+    this.scheduleText,
+    this.qrCodeUrl,
+    this.rawJson,
   });
 
   factory TrackingModel.fromJson(Map<String, dynamic> json) {
@@ -239,6 +261,20 @@ class TrackingModel {
         json['order_number'] ??
         '').toString();
 
+    // ── Extra Details ──
+    final senderName = json['sender_name']?.toString();
+    final senderPhone = json['sender_phone']?.toString();
+    final receiverName = json['receiver_name']?.toString();
+    final receiverPhone = json['receiver_phone']?.toString();
+    final vehicle = json['vehicle']?.toString() ?? json['vehicle_type']?.toString();
+    final packageWeight = parseDouble(json['package_weight']) ?? parseDouble(json['actual_weight']);
+    final paymentMethod = json['payment_method']?.toString();
+    final totalCost = (json['total_cost'] is num)
+        ? (json['total_cost'] as num).toInt()
+        : int.tryParse(json['total_cost']?.toString() ?? '');
+    final scheduleText = json['schedule_pickup_text']?.toString() ?? json['pickup_time']?.toString();
+    final qrCodeUrl = json['qr_code_url']?.toString();
+
     return TrackingModel(
       trackingNumber: trackingNumber,
       status: status,
@@ -254,6 +290,17 @@ class TrackingModel {
       pickedUpAt: parseDate(json['picked_up_at']),
       deliveredAt: parseDate(json['delivered_at']),
       createdAt: parseDate(json['created_at']) ?? DateTime.now(),
+      senderName: senderName,
+      senderPhone: senderPhone,
+      receiverName: receiverName,
+      receiverPhone: receiverPhone,
+      vehicle: vehicle,
+      packageWeight: packageWeight,
+      paymentMethod: paymentMethod,
+      totalCost: totalCost,
+      scheduleText: scheduleText,
+      qrCodeUrl: qrCodeUrl,
+      rawJson: json,
     );
   }
 }
@@ -317,6 +364,7 @@ class TrackingCourier {
 /// Item pada timeline pengiriman
 class TrackingTimelineItem {
   final String status;
+  final String? label;
   final String? location;
   final String? description;
   final DateTime? createdAt;
@@ -324,6 +372,7 @@ class TrackingTimelineItem {
 
   const TrackingTimelineItem({
     required this.status,
+    this.label,
     this.location,
     this.description,
     this.createdAt,
@@ -339,6 +388,7 @@ class TrackingTimelineItem {
 
     return TrackingTimelineItem(
       status: (json['status'] ?? '').toString(),
+      label: json['label']?.toString() ?? json['status_label']?.toString(),
       location: json['location']?.toString(),
       description: json['description']?.toString(),
       createdAt: parseDate(json['created_at']) ?? parseDate(json['timestamp']),
@@ -347,6 +397,7 @@ class TrackingTimelineItem {
   }
 
   String get statusLabel {
+    if (label != null && label!.isNotEmpty) return label!;
     switch (status.toLowerCase()) {
       case 'pending':
         return 'Pesanan dibuat';
