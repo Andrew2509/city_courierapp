@@ -4,8 +4,42 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../data/models/address_model.dart';
 import '../../services/maps/location_repository.dart';
+import '../../services/shipping/rajaongkir_matcher_service.dart';
 import '../../core/config/map_config.dart';
 import 'dart:async';
+
+/// Extended result from LocationPickerScreen that holds address details
+/// and RajaOngkir matched region ID/data.
+class LocationPickerResult extends Address {
+  final Map<String, dynamic>? rajaOngkirMatch;
+  final bool isRajaOngkirMatched;
+
+  LocationPickerResult({
+    required Address address,
+    required super.latitude,
+    required super.longitude,
+    this.rajaOngkirMatch,
+    this.isRajaOngkirMatched = false,
+  }) : super(
+          id: address.id,
+          placeId: address.placeId,
+          osmType: address.osmType,
+          osmId: address.osmId,
+          formattedAddress: address.formattedAddress,
+          houseNumber: address.houseNumber,
+          streetName: address.streetName,
+          neighbourhood: address.neighbourhood,
+          village: address.village,
+          district: address.district,
+          city: address.city,
+          province: address.province,
+          postalCode: address.postalCode,
+          country: address.country,
+          accuracy: address.accuracy,
+          locationSource: address.locationSource,
+          addressDetail: address.addressDetail,
+        );
+}
 
 /// Comprehensive location picker screen (PRD §13–§18, §31).
 ///
@@ -15,19 +49,19 @@ import 'dart:async';
 /// - Manual pin placement (PRD §14)
 /// - Current GPS location (PRD §16)
 /// - Reverse geocoding on map move (PRD §17)
-/// - Accuracy warning (PRD §18)
-/// - Confirm location (PRD §15)
+/// - RajaOngkir region auto-matching
+/// - Location Preview Card with statuses and action buttons
 class LocationPickerScreen extends StatefulWidget {
   final Address? initialAddress;
   final String? regionHint;
   final String title;
 
   const LocationPickerScreen({
-    Key? key,
+    super.key,
     this.initialAddress,
     this.regionHint,
     this.title = 'Pilih Lokasi',
-  }) : super(key: key);
+  });
 
   @override
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
@@ -41,6 +75,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   bool _isReverseGeocoding = false;
   bool _isGettingGps = false;
   bool _gpsAccuracyWarning = false;
+
+  // RajaOngkir matching state
+  Map<String, dynamic>? _rajaOngkirMatch;
+  bool _isMatchingRegion = false;
 
   // Search state
   final TextEditingController _searchController = TextEditingController();
@@ -60,11 +98,17 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         widget.initialAddress!.longitude,
       );
       _currentAddress = widget.initialAddress;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _matchRajaOngkir(_currentAddress, _currentCenter);
+      });
     } else {
       _currentCenter = const LatLng(
         MapConfig.defaultLatitude,
         MapConfig.defaultLongitude,
       );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateAddressFromMap();
+      });
     }
   }
 
@@ -77,7 +121,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.dispose();
   }
 
-  // ── Search (PRD §6, §7, §8, §9) ──────────────────────────────────
+  // ── Search ──────────────────────────────────────────────────────────
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
@@ -140,6 +184,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _currentAddress = address;
     });
     _mapController.move(_currentCenter, MapConfig.searchResultZoom);
+    _matchRajaOngkir(address, _currentCenter);
   }
 
   void _clearSearch() {
@@ -151,7 +196,42 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     });
   }
 
-  // ── Reverse Geocoding (PRD §17) ──────────────────────────────────
+  // ── RajaOngkir Region Matching ─────────────────────────────────────
+
+  Future<void> _matchRajaOngkir(Address? address, LatLng point) async {
+    if (!mounted) return;
+    setState(() {
+      _isMatchingRegion = true;
+    });
+
+    try {
+      final match = await RajaOngkirMatcherService.match(
+        latitude: point.latitude,
+        longitude: point.longitude,
+        fullAddress: address?.formattedAddress,
+        village: address?.village ?? address?.neighbourhood,
+        district: address?.district,
+        city: address?.city,
+        province: address?.province,
+      );
+
+      if (mounted) {
+        setState(() {
+          _rajaOngkirMatch = match;
+          _isMatchingRegion = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _rajaOngkirMatch = null;
+          _isMatchingRegion = false;
+        });
+      }
+    }
+  }
+
+  // ── Reverse Geocoding ──────────────────────────────────────────────
 
   Future<void> _updateAddressFromMap() async {
     if (_isReverseGeocoding) return;
@@ -170,6 +250,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         setState(() {
           _currentAddress = address;
         });
+        await _matchRajaOngkir(address, _currentCenter);
+      } else if (mounted) {
+        await _matchRajaOngkir(_currentAddress, _currentCenter);
       }
     } catch (_) {
       // Reverse geocoding failed — keep previous address
@@ -182,7 +265,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
-  // ── Current Location (PRD §16) ──────────────────────────────────
+  // ── Current Location (GPS) ─────────────────────────────────────────
 
   Future<void> _useCurrentLocation() async {
     setState(() {
@@ -191,7 +274,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     });
 
     try {
-      // Check permission first
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
@@ -219,7 +301,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         return;
       }
 
-      // Get position with accuracy (PRD §18)
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -228,7 +309,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
       final gpsLocation = LatLng(position.latitude, position.longitude);
 
-      // Check accuracy (PRD §18)
       bool accurate = true;
       if (position.accuracy > MapConfig.gpsAccuracyWarningMeters) {
         accurate = false;
@@ -241,8 +321,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         });
 
         _mapController.move(gpsLocation, MapConfig.searchResultZoom);
-
-        // Reverse geocode to get address
         await _updateAddressFromMap();
       }
     } catch (e) {
@@ -327,27 +405,35 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 
-  // ── Confirm Location (PRD §15) ──────────────────────────────────
+  // ── Confirm Location ───────────────────────────────────────────────
 
   void _confirmLocation() {
-    // Build address with coordinates (PRD §15)
-    final Address confirmedAddress;
+    final Address baseAddr;
     if (_currentAddress != null) {
-      confirmedAddress = _currentAddress!.copyWith(
+      baseAddr = _currentAddress!.copyWith(
         latitude: _currentCenter.latitude,
         longitude: _currentCenter.longitude,
         locationSource: 'manual_pin',
       );
     } else {
-      confirmedAddress = Address(
-        formattedAddress: 'Lokasi yang dipilih',
+      baseAddr = Address(
+        formattedAddress:
+            'Lokasi (${_currentCenter.latitude.toStringAsFixed(6)}, ${_currentCenter.longitude.toStringAsFixed(6)})',
         latitude: _currentCenter.latitude,
         longitude: _currentCenter.longitude,
         locationSource: 'manual_pin',
       );
     }
 
-    Navigator.pop(context, confirmedAddress);
+    final result = LocationPickerResult(
+      address: baseAddr,
+      latitude: _currentCenter.latitude,
+      longitude: _currentCenter.longitude,
+      rajaOngkirMatch: _rajaOngkirMatch,
+      isRajaOngkirMatched: _rajaOngkirMatch?['matched'] == true,
+    );
+
+    Navigator.pop(context, result);
   }
 
   @override
@@ -355,7 +441,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // ── Map (PRD §13) ──
+          // ── Map ──
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -380,7 +466,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             ],
           ),
 
-          // ── Center Pin (PRD §14) ──
+          // ── Center Pin ──
           const Center(
             child: Padding(
               padding: EdgeInsets.only(bottom: 32.0),
@@ -402,7 +488,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             ),
           ),
 
-          // ── Search Bar (PRD §6) ──
+          // ── Search Bar ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 64,
@@ -489,7 +575,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     ),
                   ),
 
-                // ── Search results (PRD §7) ──
+                // ── Search results ──
                 if (_showResults && _searchResults.isNotEmpty)
                   Card(
                     elevation: 4,
@@ -503,7 +589,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         shrinkWrap: true,
                         padding: EdgeInsets.zero,
                         itemCount: _searchResults.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final address = _searchResults[index];
                           return ListTile(
@@ -538,22 +624,54 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             ),
           ),
 
-          // ── Current Location Button (PRD §16) ──
+          // ── Tombol: 📍 Gunakan Lokasi Saya ──
           Positioned(
             right: 16,
-            bottom: 200,
-            child: Column(
-              children: [
-                _CircleButton(
-                  icon: Icons.my_location,
-                  onTap: _isGettingGps ? null : _useCurrentLocation,
-                  isLoading: _isGettingGps,
+            bottom: 300,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(24),
+              color: Colors.white,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: _isGettingGps ? null : _useCurrentLocation,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isGettingGps)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFFEC5B13),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.my_location,
+                          size: 18,
+                          color: Color(0xFFEC5B13),
+                        ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '📍 Gunakan Lokasi Saya',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFEC5B13),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
 
-          // ── GPS Accuracy Warning (PRD §18) ──
+          // ── GPS Accuracy Warning ──
           if (_gpsAccuracyWarning)
             Positioned(
               top: MediaQuery.of(context).padding.top + 80,
@@ -585,7 +703,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               ),
             ),
 
-          // ── Bottom Info Card (PRD §15) ──
+          // ── Preview Lokasi Card (Section 8) ──
           Positioned(
             bottom: 0,
             left: 0,
@@ -593,18 +711,18 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black12,
-                    blurRadius: 10,
-                    offset: Offset(0, -2),
+                    blurRadius: 16,
+                    offset: Offset(0, -4),
                   ),
                 ],
               ),
               padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
+                left: 18,
+                right: 18,
                 top: 16,
                 bottom: MediaQuery.of(context).padding.bottom + 16,
               ),
@@ -612,71 +730,362 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Loading indicator for reverse geocoding
-                  if (_isReverseGeocoding) const LinearProgressIndicator(),
+                  // Loading Indicator Bar
+                  if (_isReverseGeocoding || _isMatchingRegion)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: const LinearProgressIndicator(
+                          minHeight: 3,
+                          backgroundColor: Color(0xFFFFE0B2),
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEC5B13)),
+                        ),
+                      ),
+                    ),
 
-                  // Address display
+                  // Header: Lokasi Pengiriman
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEC5B13).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.local_shipping,
+                          color: Color(0xFFEC5B13),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Lokasi Pengiriman',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_isReverseGeocoding || _isMatchingRegion)
+                        const Row(
+                          children: [
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFEC5B13),
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Memperbarui...',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 📍 Alamat
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.location_on,
-                        color: Colors.red,
-                        size: 20,
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.place, color: Color(0xFFEC5B13), size: 18),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _currentAddress?.formattedAddress ??
-                                  'Memuat alamat...',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Koordinat: ${_currentCenter.latitude.toStringAsFixed(5)}, ${_currentCenter.longitude.toStringAsFixed(5)}',
-                              style: const TextStyle(
-                                fontSize: 12,
+                            const Text(
+                              'Alamat',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.grey,
                               ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _currentAddress?.formattedAddress ?? 'Memuat alamat...',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                                height: 1.25,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
 
-                  const SizedBox(height: 16),
-
-                  // Confirm button (PRD §15, §31)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEC5B13),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
+                  // Wilayah RajaOngkir
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.apartment_rounded, color: Colors.blueGrey, size: 18),
                       ),
-                      onPressed: _confirmLocation,
-                      child: const Text(
-                        'KONFIRMASI LOKASI',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Wilayah RajaOngkir',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _isMatchingRegion
+                                  ? 'Mencocokkan wilayah...'
+                                  : (_rajaOngkirMatch?['matched'] == true
+                                      ? (_rajaOngkirMatch!['full_label'] ??
+                                          '${_rajaOngkirMatch!['district_name']}, ${_rajaOngkirMatch!['city_name']}')
+                                      : 'Wilayah belum dapat dicocokkan otomatis'),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _rajaOngkirMatch?['matched'] == true
+                                    ? const Color(0xFF15803D)
+                                    : Colors.orange.shade800,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Koordinat
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.explore_outlined, color: Colors.grey, size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Koordinat',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_currentCenter.latitude.toStringAsFixed(6)}, ${_currentCenter.longitude.toStringAsFixed(6)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'monospace',
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Status Badges (Section 8)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      // Badge 1: Lokasi ditemukan
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF86EFAC)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, size: 14, color: Color(0xFF16A34A)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Lokasi ditemukan',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF166534),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Badge 2: Wilayah RajaOngkir cocok
+                      if (_rajaOngkirMatch?['matched'] == true)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF86EFAC)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle, size: 14, color: Color(0xFF16A34A)),
+                              SizedBox(width: 4),
+                              Text(
+                                'Wilayah RajaOngkir cocok',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF166534),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFCD34D)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFD97706)),
+                              SizedBox(width: 4),
+                              Text(
+                                'Wilayah belum cocok otomatis',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF92400E),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // Fallback warning if not matched
+                  if (_rajaOngkirMatch != null &&
+                      _rajaOngkirMatch?['matched'] != true &&
+                      !_isMatchingRegion)
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: Color(0xFFB45309)),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Wilayah belum dapat dicocokkan secara otomatis. Silakan pilih wilayah secara manual di form.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF92400E),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+
+                  const SizedBox(height: 14),
+
+                  // Action Buttons: [Ubah Lokasi] and [Gunakan Lokasi Ini]
+                  Row(
+                    children: [
+                      // Ubah Lokasi Button
+                      Expanded(
+                        flex: 2,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey.shade700,
+                            side: BorderSide(color: Colors.grey.shade300),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Geser peta atau cari alamat di atas untuk mengubah lokasi.',
+                                ),
+                                duration: Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Ubah Lokasi',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Gunakan Lokasi Ini Button
+                      Expanded(
+                        flex: 3,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.check, size: 18),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEC5B13),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 2,
+                          ),
+                          onPressed: _confirmLocation,
+                          label: const Text(
+                            'Gunakan Lokasi Ini',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -692,12 +1101,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 class _CircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
-  final bool isLoading;
 
   const _CircleButton({
     required this.icon,
     this.onTap,
-    this.isLoading = false,
   });
 
   @override
@@ -713,13 +1120,7 @@ class _CircleButton extends StatelessWidget {
           width: 44,
           height: 44,
           alignment: Alignment.center,
-          child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(icon, size: 20, color: Colors.grey.shade800),
+          child: Icon(icon, size: 20, color: Colors.grey.shade800),
         ),
       ),
     );

@@ -108,4 +108,27 @@ class RajaOngkirService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  static Future<Map<String, dynamic>> matchRegion({
+    required double latitude,
+    required double longitude,
+    String? fullAddress,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/shipping/match-region'),
+        headers: await _getHeaders(),
+        body: json.encode({
+          'lat': latitude,
+          'lng': longitude,
+          // ignore: use_null_aware_elements
+          if (fullAddress != null) 'formatted_address': fullAddress,
+        }),
+      ).timeout(const Duration(seconds: 6));
+
+      return json.decode(response.body);
+    } catch (e) {
+      return {'matched': false, 'message': e.toString()};
+    }
+  }
 }

@@ -9,7 +9,7 @@ import 'package:city_courierapp/services/maps/nominatim_geocoding_service.dart';
 import 'package:city_courierapp/core/utils/address_region.dart';
 
 class AddSenderScreen extends StatefulWidget {
-  const AddSenderScreen({Key? key}) : super(key: key);
+  const AddSenderScreen({super.key});
 
   @override
   State<AddSenderScreen> createState() => _AddSenderScreenState();
@@ -19,6 +19,9 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
   bool isDarkMode = false;
   bool _isSaving = false;
   bool _isLoadingMap = false;
+  bool _isAutoMatchedRegion = false;
+  bool _showUnmatchedWarning = false;
+
   Map<String, dynamic>? selectedCity;
   Address? selectedAddressModel;
 
@@ -69,46 +72,108 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 28),
+
+                        // 1. Nama Lengkap
                         _buildInputField(
                           controller: nameController,
                           label: 'Nama Lengkap',
                           hintText: 'Masukkan nama lengkap',
-                          icon: Icons.person,
+                          icon: Icons.person_outline,
                           isDarkMode: isDarkMode,
                           primaryColor: primaryColor,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
+
+                        // 2. Nomor Telepon
                         _buildInputField(
                           controller: phoneController,
                           label: 'Nomor Telepon',
                           hintText: 'Contoh: 081234567890',
-                          icon: Icons.call,
+                          icon: Icons.call_outlined,
                           keyboardType: TextInputType.phone,
                           isDarkMode: isDarkMode,
                           primaryColor: primaryColor,
                         ),
-                        const SizedBox(height: 24),
-                        _buildDropdownField(
-                          context: context,
-                          label: 'Pilih Kelurahan/Kecamatan',
-                          hintText: 'Pilih Kelurahan atau Kecamatan',
-                          icon: Icons.location_on,
-                          isDarkMode: isDarkMode,
-                          primaryColor: primaryColor,
-                        ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
+
+                        // 3. Alamat Lengkap with [📍 Pilih dari Peta]
                         _buildAddressField(
                           context: context,
                           controller: addressController,
                           label: 'Alamat Lengkap',
-                          hintText: 'Masukkan alamat lengkap pengirim (No Rumah, RT/RW)',
-                          icon: Icons.home,
+                          hintText: 'Masukkan alamat lengkap (Nama Jalan, No Rumah, RT/RW)',
+                          icon: Icons.home_outlined,
                           maxLines: 3,
                           isDarkMode: isDarkMode,
                           primaryColor: primaryColor,
                         ),
-                        const SizedBox(height: 24),
+
+                        // Koordinat badge if location picked
+                        if (selectedAddressModel != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, bottom: 4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isDarkMode
+                                    ? const Color(0xFF1E293B)
+                                    : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isDarkMode
+                                      ? Colors.grey.shade800
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.my_location,
+                                    size: 16,
+                                    color: Color(0xFFEC5B13),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Koordinat: ${selectedAddressModel!.latitude.toStringAsFixed(6)}, ${selectedAddressModel!.longitude.toStringAsFixed(6)}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'monospace',
+                                        color: isDarkMode
+                                            ? Colors.grey.shade300
+                                            : Colors.grey.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: _openLocationPicker,
+                                    child: const Text(
+                                      'Ubah di Peta',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFEC5B13),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 20),
+
+                        // 4. Field Wilayah RajaOngkir (Section 5 & 6)
+                        _buildRegionField(
+                          context: context,
+                          isDarkMode: isDarkMode,
+                          primaryColor: primaryColor,
+                        ),
+
+                        const SizedBox(height: 28),
+
+                        // 5. Tombol Simpan
                         _buildSaveButton(primaryColor),
                         const SizedBox(height: 40),
                       ],
@@ -134,7 +199,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 24,
-        bottom: 32,
+        bottom: 28,
         left: 24,
         right: 24,
       ),
@@ -160,7 +225,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Tambah Pengirim Baru',
+                'Tambah Pengiriman Baru',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -169,9 +234,9 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Lengkapi data pengirim paket',
+                'Lengkapi data pengirim & alamat pengiriman',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withOpacity(0.85),
                   fontSize: 12,
                 ),
               ),
@@ -213,7 +278,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                 : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade100,
+              color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200,
             ),
           ),
           child: TextField(
@@ -254,13 +319,14 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
     );
   }
 
+  // ── Alamat Lengkap with [📍 Pilih dari Peta] Button ────────────────
   Widget _buildAddressField({
     required BuildContext context,
     TextEditingController? controller,
     required String label,
     required String hintText,
     required IconData icon,
-    int maxLines = 1,
+    int maxLines = 3,
     required bool isDarkMode,
     required Color primaryColor,
   }) {
@@ -269,13 +335,45 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              // Tombol Header: 📍 Pilih dari Peta
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: _openLocationPicker,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.location_on, size: 14, color: Color(0xFFEC5B13)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Pilih dari Peta',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFEC5B13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Container(
@@ -285,7 +383,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                 : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade100,
+              color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200,
             ),
           ),
           child: Stack(
@@ -315,6 +413,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                       size: 20,
                     ),
                   ),
+                  // Icon 📍 di sebelah kanan input
                   suffixIcon: _isLoadingMap
                       ? Padding(
                           padding: const EdgeInsets.all(12.0),
@@ -327,105 +426,140 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                             ),
                           ),
                         )
-                      : IconButton(
-                          icon: Icon(
-                            Icons.map,
-                            color: primaryColor,
-                            size: 24,
+                      : Tooltip(
+                          message: 'Pilih dari Peta',
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.location_on,
+                              color: Color(0xFFEC5B13),
+                              size: 26,
+                            ),
+                            onPressed: _openLocationPicker,
                           ),
-                          onPressed: () async {
-                            await _openLocationPicker();
-                          },
                         ),
-
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                    ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildDropdownField({
+  // ── Field Wilayah RajaOngkir (Section 5 & 6) ──────────────────────
+  Widget _buildRegionField({
     required BuildContext context,
-    required String label,
-    required String hintText,
-    required IconData icon,
     required bool isDarkMode,
     required Color primaryColor,
   }) {
+    final regionLabel = selectedCity != null
+        ? (selectedCity!['kelurahan_name'] != null
+            ? '${selectedCity!['kelurahan_name']}, ${selectedCity!['kecamatan_name']}, ${selectedCity!['kabupaten_name']}'
+            : (selectedCity!['subdistrict_name'] != null
+                ? '${selectedCity!['subdistrict_name']}, ${selectedCity!['city_name']}'
+                : selectedCity!['city_name']))
+        : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Wilayah (RajaOngkir)',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (selectedCity != null)
+                InkWell(
+                  onTap: () async {
+                    await _openManualRegionPicker();
+                  },
+                  child: const Text(
+                    'Ubah Wilayah',
+                    style: TextStyle(
+                      color: Color(0xFFEC5B13),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
+
+        // Box Wilayah
         GestureDetector(
           onTap: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SelectRegionScreen(),
-              ),
-            );
-            if (result != null && result is Map<String, dynamic>) {
-              setState(() {
-                selectedCity = result;
-              });
-            }
+            await _openManualRegionPicker();
           },
           child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: isDarkMode
                   ? const Color(0xFF0F172A).withOpacity(0.5)
-                  : Colors.grey.shade50,
+                  : (_isAutoMatchedRegion
+                      ? const Color(0xFFF0FDF4)
+                      : Colors.grey.shade50),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade100,
+                color: _isAutoMatchedRegion
+                    ? const Color(0xFF86EFAC)
+                    : (isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200),
               ),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Row(
               children: [
                 Icon(
-                  icon,
-                  color: isDarkMode
-                      ? Colors.grey.shade500
-                      : Colors.grey.shade400,
+                  Icons.apartment_rounded,
+                  color: _isAutoMatchedRegion
+                      ? const Color(0xFF16A34A)
+                      : (isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400),
                   size: 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    selectedCity != null
-                        ? (selectedCity!['kelurahan_name'] != null
-                            ? '${selectedCity!['kelurahan_name']}, ${selectedCity!['kecamatan_name']}, ${selectedCity!['kabupaten_name']}'
-                            : (selectedCity!['subdistrict_name'] != null
-                                ? '${selectedCity!['subdistrict_name']}, ${selectedCity!['city_name']}'
-                                : selectedCity!['city_name']))
-                        : hintText,
-                    style: TextStyle(
-                      color: selectedCity != null
-                          ? (isDarkMode ? Colors.white : Colors.black87)
-                          : (isDarkMode
-                                ? Colors.grey.shade600
-                                : Colors.grey.shade400),
-                      fontSize: 14,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        regionLabel ?? 'Pilih Kelurahan atau Kecamatan',
+                        style: TextStyle(
+                          color: regionLabel != null
+                              ? (isDarkMode ? Colors.white : Colors.black87)
+                              : (isDarkMode
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400),
+                          fontSize: 14,
+                          fontWeight: regionLabel != null
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      if (_isAutoMatchedRegion)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            '✓ Wilayah terdeteksi otomatis',
+                            style: TextStyle(
+                              color: Color(0xFF15803D),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 Icon(
@@ -438,68 +572,118 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
             ),
           ),
         ),
+
+        // Fallback Warning jika wilayah belum dapat dicocokkan otomatis (Section 6)
+        if (_showUnmatchedWarning && selectedCity == null)
+          Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFD97706),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Wilayah belum dapat dicocokkan secara otomatis. Silakan pilih wilayah secara manual.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF92400E),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: _openManualRegionPicker,
+                        child: const Text(
+                          'Pilih Wilayah Manual Sekarang →',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFB45309),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
 
+  Future<void> _openManualRegionPicker() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SelectRegionScreen(),
+      ),
+    );
+    if (result != null && result is Map<String, dynamic>) {
+      setState(() {
+        selectedCity = result;
+        _isAutoMatchedRegion = false;
+        _showUnmatchedWarning = false;
+      });
+    }
+  }
+
+  // ── Tombol Simpan ─────────────────────────────────────────────────
   Widget _buildSaveButton(Color primaryColor) {
     return GestureDetector(
       onTap: _isSaving ? null : () async {
-        if (nameController.text.isEmpty) {
+        if (nameController.text.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nama tidak boleh kosong')),
+            const SnackBar(content: Text('Nama lengkap tidak boleh kosong')),
           );
           return;
         }
 
-        // Gate wajib-pilih-lokasi-peta: pengguna harus menandai titik lokasi
-        // pengiriman di peta agar koordinat yang tersimpan akurat. Kalau
-        // belum, buka picker lokasi secara langsung.
-        if (selectedAddressModel == null) {
-          if (selectedCity == null) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Pilih Kelurahan/Kecamatan terlebih dahulu dari dropdown di atas')),
-              );
-            }
-            return;
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tandai lokasi pengiriman di peta terlebih dahulu (ikon peta di kolom alamat)')),
-            );
-          }
-          await _openLocationPicker();
-          if (!mounted || selectedAddressModel == null) return;
+        if (phoneController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nomor telepon tidak boleh kosong')),
+          );
+          return;
+        }
+
+        if (addressController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Alamat lengkap tidak boleh kosong')),
+          );
+          return;
+        }
+
+        // Gate wilayah: Wilayah RajaOngkir harus terisi untuk kebutuhan ongkir
+        if (selectedCity == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Silakan pilih wilayah RajaOngkir terlebih dahulu (dari peta atau manual)',
+              ),
+            ),
+          );
+          await _openManualRegionPicker();
+          if (!mounted || selectedCity == null) return;
         }
 
         setState(() => _isSaving = true);
 
         String fullAddress = addressController.text.replaceAll(RegExp(r',\s*$'), '').trim();
-        if (selectedCity != null) {
-          List<String> parts = [];
-          
-          String kelurahan = selectedCity!['kelurahan_name'] ?? '';
-          String kecamatan = selectedCity!['kecamatan_name'] ?? selectedCity!['subdistrict_name'] ?? '';
-          String kota = selectedCity!['kabupaten_name'] ?? selectedCity!['city_name'] ?? '';
-          String provinsi = selectedCity!['provinsi_name'] ?? selectedCity!['province_name'] ?? '';
-          String zip = selectedCity!['zip_code'] ?? '';
 
-          if (kelurahan.isNotEmpty) parts.add(kelurahan);
-          if (kecamatan.isNotEmpty) parts.add('Kec. $kecamatan');
-          if (kota.isNotEmpty) parts.add(kota);
-          
-          String provZip = [provinsi, zip].where((e) => e.isNotEmpty).join(' ');
-          if (provZip.isNotEmpty) parts.add(provZip);
-
-          if (parts.isNotEmpty) {
-            fullAddress += ', ' + parts.join(', ');
-          }
-        }
-
-        // Ambil / cari koordinat secara otomatis bila pengguna belum menandai
-        // lokasi di peta. Prioritas: titik dari LocationPicker → geocode alamat
-        // penuh → geocode wilayah (kecamatan/kota) sebagai cadangan.
         Address? resolvedAddress = selectedAddressModel;
         if (resolvedAddress == null) {
           final repo = LocationRepository();
@@ -507,8 +691,6 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           if (results.isEmpty) {
             final region = extractRegion(fullAddress);
             if (region.isNotEmpty) {
-              // ignore: avoid_print
-              print('DEBUG GEOCODE(save): retrying with region: $region');
               results = await _searchGeocodeSafe(repo, region);
             }
           }
@@ -518,18 +700,18 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
         }
 
         final body = {
-          'name':             nameController.text,
-          'phone':            phoneController.text,
-          'address':          fullAddress.trim(),
-          'city_id':          selectedCity?['city_id'] ?? selectedCity?['kabupaten_id'],
-          'city_name':        selectedCity?['city_name'] ?? selectedCity?['kabupaten_name'],
-          'province_id':      selectedCity?['province_id'] ?? selectedCity?['provinsi_id'],
-          'province_name':    selectedCity?['province_name'] ?? selectedCity?['provinsi_name'],
-          'subdistrict_id':   selectedCity?['subdistrict_id'] ?? selectedCity?['kecamatan_id'],
-          'subdistrict_name': selectedCity?['subdistrict_name'] ?? selectedCity?['kecamatan_name'],
-          'latitude':         resolvedAddress?.latitude,
-          'longitude':        resolvedAddress?.longitude,
-          'is_favorite':      false,
+          'name': nameController.text.trim(),
+          'phone': phoneController.text.trim(),
+          'address': fullAddress.trim(),
+          'city_id': selectedCity?['city_id'] ?? selectedCity?['kabupaten_id'] ?? selectedCity?['rajaongkir_city_id'],
+          'city_name': selectedCity?['city_name'] ?? selectedCity?['kabupaten_name'],
+          'province_id': selectedCity?['province_id'] ?? selectedCity?['provinsi_id'],
+          'province_name': selectedCity?['province_name'] ?? selectedCity?['provinsi_name'],
+          'subdistrict_id': selectedCity?['subdistrict_id'] ?? selectedCity?['kecamatan_id'] ?? selectedCity?['rajaongkir_subdistrict_id'] ?? selectedCity?['rajaongkir_region_id'],
+          'subdistrict_name': selectedCity?['subdistrict_name'] ?? selectedCity?['kecamatan_name'] ?? selectedCity?['kelurahan_name'],
+          'latitude': resolvedAddress?.latitude,
+          'longitude': resolvedAddress?.longitude,
+          'is_favorite': false,
         };
 
         final saved = await AddressService.saveAddress(body);
@@ -538,6 +720,12 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
         setState(() => _isSaving = false);
 
         if (saved != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pengirim dan alamat berhasil disimpan'),
+              backgroundColor: Colors.green,
+            ),
+          );
           Navigator.pop(context, saved);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -567,16 +755,18 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
-                : const Icon(Icons.save, color: Colors.white, size: 20),
+                : const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text(
-              _isSaving ? 'Menyimpan...' : 'Simpan Pengirim',
+              _isSaving ? 'Menyimpan...' : 'Gunakan & Simpan Lokasi',
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 15,
               ),
             ),
           ],
@@ -586,72 +776,115 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
   }
 
   /// Buka LocationPicker untuk menandai titik lokasi di peta.
-  ///
-  /// Mengembalikan Address yang dipilih, atau null bila dibatalkan. Dipakai
-  /// baik oleh tombol peta di kolom alamat, maupun gate wajib-pilih-lokasi.
-  Future<Address?> _openLocationPicker() async {
-    if (selectedCity == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pilih Kelurahan/Kecamatan terlebih dahulu dari dropdown di atas')),
-        );
-      }
-      return null;
-    }
-
+  Future<void> _openLocationPicker() async {
     if (mounted) setState(() => _isLoadingMap = true);
 
     try {
-      final parts = [
-        selectedCity!['kelurahan_name'] ?? selectedCity!['subdistrict_name'],
-        selectedCity!['kecamatan_name'],
-        selectedCity!['kabupaten_name'] ?? selectedCity!['city_name'],
-      ].where((e) => e != null && e.toString().trim().isNotEmpty).toList();
-
-      final regionStr = parts.join(', ');
-
-      // Geocode wilayah untuk memusatkan peta di lokasi pesanan yang sesuai.
-      final geoService = NominatimGeocodingService();
-      final results = await geoService.searchAddress(regionStr.trim());
-
       Address initialAddr;
-      if (results.isNotEmpty) {
-        initialAddr = results.first;
+      if (selectedAddressModel != null) {
+        initialAddr = selectedAddressModel!;
+      } else if (selectedCity != null) {
+        final parts = [
+          selectedCity!['kelurahan_name'] ?? selectedCity!['subdistrict_name'],
+          selectedCity!['kecamatan_name'],
+          selectedCity!['kabupaten_name'] ?? selectedCity!['city_name'],
+        ].where((e) => e != null && e.toString().trim().isNotEmpty).toList();
+
+        final regionStr = parts.join(', ');
+        final geoService = NominatimGeocodingService();
+        final results = await geoService.searchAddress(regionStr.trim());
+
+        if (results.isNotEmpty) {
+          initialAddr = results.first;
+        } else {
+          initialAddr = Address(
+            latitude: -7.2575, // Surabaya default
+            longitude: 112.7521,
+            formattedAddress: regionStr.trim(),
+            locationSource: 'provider',
+          );
+        }
       } else {
+        // Default to Surabaya/current center
         initialAddr = Address(
-          latitude: -6.2088,
-          longitude: 106.8456,
-          formattedAddress: regionStr.trim(),
+          latitude: -7.2575,
+          longitude: 112.7521,
+          formattedAddress: 'Surabaya, Jawa Timur',
           locationSource: 'provider',
         );
       }
 
-      if (!mounted) return null;
+      if (!mounted) return;
 
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => LocationPickerScreen(
             initialAddress: initialAddr,
-            regionHint: regionStr.trim(),
+            title: 'Pilih Lokasi Pengiriman',
           ),
         ),
       );
 
-      if (result != null && result is Address) {
-        setState(() {
-          selectedAddressModel = result;
-          addressController.text = result.formattedAddress;
-        });
-        return result;
+      if (result != null) {
+        if (result is LocationPickerResult) {
+          setState(() {
+            selectedAddressModel = result;
+            addressController.text = result.formattedAddress;
+
+            if (result.isRajaOngkirMatched && result.rajaOngkirMatch != null) {
+              final match = result.rajaOngkirMatch!;
+              _isAutoMatchedRegion = true;
+              _showUnmatchedWarning = false;
+              selectedCity = {
+                'kelurahan_name': match['subdistrict_name'] ?? match['village'],
+                'kecamatan_name': match['district_name'] ?? match['kecamatan_name'],
+                'kabupaten_name': match['city_name'] ?? match['kabupaten_name'],
+                'provinsi_name': match['province_name'] ?? match['provinsi_name'],
+                'subdistrict_id': match['rajaongkir_subdistrict_id'] ?? match['rajaongkir_region_id'],
+                'city_id': match['rajaongkir_city_id'] ?? match['city_id'],
+                'province_id': match['province_id'],
+                'subdistrict_name': match['subdistrict_name'] ?? match['district_name'],
+                'city_name': match['city_name'],
+                'province_name': match['province_name'],
+              };
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '✓ Wilayah RajaOngkir cocok: ${match['full_label'] ?? match['district_name']}',
+                  ),
+                  backgroundColor: const Color(0xFF15803D),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            } else {
+              _isAutoMatchedRegion = false;
+              _showUnmatchedWarning = true;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Wilayah belum dapat dicocokkan secara otomatis. Silakan pilih wilayah secara manual.',
+                  ),
+                  backgroundColor: Color(0xFFD97706),
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            }
+          });
+        } else if (result is Address) {
+          setState(() {
+            selectedAddressModel = result;
+            addressController.text = result.formattedAddress;
+            _showUnmatchedWarning = selectedCity == null;
+          });
+        }
       }
     } finally {
       if (mounted) {
         setState(() => _isLoadingMap = false);
       }
     }
-
-    return null;
   }
 
   /// Geocode search yang aman (tak melempar) memakai LocationRepository.
