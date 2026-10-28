@@ -90,25 +90,6 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
     }
   }
 
-  String _getPickupEstimate() {
-    if (shipmentData != null) {
-      if (shipmentData!['pickup_time'] != null &&
-          shipmentData!['pickup_time'].toString().isNotEmpty) {
-        return 'Hari ini, ${shipmentData!['pickup_time']}';
-      }
-      if (shipmentData!['pickup_scheduled_at'] != null) {
-        try {
-          final dt = DateTime.parse(shipmentData!['pickup_scheduled_at'].toString());
-          final hour = dt.hour.toString().padLeft(2, '0');
-          final minute = dt.minute.toString().padLeft(2, '0');
-          final endHour = ((dt.hour + 2) % 24).toString().padLeft(2, '0');
-          return 'Hari ini, $hour:$minute - $endHour:$minute';
-        } catch (_) {}
-      }
-    }
-    return 'Hari ini, 13:00 - 15:00';
-  }
-
   String _getPaymentBadge() {
     final method = paymentMethod.toUpperCase();
     if (method.contains('COD')) return 'COD';
@@ -383,7 +364,7 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // Info row 1: Metode Pembayaran
+                    // Info row: Metode Pembayaran
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -428,34 +409,6 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Info row 2: Estimasi Penjemputan
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Estimasi Penjemputan',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            _getPickupEstimate(),
-                            textAlign: TextAlign.end,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF334155),
-                            ),
                           ),
                         ),
                       ],
