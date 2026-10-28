@@ -54,7 +54,7 @@ class HomeHeader extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Image.asset(
-                    'assets/images/Logo City Courie.png',
+                    'assets/images/Logo_City_Courier.png',
                     height: 80,
                     fit: BoxFit.contain,
                   ),
