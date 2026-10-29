@@ -1450,13 +1450,15 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     // 1. Lokasi Pickup
-                                    Row(
+                                    Wrap(
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      spacing: 8,
+                                      runSpacing: 4,
                                       children: [
                                         const Text(
                                           'Lokasi Pickup',
                                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
                                         ),
-                                        const SizedBox(width: 8),
                                         if (_getScheduleText().isNotEmpty)
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1481,9 +1483,12 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                     const SizedBox(height: 3),
                                     Row(
                                       children: [
-                                        Text(
-                                          _getSenderName(),
-                                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                        Flexible(
+                                          child: Text(
+                                            _getSenderName(),
+                                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
                                         const SizedBox(width: 6),
                                         InkWell(
@@ -1521,9 +1526,12 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                     const SizedBox(height: 3),
                                     Row(
                                       children: [
-                                        Text(
-                                          _getReceiverName(),
-                                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                        Flexible(
+                                          child: Text(
+                                            _getReceiverName(),
+                                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
                                         const SizedBox(width: 6),
                                         InkWell(
