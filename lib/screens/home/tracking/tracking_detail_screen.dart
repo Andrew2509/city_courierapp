@@ -989,7 +989,9 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                 const SizedBox(height: 1),
                                 Text(
                                   isCourierAssigned
-                                      ? 'Kurir sedang dalam proses penjemputan/pengantaran paket Anda.'
+                                      ? (_tracking?.courier?.vehicleDescription.isNotEmpty == true
+                                          ? '${_tracking!.courier!.vehicleDescription} • Menuju lokasi'
+                                          : 'Kurir sedang dalam proses penjemputan/pengantaran paket Anda.')
                                       : 'Lokasi kurir akan muncul secara live setelah kurir mengambil tugas ini.',
                                   style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                                 ),

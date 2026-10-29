@@ -20,7 +20,31 @@ class ShipmentModel {
   final String? courierName;
   final String? courierPhone;
   final String? courierPhoto;
+  final String? courierVehicleBrand;
+  final String? courierVehicleModel;
+  final String? courierVehiclePlate;
   final DateTime? orderDate;
+
+  /// Deskripsi kendaraan kurir (e.g. "Honda Vario • B 4920 SDC")
+  String get courierVehicleDescription {
+    final brandModel = [
+      if (courierVehicleBrand != null && courierVehicleBrand!.trim().isNotEmpty)
+        courierVehicleBrand!.trim(),
+      if (courierVehicleModel != null && courierVehicleModel!.trim().isNotEmpty)
+        courierVehicleModel!.trim(),
+    ].join(' ');
+
+    final plate = courierVehiclePlate?.trim() ?? '';
+
+    if (brandModel.isNotEmpty && plate.isNotEmpty) {
+      return '$brandModel • $plate';
+    } else if (brandModel.isNotEmpty) {
+      return brandModel;
+    } else if (plate.isNotEmpty) {
+      return plate;
+    }
+    return '';
+  }
   final DateTime? pickupScheduledAt;
   final DateTime? estimatedDelivery;
   final DateTime? pickedUpAt;
@@ -59,6 +83,9 @@ class ShipmentModel {
     this.courierName,
     this.courierPhone,
     this.courierPhoto,
+    this.courierVehicleBrand,
+    this.courierVehicleModel,
+    this.courierVehiclePlate,
     this.orderDate,
     this.pickupScheduledAt,
     this.estimatedDelivery,
@@ -115,6 +142,30 @@ class ShipmentModel {
                   json['courier']['photo_url'] ??
                   json['courier']['profile_photo_url'])
               : null),
+      courierVehicleBrand: json['courier_vehicle_brand'] ??
+          json['vehicle_brand'] ??
+          (json['courier'] is Map
+              ? (json['courier']['vehicle_brand'] ??
+                  (json['courier']['courier_details'] is Map ? json['courier']['courier_details']['vehicle_brand'] : null))
+              : null) ??
+          (json['courier_details'] is Map ? json['courier_details']['vehicle_brand'] : null),
+      courierVehicleModel: json['courier_vehicle_model'] ??
+          json['vehicle_model'] ??
+          (json['courier'] is Map
+              ? (json['courier']['vehicle_model'] ??
+                  (json['courier']['courier_details'] is Map ? json['courier']['courier_details']['vehicle_model'] : null))
+              : null) ??
+          (json['courier_details'] is Map ? json['courier_details']['vehicle_model'] : null),
+      courierVehiclePlate: json['courier_vehicle_plate'] ??
+          json['vehicle_plate'] ??
+          json['plate_number'] ??
+          json['courier_plate'] ??
+          (json['courier'] is Map
+              ? (json['courier']['vehicle_plate'] ??
+                  json['courier']['plate_number'] ??
+                  (json['courier']['courier_details'] is Map ? json['courier']['courier_details']['vehicle_plate'] : null))
+              : null) ??
+          (json['courier_details'] is Map ? json['courier_details']['vehicle_plate'] : null),
       orderDate: json['order_date'] != null
           ? DateTime.parse(json['order_date'])
           : null,
@@ -171,6 +222,9 @@ class ShipmentModel {
       'courier_name': courierName,
       'courier_phone': courierPhone,
       'courier_photo': courierPhoto,
+      'courier_vehicle_brand': courierVehicleBrand,
+      'courier_vehicle_model': courierVehicleModel,
+      'courier_vehicle_plate': courierVehiclePlate,
       'order_date': orderDate?.toIso8601String(),
       'scheduled_pickup': scheduledPickup ?? false,
       if (scheduledPickup == true && pickupScheduledAt != null)

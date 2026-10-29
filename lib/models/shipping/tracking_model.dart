@@ -271,7 +271,9 @@ class TrackingModel {
     final senderPhone = json['sender_phone']?.toString();
     final receiverName = json['receiver_name']?.toString();
     final receiverPhone = json['receiver_phone']?.toString();
-    final vehicle = json['vehicle']?.toString() ?? json['vehicle_type']?.toString();
+    final vehicle = (courier?.vehicleDescription.isNotEmpty == true)
+        ? courier!.vehicleDescription
+        : (json['vehicle']?.toString() ?? json['vehicle_type']?.toString());
     final packageWeight = parseDouble(json['package_weight']) ?? parseDouble(json['actual_weight']);
     final paymentMethod = json['payment_method']?.toString();
     final totalCost = (json['total_cost'] is num)
@@ -350,24 +352,103 @@ class TrackingCourier {
   final String name;
   final String? phone;
   final String? photo;
+  final String? vehicleBrand;
+  final String? vehicleModel;
+  final String? vehiclePlate;
+  final String? vehicleType;
 
   const TrackingCourier({
     required this.name,
     this.phone,
     this.photo,
+    this.vehicleBrand,
+    this.vehicleModel,
+    this.vehiclePlate,
+    this.vehicleType,
   });
 
+  /// Format deskripsi kendaraan kurir (e.g. "Honda Vario • B 4920 SDC")
+  String get vehicleDescription {
+    final brandModel = [
+      if (vehicleBrand != null && vehicleBrand!.trim().isNotEmpty) vehicleBrand!.trim(),
+      if (vehicleModel != null && vehicleModel!.trim().isNotEmpty) vehicleModel!.trim(),
+    ].join(' ');
+
+    final plate = vehiclePlate?.trim() ?? '';
+
+    if (brandModel.isNotEmpty && plate.isNotEmpty) {
+      return '$brandModel • $plate';
+    } else if (brandModel.isNotEmpty) {
+      return brandModel;
+    } else if (plate.isNotEmpty) {
+      return plate;
+    }
+    return '';
+  }
+
   factory TrackingCourier.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] is Map ? json['user'] as Map<String, dynamic> : null;
+    final details = json['courier_details'] is Map
+        ? json['courier_details'] as Map<String, dynamic>
+        : (json['details'] is Map ? json['details'] as Map<String, dynamic> : null);
+
+    final name = (json['name'] ??
+            user?['name'] ??
+            json['courier_name'] ??
+            'Kurir City Courier')
+        .toString();
+
+    final phone = (json['phone'] ??
+            user?['phone'] ??
+            json['courier_phone'] ??
+            details?['phone'])
+        ?.toString();
+
+    final photo = (json['photo'] ??
+            json['photo_url'] ??
+            user?['photo'] ??
+            user?['avatar'] ??
+            user?['photo_url'] ??
+            json['avatar'] ??
+            json['courier_photo'] ??
+            json['courier_avatar'] ??
+            json['profile_photo_url'])
+        ?.toString();
+
+    final vehicleBrand = (json['vehicle_brand'] ??
+            details?['vehicle_brand'] ??
+            json['courier_vehicle_brand'] ??
+            json['brand'])
+        ?.toString();
+
+    final vehicleModel = (json['vehicle_model'] ??
+            details?['vehicle_model'] ??
+            json['courier_vehicle_model'] ??
+            json['model'])
+        ?.toString();
+
+    final vehiclePlate = (json['vehicle_plate'] ??
+            details?['vehicle_plate'] ??
+            json['plate_number'] ??
+            json['courier_vehicle_plate'] ??
+            json['courier_plate'] ??
+            json['plate'] ??
+            json['license_plate'])
+        ?.toString();
+
+    final vehicleType = (json['vehicle_type'] ??
+            details?['vehicle_type'] ??
+            json['vehicle'])
+        ?.toString();
+
     return TrackingCourier(
-      name: (json['name'] ?? json['courier_name'] ?? '').toString(),
-      phone: (json['phone'] ?? json['courier_phone'])?.toString(),
-      photo: (json['photo'] ??
-              json['photo_url'] ??
-              json['avatar'] ??
-              json['courier_photo'] ??
-              json['courier_avatar'] ??
-              json['profile_photo_url'])
-          ?.toString(),
+      name: name,
+      phone: phone,
+      photo: photo,
+      vehicleBrand: vehicleBrand,
+      vehicleModel: vehicleModel,
+      vehiclePlate: vehiclePlate,
+      vehicleType: vehicleType,
     );
   }
 }

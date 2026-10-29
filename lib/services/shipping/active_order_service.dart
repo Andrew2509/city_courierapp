@@ -253,12 +253,29 @@ class ActiveOrderService {
 
     if (hasCourier) {
       courierName = tracking?.courier?.name ?? shipment.courierName ?? 'Kurir City Courier';
-      final vRaw = (tracking?.vehicle ?? shipment.vehicleType ?? 'motor').toLowerCase();
-      courierVehicle = vRaw.contains('mobil') || vRaw.contains('car')
-          ? 'Toyota Avanza • Mitra Kurir'
-          : 'Honda Vario • B 4920 SDC';
       courierPhone = tracking?.courier?.phone ?? shipment.courierPhone ?? '';
       courierPhoto = tracking?.courier?.photo ?? shipment.courierPhoto;
+
+      // Extract real courier vehicle details (brand, model, license plate) from backend
+      String detectedVehicle = '';
+
+      if (tracking?.courier?.vehicleDescription.isNotEmpty == true) {
+        detectedVehicle = tracking!.courier!.vehicleDescription;
+      } else if (shipment.courierVehicleDescription.isNotEmpty == true) {
+        detectedVehicle = shipment.courierVehicleDescription;
+      } else if (tracking?.vehicle != null && tracking!.vehicle!.contains('•')) {
+        detectedVehicle = tracking.vehicle!;
+      }
+
+      if (detectedVehicle.isNotEmpty) {
+        courierVehicle = detectedVehicle;
+      } else {
+        // Fallback to vehicle type if specific brand/plate is not yet configured in backend
+        final vRaw = (tracking?.vehicle ?? shipment.vehicleType ?? 'motor').toLowerCase();
+        courierVehicle = vRaw.contains('mobil') || vRaw.contains('car')
+            ? 'Mobil • Mitra Kurir'
+            : 'Sepeda Motor • Mitra Kurir';
+      }
     }
 
     // 3. Extract Destination City / District
@@ -383,7 +400,13 @@ class ActiveOrderService {
       'status_raw': statusRaw,
       'estimated_time': estimatedTime,
       'courier_name': hasCourier ? (tracking.courier?.name ?? 'Pak Budi Santoso') : 'Menunggu Kurir',
-      'courier_vehicle': hasCourier ? (tracking.vehicle ?? 'Honda Vario • B 4920 SDC') : 'Mencari kurir terdekat...',
+      'courier_vehicle': hasCourier
+          ? (tracking.courier?.vehicleDescription.isNotEmpty == true
+              ? tracking.courier!.vehicleDescription
+              : (tracking.vehicle?.isNotEmpty == true
+                  ? tracking.vehicle!
+                  : (current?['courier_vehicle'] ?? 'Sepeda Motor • Mitra Kurir')))
+          : 'Mencari kurir terdekat...',
       'courier_phone': tracking.courier?.phone ?? current?['courier_phone'] ?? '',
       'courier_photo': tracking.courier?.photo ?? current?['courier_photo'],
       'destination': destination,
