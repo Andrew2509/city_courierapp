@@ -291,6 +291,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         district: address?.district,
         city: address?.city,
         province: address?.province,
+        postalCode: address?.postalCode,
       );
 
       if (mounted) {

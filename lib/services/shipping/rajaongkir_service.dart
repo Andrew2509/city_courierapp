@@ -113,6 +113,11 @@ class RajaOngkirService {
     required double latitude,
     required double longitude,
     String? fullAddress,
+    String? village,
+    String? district,
+    String? city,
+    String? province,
+    String? postalCode,
   }) async {
     try {
       final response = await http.post(
@@ -123,6 +128,16 @@ class RajaOngkirService {
           'lng': longitude,
           // ignore: use_null_aware_elements
           if (fullAddress != null) 'formatted_address': fullAddress,
+          // ignore: use_null_aware_elements
+          if (village != null) 'village': village,
+          // ignore: use_null_aware_elements
+          if (district != null) 'district': district,
+          // ignore: use_null_aware_elements
+          if (city != null) 'city': city,
+          // ignore: use_null_aware_elements
+          if (province != null) 'province': province,
+          // ignore: use_null_aware_elements
+          if (postalCode != null) 'postal_code': postalCode,
         }),
       ).timeout(const Duration(seconds: 6));
 

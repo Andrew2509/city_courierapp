@@ -649,6 +649,8 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           'subdistrict_name': selectedCity?['subdistrict_name'] ?? selectedCity?['kecamatan_name'] ?? selectedCity?['kelurahan_name'],
           'latitude': resolvedAddress?.latitude,
           'longitude': resolvedAddress?.longitude,
+          'postal_code': selectedCity?['postal_code'],
+          'postal_code_verified': selectedCity?['postal_code_verified'] == true,
           'is_favorite': false,
         };
 
@@ -785,6 +787,8 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                 'subdistrict_name': match['subdistrict_name'] ?? match['district_name'],
                 'city_name': match['city_name'],
                 'province_name': match['province_name'],
+                'postal_code': match['postal_code'],
+                'postal_code_verified': match['postal_code_verified'] == true,
               };
 
               ScaffoldMessenger.of(context).showSnackBar(

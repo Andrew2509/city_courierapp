@@ -100,7 +100,14 @@ class PhotonGeocodingService implements GeocodingService {
             properties['neighbourhood'])
         as String?;
     final district = properties['district'] as String?;
-    final city = (properties['city'] ?? properties['county']) as String?;
+    final county = properties['county'] as String?;
+    var city = (properties['city'] ?? properties['town'] ?? county) as String?;
+    if (county != null && district != null && city != null && city.toLowerCase() == district.toLowerCase()) {
+      city = county;
+    }
+    if (city == null && county != null) {
+      city = county;
+    }
     final state = properties['state'] as String?;
     final postcode = properties['postcode'] as String?;
     final country = properties['country'] as String? ?? 'Indonesia';

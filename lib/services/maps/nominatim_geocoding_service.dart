@@ -88,6 +88,34 @@ class NominatimGeocodingService implements GeocodingService {
   Address _mapNominatimToAddress(Map<String, dynamic> data) {
     final addressDetails = data['address'] as Map<String, dynamic>? ?? {};
 
+    // Accurate Indonesian administrative hierarchy mapping:
+    // Province = state / province
+    // City / Kabupaten = county (Kabupaten) or city / town (Kota)
+    // District / Kecamatan = municipality / city_district / district / suburb
+    // Village / Kelurahan = village / suburb / quarter / neighbourhood
+    final province = addressDetails['state'] ?? addressDetails['province'];
+    final county = addressDetails['county'];
+    var city = addressDetails['city'] ?? addressDetails['town'] ?? county;
+    final district = addressDetails['municipality'] ??
+        addressDetails['city_district'] ??
+        addressDetails['district'] ??
+        addressDetails['subdistrict'] ??
+        addressDetails['suburb'];
+
+    // In Indonesian OSM, county is often Kabupaten (e.g. Sidoarjo), while municipality is Kecamatan (e.g. Waru).
+    // If city was mapped to district (e.g. Waru) and county exists (Sidoarjo), use county as City.
+    if (county != null && district != null && city != null && city.toString().toLowerCase() == district.toString().toLowerCase()) {
+      city = county;
+    }
+    if (city == null && county != null) {
+      city = county;
+    }
+
+    final village = addressDetails['village'] ??
+        addressDetails['suburb'] ??
+        addressDetails['quarter'] ??
+        addressDetails['neighbourhood'];
+
     return Address(
       placeId: data['place_id']?.toString(),
       osmType: data['osm_type'],
@@ -96,10 +124,10 @@ class NominatimGeocodingService implements GeocodingService {
       houseNumber: addressDetails['house_number'],
       streetName: addressDetails['road'] ?? addressDetails['pedestrian'] ?? addressDetails['path'],
       neighbourhood: addressDetails['neighbourhood'] ?? addressDetails['suburb'],
-      village: addressDetails['village'] ?? addressDetails['suburb'] ?? addressDetails['quarter'] ?? addressDetails['neighbourhood'],
-      district: addressDetails['city_district'] ?? addressDetails['district'] ?? addressDetails['subdistrict'] ?? addressDetails['municipality'],
-      city: addressDetails['city'] ?? addressDetails['town'] ?? addressDetails['county'] ?? addressDetails['municipality'],
-      province: addressDetails['state'] ?? addressDetails['province'],
+      village: village,
+      district: district,
+      city: city,
+      province: province,
       postalCode: addressDetails['postcode'],
       country: addressDetails['country'],
       latitude: double.tryParse(data['lat']?.toString() ?? '0') ?? 0.0,
