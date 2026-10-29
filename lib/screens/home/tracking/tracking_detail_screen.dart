@@ -714,7 +714,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
               : Container(color: Colors.grey.shade100),
         ),
 
-        // ── 2. Top Info Bar di Atas Peta ──
+        // ── 2. Top Info Bar di Atas Peta dengan Tombol Pusatkan ──
         Positioned(
           top: 12,
           left: 16,
@@ -736,43 +736,83 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Flexible(
-                  child: Row(
+                // Info Label: Peta Rute & Waktu Pembaruan
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('●', style: TextStyle(color: orangeAccent, fontSize: 10)),
-                      SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Peta Rute & Posisi Kurir',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('●', style: TextStyle(color: orangeAccent, fontSize: 9)),
+                          SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              'Peta Rute & Posisi Kurir',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.access_time_rounded, size: 11, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Diperbarui: $_lastUpdatedTime',
+                            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Diperbarui: $_lastUpdatedTime',
-                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                const SizedBox(width: 10),
+
+                // Tombol "Pusatkan" Rapi & Menyatu di Top Bar
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _centerMap,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFED7AA)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.near_me_rounded, size: 13, color: orangeAccent),
+                          SizedBox(width: 4),
+                          Text(
+                            'Pusatkan',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                              color: orangeAccent,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
         ),
 
-        // ── 3. Zoom Controls (Kiri Atas) ──
+        // ── 3. Zoom Controls (Kanan Atas, Rapi di Bawah Top Bar) ──
         Positioned(
-          top: 64,
-          left: 16,
+          top: 68,
+          right: 16,
           child: Column(
             children: [
               _buildMiniIconButton(
@@ -791,44 +831,6 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                 },
               ),
             ],
-          ),
-        ),
-
-        // ── 4. Floating Button "Pusatkan" ──
-        Positioned(
-          bottom: MediaQuery.of(context).size.height * 0.40,
-          right: 16,
-          child: Material(
-            color: Colors.white,
-            elevation: 4,
-            borderRadius: BorderRadius.circular(20),
-            shadowColor: Colors.black26,
-            child: InkWell(
-              onTap: _centerMap,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.near_me_outlined, size: 14, color: orangeAccent),
-                    SizedBox(width: 5),
-                    Text(
-                      'Pusatkan',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: darkNavy,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         ),
 
