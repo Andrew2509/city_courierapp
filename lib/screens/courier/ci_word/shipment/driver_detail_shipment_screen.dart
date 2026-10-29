@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -329,173 +330,118 @@ class _DriverDetailShipmentScreenState
                   ),
           ),
 
-          // Header Overlay
+          // Header Floating Bar
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 50, 20, 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withOpacity(0.95),
-                    Colors.white.withOpacity(0),
-                  ],
-                  stops: const [0.2, 1.0],
+            top: 50,
+            left: 16,
+            right: 16,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      size: 20,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
                 ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Color(0xFF1A1A1A),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          (isPending || isAssigned) ? 'Pesanan Diterima' : 'Detail Pesanan',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1A1A1A),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            (isPending || isAssigned) ? 'Pesanan Diterima' : 'Detail Pesanan',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E293B),
+                            ),
                           ),
                         ),
-                      ),
-                      GestureDetector(
-                        onTap: () {},
-                        child: const Icon(
-                          Icons.headset_mic_outlined,
-                          color: Color(0xFFFF5A00),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            orderId,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isPending
-                                  ? const Color(0xFFFEF3C7)
-                                  : isAssigned
-                                  ? const Color(0xFFE0E7FF)
-                                  : isPickingUp
-                                  ? const Color(0xFFDBEAFE)
-                                  : isPickedUp
-                                  ? const Color(0xFFDCFCE7)
-                                  : isDelivering
-                                  ? const Color(0xFFFFEDD5)
-                                  : isDelivered
-                                  ? const Color(0xFFF1F5F9)
-                                  : isCancelled
-                                  ? const Color(0xFFFEE2E2)
-                                  : const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              isPending
-                                  ? 'Pesanan Baru'
-                                  : isAssigned
-                                  ? (isScheduled ? 'Terjadwal' : 'Ditugaskan')
-                                  : isPickingUp
-                                  ? 'Proses Pickup'
-                                  : isPickedUp
-                                  ? 'Paket Diambil'
-                                  : isDelivering
-                                  ? 'Diperjalanan'
-                                  : isDelivered
-                                  ? 'Selesai'
-                                  : isCancelled
-                                  ? 'Dibatalkan'
-                                  : 'Diproses',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: isPending
-                                    ? const Color(0xFFB45309)
-                                    : isAssigned
-                                    ? const Color(0xFF4338CA)
-                                    : isPickingUp
-                                    ? const Color(0xFF1D4ED8)
-                                    : isPickedUp
-                                    ? const Color(0xFF15803D)
-                                    : isDelivering
-                                    ? const Color(0xFFC2410C)
-                                    : isDelivered
-                                    ? const Color(0xFF475569)
-                                    : isCancelled
-                                    ? const Color(0xFFDC2626)
-                                    : const Color(0xFF16A34A),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Vehicle Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: isCar ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDF4),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: isCar ? const Color(0xFFBFDBFE) : const Color(0xFFBBF7D0),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isCar ? Icons.directions_car : Icons.two_wheeler,
-                                  size: 13,
-                                  color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  vehicleName,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        'Order ID: $orderId',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFFF5A00),
+                ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.headset_mic_outlined,
+                      size: 19,
+                      color: Color(0xFFFF5A00),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
-          // Map Controls
+          // Map Controls: Navigation
           Positioned(
-            right: 20,
-            top: 120,
+            right: 16,
+            top: 106,
             child: GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -506,51 +452,52 @@ class _DriverDetailShipmentScreenState
                 );
               },
               child: Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: const Color(0xFF2563EB),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF2563EB).withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
                 child: const Icon(
-                  Icons.navigation,
-                  size: 22,
+                  Icons.navigation_rounded,
+                  size: 20,
                   color: Colors.white,
                 ),
               ),
             ),
           ),
 
+          // Map Controls: Recenter Location
           Positioned(
-            left: 20,
-            bottom: MediaQuery.of(context).size.height * 0.56 + 20,
+            left: 16,
+            bottom: MediaQuery.of(context).size.height * 0.58 + 14,
             child: GestureDetector(
               onTap: _fitBounds,
               child: Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
-                  boxShadow: const [
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x14000000),
-                      blurRadius: 15,
-                      offset: Offset(0, 4),
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
                 child: const Icon(
-                  Icons.my_location,
-                  size: 20,
-                  color: Color(0xFF1A1A1A),
+                  Icons.my_location_rounded,
+                  size: 19,
+                  color: Color(0xFF1E293B),
                 ),
               ),
             ),
@@ -560,755 +507,883 @@ class _DriverDetailShipmentScreenState
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
-              height: MediaQuery.of(context).size.height * 0.56,
+              height: MediaQuery.of(context).size.height * 0.58,
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
                 boxShadow: [
                   BoxShadow(
                     color: Color(0x14000000),
-                    blurRadius: 30,
-                    offset: Offset(0, -10),
+                    blurRadius: 25,
+                    offset: Offset(0, -8),
                   ),
                 ],
               ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Scheduled Pickup Banner (jika order terjadwal)
-                    if (isScheduled) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isOverdue ? const Color(0xFFFECACA) : const Color(0xFFFDE68A),
-                          ),
-                        ),
-                        child: Row(
+              child: Column(
+                children: [
+                  // Drag Handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 6),
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Header Badges Row
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
                           children: [
-                            Icon(
-                              Icons.schedule,
-                              size: 18,
-                              color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                              decoration: BoxDecoration(
+                                color: isPending
+                                    ? const Color(0xFFFEF3C7)
+                                    : isAssigned
+                                    ? const Color(0xFFE0E7FF)
+                                    : isPickingUp
+                                    ? const Color(0xFFDBEAFE)
+                                    : isPickedUp
+                                    ? const Color(0xFFDCFCE7)
+                                    : isDelivering
+                                    ? const Color(0xFFFFEDD5)
+                                    : isDelivered
+                                    ? const Color(0xFFF1F5F9)
+                                    : isCancelled
+                                    ? const Color(0xFFFEE2E2)
+                                    : const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                isPending
+                                    ? 'Pesanan Baru'
+                                    : isAssigned
+                                    ? (isScheduled ? 'Terjadwal' : 'Ditugaskan')
+                                    : isPickingUp
+                                    ? 'Proses Pickup'
+                                    : isPickedUp
+                                    ? 'Paket Diambil'
+                                    : isDelivering
+                                    ? 'Diperjalanan'
+                                    : isDelivered
+                                    ? 'Selesai'
+                                    : isCancelled
+                                    ? 'Dibatalkan'
+                                    : 'Diproses',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: isPending
+                                      ? const Color(0xFFB45309)
+                                      : isAssigned
+                                      ? const Color(0xFF4338CA)
+                                      : isPickingUp
+                                      ? const Color(0xFF1D4ED8)
+                                      : isPickedUp
+                                      ? const Color(0xFF15803D)
+                                      : isDelivering
+                                      ? const Color(0xFFC2410C)
+                                      : isDelivered
+                                      ? const Color(0xFF475569)
+                                      : const Color(0xFFDC2626),
+                                ),
+                              ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            const SizedBox(width: 8),
+                            // Vehicle Chip
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                              decoration: BoxDecoration(
+                                color: isCar ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDF4),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isCar ? const Color(0xFFBFDBFE) : const Color(0xFFBBF7D0),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    'Jadwal Pickup: ${pickupTimeStr.isNotEmpty ? pickupTimeStr : 'Fleksibel'}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: isOverdue ? const Color(0xFF991B1B) : const Color(0xFF92400E),
-                                    ),
+                                  Icon(
+                                    isCar ? Icons.directions_car : Icons.two_wheeler,
+                                    size: 13,
+                                    color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
                                   ),
-                                  const SizedBox(height: 2),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    displayDateStr,
+                                    vehicleName,
                                     style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w500,
-                                      color: isOverdue ? const Color(0xFFB91C1C) : const Color(0xFFB45309),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: isOverdue
-                                    ? const Color(0xFFEF4444)
-                                    : canStartPickup
-                                        ? const Color(0xFF16A34A)
-                                        : const Color(0xFFF59E0B),
-                                borderRadius: BorderRadius.circular(5),
+                          ],
+                        ),
+                        // Copy Resi Button
+                        GestureDetector(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: orderId));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Nomor pesanan disalin!'),
+                                duration: Duration(seconds: 1),
                               ),
-                              child: Text(
-                                statusLabel,
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              Text(
+                                orderId,
                                 style: const TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: Color(0xFFFF5A00),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // Locations
-                    Stack(
-                      children: [
-                        Positioned(
-                          left: 10,
-                          top: 22,
-                          bottom: 22,
-                          child: CustomPaint(
-                            size: const Size(1, double.infinity),
-                            painter: DottedLinePainter(),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.copy_rounded,
+                                size: 12,
+                                color: Color(0xFFFF5A00),
+                              ),
+                            ],
                           ),
-                        ),
-                        Column(
-                          children: [
-                            // Origin
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 22,
-                                  height: 22,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFFFF5A00),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFFF5A00),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Lokasi Pengirim',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        senderName,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF1A1A1A),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        senderAddress,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF64748B),
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      GestureDetector(
-                                        onTap: () =>
-                                            _makePhoneCall(senderPhone),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            border: Border.all(
-                                              color: const Color(0xFFFFEDD5),
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Icon(
-                                                Icons.phone_outlined,
-                                                size: 12,
-                                                color: Color(0xFFFF5A00),
-                                              ),
-                                              SizedBox(width: 6),
-                                              Text(
-                                                'Hubungi Pengirim',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Color(0xFFFF5A00),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            // Destination
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 22,
-                                  height: 22,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFF22C55E),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF22C55E),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Lokasi Penerima',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        receiverName,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF1A1A1A),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        receiverAddress,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF64748B),
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      GestureDetector(
-                                        onTap: () =>
-                                            _makePhoneCall(receiverPhone),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            border: Border.all(
-                                              color: const Color(0xFFFFEDD5),
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Icon(
-                                                Icons.phone_outlined,
-                                                size: 12,
-                                                color: Color(0xFFFF5A00),
-                                              ),
-                                              SizedBox(width: 6),
-                                              Text(
-                                                'Hubungi Penerima',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Color(0xFFFF5A00),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
                         ),
                       ],
                     ),
+                  ),
 
-                    const SizedBox(height: 24),
-                    const Divider(
-                      color: Color(0xFFF1F5F9),
-                      thickness: 1.5,
-                    ), // HTML had a dashed divider here, we use a normal one or our own DottedLinePainter
-                    const SizedBox(height: 24),
+                  const SizedBox(height: 4),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-                    // Meta Info
-                    Column(
-                      children: [
-                        _buildMetaRow(
-                          Icons.access_time,
-                          'Estimasi Waktu',
-                          '20 - 30 menit',
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.payments_outlined,
-                              size: 16,
-                              color: Color(0xFF64748B),
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Harga',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF64748B),
+                  // Scrollable Content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Scheduled Pickup Banner (jika terjadwal)
+                          if (isScheduled) ...[
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isOverdue ? const Color(0xFFFECACA) : const Color(0xFFFDE68A),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  Flexible(
+                                  Icon(
+                                    Icons.schedule_rounded,
+                                    size: 16,
+                                    color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
                                     child: Text(
-                                      _formatCurrency(price),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF22C55E),
+                                      'Pickup: $displayDateStr, ${pickupTimeStr.isNotEmpty ? pickupTimeStr : 'Fleksibel'}',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isOverdue ? const Color(0xFF991B1B) : const Color(0xFF92400E),
                                       ),
                                     ),
                                   ),
-                                  if (isCOD) ...[
-                                    const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isOverdue
+                                          ? const Color(0xFFEF4444)
+                                          : canStartPickup
+                                              ? const Color(0xFF16A34A)
+                                              : const Color(0xFFF59E0B),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      statusLabel,
+                                      style: const TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          // 2. Summary Grid (Tarif & Estimasi)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Tarif Pengiriman',
+                                        style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              _formatCurrency(price),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF16A34A),
+                                              ),
+                                            ),
+                                          ),
+                                          if (isCOD) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF1F5F9),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'COD',
+                                                style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: Color(0xFF475569)),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Waktu & Kendaraan',
+                                        style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            isCar ? Icons.directions_car : Icons.two_wheeler,
+                                            size: 14,
+                                            color: const Color(0xFF2563EB),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              '~25 mnt • $vehicleName',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // 3. Compact Route Timeline
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFAFAFA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Column(
+                              children: [
+                                // Origin
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
+                                      margin: const EdgeInsets.only(top: 2),
+                                      width: 16,
+                                      height: 16,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFF1F5F9),
-                                        borderRadius: BorderRadius.circular(6),
+                                        color: const Color(0xFFFF5A00).withOpacity(0.12),
+                                        shape: BoxShape.circle,
                                       ),
-                                      child: const Text(
-                                        'COD',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF475569),
+                                      child: Center(
+                                        child: Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFFF5A00),
+                                            shape: BoxShape.circle,
+                                          ),
                                         ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Penjemputan • $senderName',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            senderAddress,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 10.5,
+                                              color: Color(0xFF64748B),
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () => _makePhoneCall(senderPhone),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: const Color(0xFFFED7AA)),
+                                          boxShadow: [
+                                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4),
+                                          ],
+                                        ),
+                                        child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFFFF5A00)),
                                       ),
                                     ),
                                   ],
+                                ),
+
+                                // Connecting Line
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 7),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Container(
+                                      width: 2,
+                                      height: 14,
+                                      color: const Color(0xFFCBD5E1),
+                                    ),
+                                  ),
+                                ),
+
+                                // Destination
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 2),
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF22C55E).withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF22C55E),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Tujuan • $receiverName',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            receiverAddress,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 10.5,
+                                              color: Color(0xFF64748B),
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () => _makePhoneCall(receiverPhone),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                                          boxShadow: [
+                                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4),
+                                          ],
+                                        ),
+                                        child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF16A34A)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // 4. Detail Paket Tile
+                          Container(
+                            margin: const EdgeInsets.only(top: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF64748B)),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Barang:',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '$itemType • $weight kg',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // 5. Catatan Tile (jika ada)
+                          if (notes.isNotEmpty && notes != '-') ...[
+                            Container(
+                              margin: const EdgeInsets.only(top: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.notes_rounded, size: 15, color: Color(0xFFD97706)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Catatan: $notes',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF92400E), height: 1.35),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 18),
-                        _buildMetaRow(
-                          isCar ? Icons.directions_car : Icons.two_wheeler,
-                          'Jenis Kendaraan',
-                          vehicleName,
-                        ),
-                        if (isScheduled) ...[
-                          const SizedBox(height: 18),
-                          _buildMetaRow(
-                            Icons.calendar_month,
-                            'Jadwal Pickup',
-                            '$displayDateStr, $pickupTimeStr',
-                          ),
                         ],
-                        const SizedBox(height: 18),
-                        _buildMetaRow(
-                          Icons.inventory_2_outlined,
-                          'Berat & Ukuran',
-                          '$weight kg • 30x20x15 cm',
-                        ),
-                        const SizedBox(height: 18),
-                        _buildMetaRow(
-                          Icons.local_shipping_outlined,
-                          'Jenis Paket',
-                          itemType,
+                      ),
+                    ),
+                  ),
+
+                  // Pinned Fixed Bottom Action Bar
+                  Container(
+                    padding: EdgeInsets.fromLTRB(18, 10, 18, 12 + MediaQuery.of(context).padding.bottom),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: const Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1.5)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, -3),
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // Catatan
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: const [
-                            Icon(
-                              Icons.notes,
-                              size: 16,
-                              color: Color(0xFFFF5A00),
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Catatan',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1A1A1A),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 2),
-                          child: Text(
-                            notes,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF1A1A1A),
-                              height: 1.5,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: _buildActionButtons(
+                      isPending: isPending,
+                      isAssigned: isAssigned,
+                      isPickingUp: isPickingUp,
+                      isPickedUp: isPickedUp,
+                      isDelivering: isDelivering,
+                      isDelivered: isDelivered,
+                      canStartPickup: canStartPickup,
+                      statusLabel: statusLabel,
+                      pickupTimeStr: pickupTimeStr,
                     ),
-
-                    const SizedBox(height: 30),
-
-                    // Actions
-                    if (isPending) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _isAccepting
-                                  ? null
-                                  : () {
-                                      Navigator.pop(context, false);
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFFFF5A00),
-                                side: const BorderSide(
-                                  color: Color(0xFFFF5A00),
-                                  width: 1.5,
-                                ),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: const Text(
-                                'Tolak',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _isAccepting
-                                  ? null
-                                  : () async {
-                                      setState(() {
-                                        _isAccepting = true;
-                                      });
-                                      final requestId = widget.shipment['id']?.toString() ?? '';
-                                      final acceptResult = await CourierOrderService.acceptPickupRequest(requestId);
-
-                                      if (mounted) {
-                                        setState(() {
-                                          _isAccepting = false;
-                                        });
-                                        if (acceptResult['success'] == true) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Pesanan berhasil diterima!'),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                          Navigator.pop(context, true);
-                                        } else {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF5A00),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _isAccepting
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Terima Pesanan',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ] else if (isAssigned) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: canStartPickup
-                              ? () async {
-                                  setState(() => _isAccepting = true);
-                                  final orderId = widget.shipment['id']?.toString() ?? '';
-                                  final res = await CourierOrderService.updateOrderStatus(
-                                    orderId: orderId,
-                                    status: 'picking_up',
-                                  );
-                                  if (!mounted) return;
-                                  setState(() => _isAccepting = false);
-
-                                  if (res['success'] == true) {
-                                    final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => DriverDeliveryFlowScreen(order: updated),
-                                      ),
-                                    );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(res['message'] ?? 'Gagal memulai penjemputan'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                }
-                              : () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal pickup ($pickupTimeStr).',
-                                      ),
-                                      backgroundColor: const Color(0xFFD97706),
-                                      duration: const Duration(seconds: 4),
-                                    ),
-                                  );
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: canStartPickup ? const Color(0xFFFF5A00) : const Color(0xFF94A3B8),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                canStartPickup ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                canStartPickup ? 'Mulai Pickup Sekarang' : 'Mulai Pickup (Terkunci)',
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ] else if (isPickingUp) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _showReportIssueDialog,
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFCBD5E1)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: const Text(
-                                'Kendala Pickup',
-                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => DriverDeliveryFlowScreen(order: widget.shipment),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF5A00),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 0,
-                              ),
-                              child: const Text(
-                                'Proses Pickup',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ] else if (isPickedUp) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final res = await CourierOrderService.updateOrderStatus(
-                              orderId: widget.shipment['id'].toString(),
-                              status: 'delivering',
-                            );
-                            if (!mounted) return;
-                            if (res['success'] == true) {
-                              final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => DriverDeliveryFlowScreen(order: updated),
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF5A00),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Mulai Antar ke Penerima',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ),
-                    ] else if (isDelivering) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => DriverDeliveryFlowScreen(order: widget.shipment),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF5A00),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Lanjutkan Pengantaran',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ),
-                    ] else if (isDelivered) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () {},
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF22C55E)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Pesanan Selesai Terkirim',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF22C55E)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildActionButtons({
+    required bool isPending,
+    required bool isAssigned,
+    required bool isPickingUp,
+    required bool isPickedUp,
+    required bool isDelivering,
+    required bool isDelivered,
+    required bool canStartPickup,
+    required String statusLabel,
+    required String pickupTimeStr,
+  }) {
+    if (isPending) {
+      return Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: OutlinedButton(
+              onPressed: _isAccepting
+                  ? null
+                  : () {
+                      Navigator.pop(context, false);
+                    },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                'Tolak',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: _isAccepting
+                  ? null
+                  : () async {
+                      setState(() {
+                        _isAccepting = true;
+                      });
+                      final requestId = widget.shipment['id']?.toString() ?? '';
+                      final acceptResult = await CourierOrderService.acceptPickupRequest(requestId);
+
+                      if (mounted) {
+                        setState(() {
+                          _isAccepting = false;
+                        });
+                        if (acceptResult['success'] == true) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Pesanan berhasil diterima!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          Navigator.pop(context, true);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5A00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: _isAccepting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Terima Pesanan',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                    ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (isAssigned) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: canStartPickup
+              ? () async {
+                  setState(() => _isAccepting = true);
+                  final orderId = widget.shipment['id']?.toString() ?? '';
+                  final res = await CourierOrderService.updateOrderStatus(
+                    orderId: orderId,
+                    status: 'picking_up',
+                  );
+                  if (!mounted) return;
+                  setState(() => _isAccepting = false);
+
+                  if (res['success'] == true) {
+                    final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DriverDeliveryFlowScreen(order: updated),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(res['message'] ?? 'Gagal memulai penjemputan'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              : () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal pickup ($pickupTimeStr).',
+                      ),
+                      backgroundColor: const Color(0xFFD97706),
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: canStartPickup ? const Color(0xFFFF5A00) : const Color(0xFF94A3B8),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                canStartPickup ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                canStartPickup ? 'Mulai Pickup Sekarang' : 'Mulai Pickup (Terkunci)',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (isPickingUp) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _showReportIssueDialog,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                'Kendala Pickup',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DriverDeliveryFlowScreen(order: widget.shipment),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5A00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Proses Pickup',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (isPickedUp) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () async {
+            final res = await CourierOrderService.updateOrderStatus(
+              orderId: widget.shipment['id'].toString(),
+              status: 'delivering',
+            );
+            if (!mounted) return;
+            if (res['success'] == true) {
+              final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DriverDeliveryFlowScreen(order: updated),
+                ),
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF5A00),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+          child: const Text(
+            'Mulai Antar ke Penerima',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+    }
+
+    if (isDelivering) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DriverDeliveryFlowScreen(order: widget.shipment),
+              ),
+            );
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF5A00),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+          child: const Text(
+            'Lanjutkan Pengantaran',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+    }
+
+    if (isDelivered) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: () {},
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFF22C55E)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Pesanan Selesai Terkirim',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF22C55E)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   void _showReportIssueDialog() {
@@ -1463,37 +1538,7 @@ class _DriverDetailShipmentScreenState
     );
   }
 
-  Widget _buildMetaRow(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Icon(icon, size: 16, color: const Color(0xFF64748B)),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1A1A1A),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+
 }
 
 class DottedLinePainter extends CustomPainter {
