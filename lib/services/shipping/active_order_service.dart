@@ -30,6 +30,7 @@ class ActiveOrderService {
     'courier_name': 'Pak Budi Santoso',
     'courier_vehicle': 'Honda Vario • B 4920 SDC',
     'courier_phone': '081234567890',
+    'courier_photo': null,
     'destination': 'Kebayoran Baru',
     'status_message': 'Kurir sedang menuju alamat penerima di Kebayoran Baru',
     'step': 1, // 0: Jemput Paket, 1: Dalam Perjalanan, 2: Terkirim
@@ -248,6 +249,7 @@ class ActiveOrderService {
     String courierName = 'Menunggu Kurir';
     String courierVehicle = 'Sistem mencari kurir terdekat...';
     String courierPhone = '';
+    String? courierPhoto;
 
     if (hasCourier) {
       courierName = tracking?.courier?.name ?? shipment.courierName ?? 'Kurir City Courier';
@@ -256,6 +258,7 @@ class ActiveOrderService {
           ? 'Toyota Avanza • Mitra Kurir'
           : 'Honda Vario • B 4920 SDC';
       courierPhone = tracking?.courier?.phone ?? shipment.courierPhone ?? '';
+      courierPhoto = tracking?.courier?.photo ?? shipment.courierPhoto;
     }
 
     // 3. Extract Destination City / District
@@ -285,6 +288,7 @@ class ActiveOrderService {
       'courier_name': courierName,
       'courier_vehicle': courierVehicle,
       'courier_phone': courierPhone,
+      'courier_photo': courierPhoto,
       'destination': destination,
       'status_message': statusMessage,
       'step': step,
@@ -318,6 +322,7 @@ class ActiveOrderService {
     orderData['courier_name'] ??= 'Pak Budi Santoso';
     orderData['courier_vehicle'] ??= 'Honda Vario • B 4920 SDC';
     orderData['courier_phone'] ??= '081234567890';
+    orderData['courier_photo'] ??= order['courier_photo'];
     orderData['has_courier'] ??= true;
     orderData['is_delivered'] ??= false;
     orderData['destination'] ??= 'Kebayoran Baru';
@@ -380,6 +385,7 @@ class ActiveOrderService {
       'courier_name': hasCourier ? (tracking.courier?.name ?? 'Pak Budi Santoso') : 'Menunggu Kurir',
       'courier_vehicle': hasCourier ? (tracking.vehicle ?? 'Honda Vario • B 4920 SDC') : 'Mencari kurir terdekat...',
       'courier_phone': tracking.courier?.phone ?? current?['courier_phone'] ?? '',
+      'courier_photo': tracking.courier?.photo ?? current?['courier_photo'],
       'destination': destination,
       'status_message': statusRaw == 'delivered'
           ? 'Paket telah berhasil diterima oleh ${tracking.receiverName ?? 'penerima'}.'

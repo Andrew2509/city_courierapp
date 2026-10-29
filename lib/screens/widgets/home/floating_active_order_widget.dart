@@ -45,6 +45,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         final courierVehicle =
             order['courier_vehicle'] ?? 'Honda Vario • B 4920 SDC';
         final courierPhone = order['courier_phone'] ?? '081234567890';
+        final courierPhoto = order['courier_photo'] as String?;
         final destination = order['destination'] ?? 'Kebayoran Baru';
         final statusMsg = order['status_message'] ??
             'Kurir sedang menuju alamat penerima di $destination';
@@ -82,6 +83,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         courierName: courierName,
                         courierVehicle: courierVehicle,
                         courierPhone: courierPhone,
+                        courierPhoto: courierPhoto,
                         destination: destination,
                         statusMsg: statusMsg,
                         step: step,
@@ -307,6 +309,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     required String courierName,
     required String courierVehicle,
     required String courierPhone,
+    String? courierPhoto,
     required String destination,
     required String statusMsg,
     required int step,
@@ -485,10 +488,11 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       shape: BoxShape.circle,
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: Icon(
-                      hasCourier ? Icons.person : Icons.access_time_rounded,
-                      color: const Color(0xFF94A3B8),
-                      size: 20,
+                    clipBehavior: Clip.antiAlias,
+                    child: _buildCourierAvatar(
+                      courierPhoto: courierPhoto,
+                      courierName: courierName,
+                      hasCourier: hasCourier,
                     ),
                   ),
                   Positioned(
@@ -852,6 +856,93 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
           shape: BoxShape.circle,
         ),
       );
+    }
+  }
+
+  Widget _buildCourierAvatar({
+    required String? courierPhoto,
+    required String courierName,
+    required bool hasCourier,
+  }) {
+    if (!hasCourier) {
+      return const Center(
+        child: Icon(
+          Icons.access_time_rounded,
+          color: Color(0xFF94A3B8),
+          size: 20,
+        ),
+      );
+    }
+
+    final photo = courierPhoto?.trim();
+    if (photo != null && photo.isNotEmpty) {
+      final fullUrl = _normalizePhotoUrl(photo);
+      return Image.network(
+        fullUrl,
+        width: 38,
+        height: 38,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildDefaultCourierImage(courierName);
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(
+            child: SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: Color(0xFFEA580C),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return _buildDefaultCourierImage(courierName);
+  }
+
+  Widget _buildDefaultCourierImage(String courierName) {
+    return Image.asset(
+      'assets/images/kurir_avatar_default.png',
+      width: 38,
+      height: 38,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        final initial = courierName.isNotEmpty ? courierName[0].toUpperCase() : 'K';
+        return Container(
+          width: 38,
+          height: 38,
+          color: const Color(0xFFFFF7ED),
+          alignment: Alignment.center,
+          child: Text(
+            initial,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFEA580C),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static String _normalizePhotoUrl(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    const baseHost = 'https://citycourier.pabm.space';
+    if (path.startsWith('/storage/')) {
+      return '$baseHost$path';
+    } else if (path.startsWith('storage/')) {
+      return '$baseHost/$path';
+    } else if (path.startsWith('/')) {
+      return '$baseHost/storage$path';
+    } else {
+      return '$baseHost/storage/$path';
     }
   }
 

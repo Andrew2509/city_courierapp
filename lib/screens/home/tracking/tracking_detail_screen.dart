@@ -956,18 +956,24 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                       child: Row(
                         children: [
                           Container(
-                            width: 28,
-                            height: 28,
+                            width: 30,
+                            height: 30,
                             decoration: const BoxDecoration(
                               color: orangeAccent,
                               shape: BoxShape.circle,
                             ),
+                            clipBehavior: Clip.antiAlias,
                             alignment: Alignment.center,
-                            child: Icon(
-                              isCourierAssigned ? Icons.delivery_dining_rounded : Icons.hourglass_top_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
+                            child: isCourierAssigned
+                                ? _buildCourierPhotoOrAsset(
+                                    _tracking?.courier?.photo,
+                                    _tracking?.courier?.name,
+                                  )
+                                : const Icon(
+                                    Icons.hourglass_top_rounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -1545,6 +1551,51 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCourierPhotoOrAsset(String? photoUrl, String? courierName) {
+    final photo = photoUrl?.trim();
+    if (photo != null && photo.isNotEmpty) {
+      String fullUrl = photo;
+      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+        const baseHost = 'https://citycourier.pabm.space';
+        if (fullUrl.startsWith('/storage/')) {
+          fullUrl = '$baseHost$fullUrl';
+        } else if (fullUrl.startsWith('storage/')) {
+          fullUrl = '$baseHost/$fullUrl';
+        } else if (fullUrl.startsWith('/')) {
+          fullUrl = '$baseHost/storage$fullUrl';
+        } else {
+          fullUrl = '$baseHost/storage/$fullUrl';
+        }
+      }
+      return Image.network(
+        fullUrl,
+        width: 30,
+        height: 30,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultCourierAsset(courierName),
+      );
+    }
+    return _buildDefaultCourierAsset(courierName);
+  }
+
+  Widget _buildDefaultCourierAsset(String? courierName) {
+    return Image.asset(
+      'assets/images/kurir_avatar_default.png',
+      width: 30,
+      height: 30,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return const Center(
+          child: Icon(
+            Icons.delivery_dining_rounded,
+            size: 16,
+            color: Colors.white,
+          ),
+        );
+      },
     );
   }
 

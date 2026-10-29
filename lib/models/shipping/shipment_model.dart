@@ -19,6 +19,7 @@ class ShipmentModel {
   final String statusLabel;
   final String? courierName;
   final String? courierPhone;
+  final String? courierPhoto;
   final DateTime? orderDate;
   final DateTime? pickupScheduledAt;
   final DateTime? estimatedDelivery;
@@ -57,6 +58,7 @@ class ShipmentModel {
     required this.statusLabel,
     this.courierName,
     this.courierPhone,
+    this.courierPhoto,
     this.orderDate,
     this.pickupScheduledAt,
     this.estimatedDelivery,
@@ -102,8 +104,17 @@ class ShipmentModel {
       totalPrice: parseDouble(json['total_cost'] ?? json['total_price']),
       status: json['status'] ?? 'pending',
       statusLabel: json['status_label'] ?? 'Sedang Diproses',
-      courierName: json['courier_name'],
-      courierPhone: json['courier_phone'],
+      courierName: json['courier_name'] ?? (json['courier'] is Map ? json['courier']['name'] : null),
+      courierPhone: json['courier_phone'] ?? (json['courier'] is Map ? json['courier']['phone'] : null),
+      courierPhoto: json['courier_photo'] ??
+          json['courier_avatar'] ??
+          json['photo_url'] ??
+          (json['courier'] is Map
+              ? (json['courier']['photo'] ??
+                  json['courier']['avatar'] ??
+                  json['courier']['photo_url'] ??
+                  json['courier']['profile_photo_url'])
+              : null),
       orderDate: json['order_date'] != null
           ? DateTime.parse(json['order_date'])
           : null,
@@ -159,6 +170,7 @@ class ShipmentModel {
       'status_label': statusLabel,
       'courier_name': courierName,
       'courier_phone': courierPhone,
+      'courier_photo': courierPhoto,
       'order_date': orderDate?.toIso8601String(),
       'scheduled_pickup': scheduledPickup ?? false,
       if (scheduledPickup == true && pickupScheduledAt != null)

@@ -230,11 +230,16 @@ class TrackingModel {
     TrackingCourier? courier;
     if (json['courier'] is Map) {
       courier = TrackingCourier.fromJson(json['courier'] as Map<String, dynamic>);
-    } else if (json['courier_name'] != null) {
+    } else if (json['courier_name'] != null || json['courier_phone'] != null || json['courier_photo'] != null) {
       courier = TrackingCourier(
-        name: (json['courier_name'] ?? '').toString(),
+        name: (json['courier_name'] ?? 'Kurir City Courier').toString(),
         phone: json['courier_phone']?.toString(),
-        photo: json['courier_photo']?.toString(),
+        photo: (json['courier_photo'] ??
+                json['courier_avatar'] ??
+                json['photo_url'] ??
+                json['photo'] ??
+                json['avatar'])
+            ?.toString(),
       );
     }
 
@@ -354,9 +359,15 @@ class TrackingCourier {
 
   factory TrackingCourier.fromJson(Map<String, dynamic> json) {
     return TrackingCourier(
-      name: (json['name'] ?? '').toString(),
-      phone: json['phone']?.toString(),
-      photo: json['photo']?.toString(),
+      name: (json['name'] ?? json['courier_name'] ?? '').toString(),
+      phone: (json['phone'] ?? json['courier_phone'])?.toString(),
+      photo: (json['photo'] ??
+              json['photo_url'] ??
+              json['avatar'] ??
+              json['courier_photo'] ??
+              json['courier_avatar'] ??
+              json['profile_photo_url'])
+          ?.toString(),
     );
   }
 }
