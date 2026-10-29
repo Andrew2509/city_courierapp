@@ -8,7 +8,7 @@ import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_detail_screen.dart';
 import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
-class DirectPaymentConfirmationScreen extends StatelessWidget {
+class DirectPaymentConfirmationScreen extends StatefulWidget {
   final String orderId;
   final String paymentMethod;
   final int amount;
@@ -37,6 +37,53 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
     this.trackingUrl,
     this.shipmentData,
   });
+
+  @override
+  State<DirectPaymentConfirmationScreen> createState() => _DirectPaymentConfirmationScreenState();
+}
+
+class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmationScreen> {
+  String get orderId => widget.orderId;
+  String get paymentMethod => widget.paymentMethod;
+  int get amount => widget.amount;
+  String? get barcodeData => widget.barcodeData;
+  String? get barcodeUrl => widget.barcodeUrl;
+  String? get senderName => widget.senderName;
+  String? get senderCity => widget.senderCity;
+  String? get receiverName => widget.receiverName;
+  String? get receiverCity => widget.receiverCity;
+  String? get vehicle => widget.vehicle;
+  String? get trackingUrl => widget.trackingUrl;
+  Map<String, dynamic>? get shipmentData => widget.shipmentData;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _saveActiveOrder();
+    });
+  }
+
+  void _saveActiveOrder() {
+    final destCity = receiverCity ?? shipmentData?['destination_name'] ?? 'Kebayoran Baru';
+    final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
+    final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor';
+    ActiveOrderService.saveActiveOrder({
+      'order_id': orderId,
+      'status': 'Menunggu Kurir',
+      'status_raw': 'pending',
+      'estimated_time': 'Mencari...',
+      'courier_name': 'Menunggu Kurir',
+      'courier_vehicle': 'Sistem mencari kurir $veh terdekat...',
+      'courier_phone': '',
+      'destination': destCity,
+      'status_message': 'Pesanan berhasil dibuat. Menunggu konfirmasi kurir terdekat.',
+      'step': 0,
+      'has_courier': false,
+      'is_delivered': false,
+      'shipment_data': shipmentData,
+    });
+  }
 
   Future<void> _shareToWhatsApp(BuildContext context) async {
     final sName = senderName ?? shipmentData?['sender_name'] ?? 'brightness';
@@ -115,26 +162,6 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
     const Color orangeBg = Color(0xFFFFF7ED);
     const Color orangeBorder = Color(0xFFFED7AA);
     const Color waGreen = Color(0xFF00B761);
-
-    // Otomatis simpan pesanan aktif agar langsung melayang di Beranda pengguna
-    final destCity = receiverCity ?? shipmentData?['destination_name'] ?? 'Kebayoran Baru';
-    final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
-    final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor';
-    ActiveOrderService.saveActiveOrder({
-      'order_id': orderId,
-      'status': 'Menunggu Kurir',
-      'status_raw': 'pending',
-      'estimated_time': 'Mencari...',
-      'courier_name': 'Menunggu Kurir',
-      'courier_vehicle': 'Sistem mencari kurir $veh terdekat...',
-      'courier_phone': '',
-      'destination': destCity,
-      'status_message': 'Pesanan berhasil dibuat. Menunggu konfirmasi kurir terdekat.',
-      'step': 0,
-      'has_courier': false,
-      'is_delivered': false,
-      'shipment_data': shipmentData,
-    });
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),

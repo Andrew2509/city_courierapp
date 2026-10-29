@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:city_courierapp/models/shipping/shipment_model.dart';
 import 'package:city_courierapp/models/shipping/tracking_model.dart';
@@ -515,7 +516,21 @@ class ActiveOrderService {
 
   /// Internal helper to update notifier and persist to SharedPreferences
   static Future<void> _applyOrderData(Map<String, dynamic> data) async {
-    activeOrderNotifier.value = data;
+    void updateNotifier() {
+      activeOrderNotifier.value = data;
+    }
+
+    try {
+      final binding = WidgetsBinding.instance;
+      if (binding.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+        binding.addPostFrameCallback((_) => updateNotifier());
+      } else {
+        updateNotifier();
+      }
+    } catch (_) {
+      updateNotifier();
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefKey, json.encode(data));
@@ -525,7 +540,21 @@ class ActiveOrderService {
   /// Dismiss active order (e.g. after customer acknowledges delivery)
   static Future<void> clearActiveOrder() async {
     _stopPolling();
-    activeOrderNotifier.value = null;
+    void updateNotifier() {
+      activeOrderNotifier.value = null;
+    }
+
+    try {
+      final binding = WidgetsBinding.instance;
+      if (binding.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+        binding.addPostFrameCallback((_) => updateNotifier());
+      } else {
+        updateNotifier();
+      }
+    } catch (_) {
+      updateNotifier();
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_prefKey);
