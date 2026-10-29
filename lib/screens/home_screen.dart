@@ -104,17 +104,27 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return Scaffold(
       body: Stack(
         children: [
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                HomeHeader(userData: _userData),
-                const SearchBarWidget(),
-                const PickupDropoff(),
-                const ServicesSection(),
-                CourierBanner(userData: _userData),
-                OtherFeaturesSection(userData: _userData),
-                const SizedBox(height: 220), // Ensure content is scrollable above the floating card and nav bar
-              ],
+          RefreshIndicator(
+            color: const Color(0xFFEC5B13),
+            onRefresh: () async {
+              await Future.wait([
+                _checkProfileCompletion(),
+                ActiveOrderService.syncFromBackend(),
+              ]);
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                children: [
+                  HomeHeader(userData: _userData),
+                  const SearchBarWidget(),
+                  const PickupDropoff(),
+                  const ServicesSection(),
+                  CourierBanner(userData: _userData),
+                  OtherFeaturesSection(userData: _userData),
+                  const SizedBox(height: 220), // Ensure content is scrollable above the floating card and nav bar
+                ],
+              ),
             ),
           ),
           // Floating active order delivery card (Melayang di atas bottom navigation bar)

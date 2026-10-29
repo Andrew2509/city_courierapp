@@ -6,13 +6,17 @@ import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
 /// Floating active delivery order card on the user's home screen.
 ///
+/// Directly integrated with the website backend API:
+/// - Stage 0: Menunggu Kurir / Kurir Ditugaskan (Menunggu & Penjemputan)
+/// - Stage 1: Sedang Dikirim / Dalam Perjalanan (Menuju Penerima)
+/// - Stage 2: Paket Diterima / Terkirim (Selesai Diterima oleh Penerima)
+///
 /// Features matching user's visual screenshots:
-/// - State 1 (Compact Pill Bar): Soft orange truck icon, courier name,
+/// - State 1 (Compact Pill Bar): Soft peach truck icon, courier name,
 ///   arrival time badge, destination subtitle, and "Lihat >" action.
-/// - State 2 (Expanded Full Card): "Sedang Dikirim" status badge, tracking code
-///   with one-tap copy, courier driver info with call & chat buttons,
-///   status banner, 3-stage delivery stepper progress, and orange
-///   "Lihat Live Tracking >" CTA button.
+/// - State 2 (Expanded Full Card): Status badge, tracking code with one-tap copy,
+///   courier driver info with call & chat buttons, status banner, 3-stage
+///   delivery stepper progress, and orange "Lihat Live Tracking >" CTA button.
 class FloatingActiveOrderWidget extends StatefulWidget {
   const FloatingActiveOrderWidget({super.key});
 
@@ -45,6 +49,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         final statusMsg = order['status_message'] ??
             'Kurir sedang menuju alamat penerima di $destination';
         final step = order['step'] ?? 1; // 0: Jemput, 1: Jalan, 2: Terkirim
+        final bool hasCourier = order['has_courier'] ?? true;
+        final bool isDelivered = order['is_delivered'] ?? (step >= 2);
         final shipmentData = order['shipment_data'] as Map<String, dynamic>?;
 
         return Positioned(
@@ -79,6 +85,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         destination: destination,
                         statusMsg: statusMsg,
                         step: step,
+                        hasCourier: hasCourier,
+                        isDelivered: isDelivered,
                         shipmentData: shipmentData,
                       ),
                     )
@@ -90,6 +98,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         courierName: courierName,
                         estTime: estTime,
                         destination: destination,
+                        hasCourier: hasCourier,
+                        isDelivered: isDelivered,
                         shipmentData: shipmentData,
                       ),
                     ),
@@ -108,8 +118,30 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     required String courierName,
     required String estTime,
     required String destination,
+    required bool hasCourier,
+    required bool isDelivered,
     Map<String, dynamic>? shipmentData,
   }) {
+    final Color dotColor = isDelivered
+        ? const Color(0xFF10B981)
+        : hasCourier
+            ? const Color(0xFF10B981)
+            : const Color(0xFFEA580C);
+
+    final Color badgeBg = isDelivered || hasCourier
+        ? const Color(0xFFECFDF5)
+        : const Color(0xFFFFF7ED);
+
+    final Color badgeText = isDelivered || hasCourier
+        ? const Color(0xFF059669)
+        : const Color(0xFFC2410C);
+
+    final String subtitle = isDelivered
+        ? 'Paket telah berhasil diterima'
+        : hasCourier
+            ? 'Menuju penerima • $destination'
+            : 'Menunggu kurir menerima penjemputan';
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -131,7 +163,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         },
         child: Row(
           children: [
-            // Left Soft Orange Square with Truck Icon & Active Green Dot
+            // Left Soft Peach Square with Truck Icon & Active Status Indicator
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -156,7 +188,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     width: 9,
                     height: 9,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
+                      color: dotColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 1.5),
                     ),
@@ -191,15 +223,15 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
+                          color: badgeBg,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           estTime,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF059669),
+                            color: badgeText,
                           ),
                         ),
                       ),
@@ -207,7 +239,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Menuju penerima • $destination',
+                    subtitle,
                     style: const TextStyle(
                       fontSize: 11.5,
                       color: Color(0xFF64748B),
@@ -274,8 +306,23 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     required String destination,
     required String statusMsg,
     required int step,
+    required bool hasCourier,
+    required bool isDelivered,
     Map<String, dynamic>? shipmentData,
   }) {
+    final Color badgeBg = isDelivered || hasCourier
+        ? const Color(0xFFECFDF5)
+        : const Color(0xFFFFF7ED);
+    final Color badgeBorder = isDelivered || hasCourier
+        ? const Color(0xFFA7F3D0)
+        : const Color(0xFFFED7AA);
+    final Color dotColor = isDelivered || hasCourier
+        ? const Color(0xFF10B981)
+        : const Color(0xFFEA580C);
+    final Color badgeText = isDelivered || hasCourier
+        ? const Color(0xFF047857)
+        : const Color(0xFFC2410C);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -294,7 +341,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Header Row: [Sedang Dikirim + Tiba ~25 mnt] & [CC2610284680 + Copy + Collapse]
+          // 1. Header Row: [Sedang Dikirim + Tiba ~25 mnt] & [CC2610284680 + Copy + Collapse/Close]
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -305,9 +352,9 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3.5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
+                      color: badgeBg,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                      border: Border.all(color: badgeBorder),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -315,18 +362,18 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         Container(
                           width: 6.5,
                           height: 6.5,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF10B981),
+                          decoration: BoxDecoration(
+                            color: dotColor,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 5),
                         Text(
                           status,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF047857),
+                            color: badgeText,
                           ),
                         ),
                       ],
@@ -334,7 +381,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Tiba $estTime',
+                    isDelivered ? estTime : 'Tiba $estTime',
                     style: const TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w500,
@@ -344,7 +391,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                 ],
               ),
 
-              // Right: Resi Code + Copy + Minimize icon
+              // Right: Resi Code + Copy + Minimize / Dismiss icon
               Row(
                 children: [
                   InkWell(
@@ -387,6 +434,17 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       size: 20,
                     ),
                   ),
+                  if (isDelivered) ...[
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => ActiveOrderService.clearActiveOrder(),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Color(0xFF94A3B8),
+                        size: 18,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -408,10 +466,10 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       shape: BoxShape.circle,
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: const Icon(
-                      Icons.person,
-                      color: Color(0xFF94A3B8),
-                      size: 26,
+                    child: Icon(
+                      hasCourier ? Icons.person : Icons.access_time_rounded,
+                      color: const Color(0xFF94A3B8),
+                      size: 24,
                     ),
                   ),
                   Positioned(
@@ -471,6 +529,15 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   _buildCircleAction(
                     icon: Icons.phone_outlined,
                     onTap: () async {
+                      if (!hasCourier || courierPhone.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Menunggu kurir menerima pengantaran...'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
                       final url = Uri.parse('tel:$courierPhone');
                       if (await canLaunchUrl(url)) {
                         await launchUrl(url);
@@ -490,6 +557,15 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   _buildCircleAction(
                     icon: Icons.chat_bubble_outline_rounded,
                     onTap: () async {
+                      if (!hasCourier || courierPhone.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Menunggu kurir menerima pengantaran...'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
                       final waUrl = Uri.parse(
                           'https://wa.me/62${courierPhone.replaceFirst(RegExp(r'^0'), '')}?text=Halo%20$courierName%2C%20saya%20pemesan%20City%20Courier%20($orderId)');
                       if (await canLaunchUrl(waUrl)) {
@@ -513,7 +589,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
           ),
           const SizedBox(height: 12),
 
-          // 3. Status Message Banner (Light Blue/Grey with Orange Clock)
+          // 3. Status Message Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8.5),
             decoration: BoxDecoration(
@@ -523,10 +599,14 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.access_time_rounded,
+                Icon(
+                  isDelivered
+                      ? Icons.check_circle_rounded
+                      : Icons.access_time_rounded,
                   size: 16,
-                  color: Color(0xFFEA580C),
+                  color: isDelivered
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFEA580C),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -547,7 +627,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
           const SizedBox(height: 14),
 
           // 4. Stepper Progress: Jemput Paket ── Dalam Perjalanan ── Terkirim
-          _buildStepper(step),
+          _buildStepper(step, isDelivered: isDelivered),
           const SizedBox(height: 14),
 
           // 5. CTA Button: "Lihat Live Tracking >"
@@ -574,19 +654,19 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   ),
                 );
               },
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Lihat Live Tracking',
-                    style: TextStyle(
+                    isDelivered ? 'Lihat Bukti Pengiriman' : 'Lihat Live Tracking',
+                    style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                  SizedBox(width: 6),
-                  Icon(
+                  const SizedBox(width: 6),
+                  const Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
                     color: Colors.white,
@@ -602,7 +682,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
 
   // ── Stepper Component ──────────────────────────────────────────────
 
-  Widget _buildStepper(int step) {
+  Widget _buildStepper(int step, {bool isDelivered = false}) {
     // step: 0 = Jemput Paket, 1 = Dalam Perjalanan, 2 = Terkirim
     return Column(
       children: [
@@ -636,7 +716,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
             ),
 
             // Step 3: Terkirim
-            _buildStepDot(isDone: step >= 2, isActive: step == 2),
+            _buildStepDot(isDone: isDelivered || step >= 2, isActive: isDelivered || step == 2),
             const SizedBox(width: 14),
           ],
         ),
@@ -666,9 +746,9 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
               'Terkirim',
               style: TextStyle(
                 fontSize: 10.5,
-                fontWeight: step >= 2 ? FontWeight.bold : FontWeight.w500,
+                fontWeight: (isDelivered || step >= 2) ? FontWeight.bold : FontWeight.w500,
                 color:
-                    step >= 2 ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                    (isDelivered || step >= 2) ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
               ),
             ),
           ],
@@ -753,4 +833,3 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     );
   }
 }
-

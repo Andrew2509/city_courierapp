@@ -119,17 +119,20 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
     // Otomatis simpan pesanan aktif agar langsung melayang di Beranda pengguna
     final destCity = receiverCity ?? shipmentData?['destination_name'] ?? 'Kebayoran Baru';
     final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
-    final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Toyota Avanza • B 1234 ABC' : 'Honda Vario • B 4920 SDC';
+    final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor';
     ActiveOrderService.saveActiveOrder({
       'order_id': orderId,
-      'status': 'Sedang Dikirim',
-      'estimated_time': '~25 mnt',
-      'courier_name': 'Pak Budi Santoso',
-      'courier_vehicle': veh,
-      'courier_phone': '081234567890',
+      'status': 'Menunggu Kurir',
+      'status_raw': 'pending',
+      'estimated_time': 'Mencari...',
+      'courier_name': 'Menunggu Kurir',
+      'courier_vehicle': 'Sistem mencari kurir $veh terdekat...',
+      'courier_phone': '',
       'destination': destCity,
-      'status_message': 'Kurir sedang menuju alamat penerima di $destCity',
-      'step': 1,
+      'status_message': 'Pesanan berhasil dibuat. Menunggu konfirmasi kurir terdekat.',
+      'step': 0,
+      'has_courier': false,
+      'is_delivered': false,
       'shipment_data': shipmentData,
     });
 

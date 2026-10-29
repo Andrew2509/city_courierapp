@@ -17,6 +17,7 @@ import 'package:city_courierapp/screens/home/tracking/widgets/tracking_map_widge
 import 'package:city_courierapp/core/config/map_config.dart';
 import 'package:city_courierapp/core/utils/address_region.dart';
 import 'package:city_courierapp/services/maps/location_repository.dart';
+import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
 /// UI state untuk TrackingDetailScreen
 enum TrackingViewState { initial, loading, loaded, error, notFound }
@@ -107,6 +108,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
         _viewState = TrackingViewState.loaded;
         _lastUpdatedTime = DateFormat('h:mm:ss a').format(DateTime.now());
       });
+      ActiveOrderService.updateFromTrackingModel(result.model!);
     } else if (result.type == TrackingResultType.notFound) {
       setState(() => _viewState = TrackingViewState.notFound);
     } else {
@@ -134,6 +136,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
         _tracking = merged;
         _lastUpdatedTime = DateFormat('h:mm:ss a').format(DateTime.now());
       });
+      ActiveOrderService.updateFromTrackingModel(merged);
       if (oldStatus != merged.status) _loadRoute();
       if (merged.status.isTerminal) _pollingTimer?.cancel();
     }
