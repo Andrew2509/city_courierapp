@@ -956,16 +956,17 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                       child: Row(
                         children: [
                           Container(
-                            width: 26,
-                            height: 26,
+                            width: 28,
+                            height: 28,
                             decoration: const BoxDecoration(
                               color: orangeAccent,
                               shape: BoxShape.circle,
                             ),
                             alignment: Alignment.center,
-                            child: Text(
-                              isCourierAssigned ? '🛵' : '⏱',
-                              style: const TextStyle(fontSize: 12),
+                            child: Icon(
+                              isCourierAssigned ? Icons.delivery_dining_rounded : Icons.hourglass_top_rounded,
+                              size: 16,
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1014,165 +1015,199 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: const Color(0xFFF1F5F9)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Informasi Pengiriman',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: darkNavy),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF7ED),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.local_shipping_outlined, size: 15, color: orangeAccent),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Informasi Pengiriman',
+                                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: darkNavy),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 14),
 
-                          // Pickup & Destination
+                          // Pickup & Destination (Vertical Route Stepper)
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Lokasi Pickup
+                              // Indicator Pin & Line
+                              Column(
+                                children: [
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFECFDF5),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(Icons.circle, size: 7, color: Color(0xFF10B981)),
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 1.5,
+                                    height: 52,
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFEF2F2),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(Icons.location_on_rounded, size: 12, color: Color(0xFFEF4444)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Text Details
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Row(
+                                    // 1. Lokasi Pickup
+                                    Row(
                                       children: [
-                                        Text('●', style: TextStyle(color: Color(0xFF10B981), fontSize: 10)),
-                                        SizedBox(width: 5),
-                                        Text(
+                                        const Text(
                                           'Lokasi Pickup',
                                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _getSenderName(),
-                                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    InkWell(
-                                      onTap: () {
-                                        final p = _getSenderPhone().replaceAll(RegExp(r'\s+'), '');
-                                        launchUrl(Uri.parse('tel:$p'));
-                                      },
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
-                                          const SizedBox(width: 3),
-                                          Flexible(
-                                            child: Text(
-                                              '(${_getSenderPhone()})',
-                                              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
-                                              overflow: TextOverflow.ellipsis,
+                                        const SizedBox(width: 8),
+                                        if (_getScheduleText().isNotEmpty)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF1F5F9),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.schedule_rounded, size: 10, color: Color(0xFF64748B)),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  'Jadwal: ${_getScheduleText()}',
+                                                  style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                        ],
-                                      ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _getSenderAddress(),
-                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), height: 1.3),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Text('📦', style: TextStyle(fontSize: 9.5)),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Jadwal: ${_getScheduleText()}',
-                                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-
-                              // Divider
-                              Container(width: 1, height: 105, color: const Color(0xFFE2E8F0)),
-                              const SizedBox(width: 10),
-
-                              // Lokasi Tujuan
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Row(
+                                    const SizedBox(height: 3),
+                                    Row(
                                       children: [
-                                        Text('●', style: TextStyle(color: Color(0xFFEF4444), fontSize: 10)),
-                                        SizedBox(width: 5),
                                         Text(
-                                          'Lokasi Tujuan',
-                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                                          _getSenderName(),
+                                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        InkWell(
+                                          onTap: () {
+                                            final p = _getSenderPhone().replaceAll(RegExp(r'\s+'), '');
+                                            launchUrl(Uri.parse('tel:$p'));
+                                          },
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                '(${_getSenderPhone()})',
+                                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 2),
                                     Text(
-                                      _getReceiverName(),
-                                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                      _getSenderAddress(),
+                                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    // 2. Lokasi Tujuan
+                                    const Text(
+                                      'Lokasi Tujuan',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          _getReceiverName(),
+                                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        InkWell(
+                                          onTap: () {
+                                            final p = _getReceiverPhone().replaceAll(RegExp(r'\s+'), '');
+                                            launchUrl(Uri.parse('tel:$p'));
+                                          },
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                '(${_getReceiverPhone()})',
+                                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 2),
-                                    InkWell(
-                                      onTap: () {
-                                        final p = _getReceiverPhone().replaceAll(RegExp(r'\s+'), '');
-                                        launchUrl(Uri.parse('tel:$p'));
-                                      },
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
-                                          const SizedBox(width: 3),
-                                          Flexible(
-                                            child: Text(
-                                              '(${_getReceiverPhone()})',
-                                              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
                                     Text(
                                       _getReceiverAddress(),
-                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), height: 1.3),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
                                     ),
                                   ],
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 14),
+                          const Divider(color: Color(0xFFF1F5F9), height: 1),
                           const SizedBox(height: 12),
 
                           // 4-Box Specs Grid
                           Row(
                             children: [
-                              _buildSpecBox(label: 'Kendaraan', icon: '🛵', value: _getVehicleName()),
+                              _buildSpecBox(label: 'Kendaraan', icon: Icons.two_wheeler_rounded, value: _getVehicleName()),
                               const SizedBox(width: 6),
-                              _buildSpecBox(label: 'Berat Barang', icon: '⚖️', value: _getPackageWeight()),
+                              _buildSpecBox(label: 'Berat Barang', icon: Icons.scale_rounded, value: _getPackageWeight()),
                               const SizedBox(width: 6),
-                              _buildSpecBox(label: 'Pembayaran', icon: '💳', value: _getPaymentMethod()),
+                              _buildSpecBox(label: 'Pembayaran', icon: Icons.account_balance_wallet_outlined, value: _getPaymentMethod()),
                               const SizedBox(width: 6),
                               _buildSpecBox(
                                 label: 'Total Biaya',
-                                icon: '💰',
+                                icon: Icons.payments_outlined,
                                 value: _getTotalCost(),
                                 isHighlight: true,
                               ),
@@ -1347,18 +1382,18 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
 
   Widget _buildSpecBox({
     required String label,
-    required String icon,
+    required IconData icon,
     required String value,
     bool isHighlight = false,
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: isHighlight ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isHighlight ? const Color(0xFFFED7AA) : const Color(0xFFF1F5F9),
+            color: isHighlight ? const Color(0xFFFED7AA) : const Color(0xFFE2E8F0),
           ),
         ),
         child: Column(
@@ -1366,14 +1401,18 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(icon, style: const TextStyle(fontSize: 10)),
-                const SizedBox(width: 3),
+                Icon(
+                  icon,
+                  size: 13,
+                  color: isHighlight ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                ),
+                const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     label,
                     style: TextStyle(
                       fontSize: 9.5,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color: isHighlight ? const Color(0xFFEA580C) : const Color(0xFF64748B),
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -1381,7 +1420,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               value,
               textAlign: TextAlign.center,
