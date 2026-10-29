@@ -158,11 +158,11 @@ void main() {
 
     // In compact mode:
     expect(find.text('Lihat'), findsOneWidget);
-    expect(find.text('Menuju penerima • Kebayoran Baru'), findsOneWidget);
-    expect(find.byIcon(Icons.local_shipping_rounded), findsOneWidget);
+    expect(find.text('Pak Budi Santoso'), findsOneWidget);
+    expect(find.text('Honda Vario • B 4920 SDC'), findsOneWidget);
 
     // Tap to re-expand
-    await tester.tap(find.text('Menuju penerima • Kebayoran Baru'));
+    await tester.tap(find.text('Honda Vario • B 4920 SDC'));
     await tester.pumpAndSettle();
 
     expect(find.text('Lihat Live Tracking'), findsOneWidget);

@@ -38,19 +38,19 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
           return const SizedBox.shrink();
         }
 
+        final bool hasCourier = order['has_courier'] ?? true;
         final orderId = order['order_id'] ?? 'CC2610284680';
         final status = order['status'] ?? 'Sedang Dikirim';
         final estTime = order['estimated_time'] ?? '~25 mnt';
-        final courierName = order['courier_name'] ?? 'Pak Budi Santoso';
+        final courierName = order['courier_name'] ?? (hasCourier ? 'Kurir City Courier' : 'Menunggu Kurir');
         final courierVehicle =
-            order['courier_vehicle'] ?? 'Honda Vario • B 4920 SDC';
-        final courierPhone = order['courier_phone'] ?? '081234567890';
+            order['courier_vehicle'] ?? (hasCourier ? 'Sepeda Motor • Mitra Kurir' : 'Sistem mencari kurir...');
+        final courierPhone = order['courier_phone'] ?? '';
         final courierPhoto = order['courier_photo'] as String?;
         final destination = order['destination'] ?? 'Kebayoran Baru';
         final statusMsg = order['status_message'] ??
             'Kurir sedang menuju alamat penerima di $destination';
         final step = order['step'] ?? 1; // 0: Jemput, 1: Jalan, 2: Terkirim
-        final bool hasCourier = order['has_courier'] ?? true;
         final bool isDelivered = order['is_delivered'] ?? (step >= 2);
         final shipmentData = order['shipment_data'] as Map<String, dynamic>?;
 
@@ -98,6 +98,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         context: context,
                         orderId: orderId,
                         courierName: courierName,
+                        courierVehicle: courierVehicle,
+                        courierPhoto: courierPhoto,
                         estTime: estTime,
                         destination: destination,
                         hasCourier: hasCourier,
@@ -118,6 +120,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     required BuildContext context,
     required String orderId,
     required String courierName,
+    required String courierVehicle,
+    required String? courierPhoto,
     required String estTime,
     required String destination,
     required bool hasCourier,
@@ -141,7 +145,9 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     final String subtitle = isDelivered
         ? 'Paket telah berhasil diterima'
         : hasCourier
-            ? 'Menuju penerima • $destination'
+            ? (courierVehicle.trim().isNotEmpty && !courierVehicle.contains('terdekat')
+                ? courierVehicle.trim()
+                : 'Menuju penerima • $destination')
             : 'Menunggu kurir menerima penjemputan';
 
     return Container(
@@ -165,7 +171,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         },
         child: Row(
           children: [
-            // Left Soft Peach Square with Truck Icon & Active Status Indicator
+            // Left: Courier Photo/Avatar or Truck Icon with Active Status Indicator
             Stack(
               clipBehavior: Clip.none,
               children: [
@@ -173,22 +179,35 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFFEDD5)),
+                    color: const Color(0xFFF1F5F9),
+                    shape: hasCourier ? BoxShape.circle : BoxShape.rectangle,
+                    borderRadius: hasCourier ? null : BorderRadius.circular(12),
+                    border: Border.all(
+                      color: hasCourier ? const Color(0xFFE2E8F0) : const Color(0xFFFFEDD5),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.local_shipping_rounded,
-                    color: Color(0xFFEA580C),
-                    size: 22,
-                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: hasCourier
+                      ? _buildCourierAvatar(
+                          courierPhoto: courierPhoto,
+                          courierName: courierName,
+                          hasCourier: true,
+                        )
+                      : Container(
+                          color: const Color(0xFFFFF7ED),
+                          child: const Icon(
+                            Icons.local_shipping_rounded,
+                            color: Color(0xFFEA580C),
+                            size: 22,
+                          ),
+                        ),
                 ),
                 Positioned(
                   top: -2,
                   right: -2,
                   child: Container(
-                    width: 9,
-                    height: 9,
+                    width: 10,
+                    height: 10,
                     decoration: BoxDecoration(
                       color: dotColor,
                       shape: BoxShape.circle,
