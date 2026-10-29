@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:city_courierapp/screens/widgets/home/theme_toggle_fab.dart';
 import 'package:city_courierapp/screens/home/shipping/select_region_screen.dart';
 import 'package:city_courierapp/services/address_service.dart';
 import 'package:city_courierapp/data/models/address_model.dart';
@@ -72,133 +71,69 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
             ),
       child: Scaffold(
         backgroundColor: isDarkMode ? bgDark : bgLight,
-        body: Stack(
+        body: Column(
           children: [
-            Column(
-              children: [
-                _buildHeader(context, primaryColor),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 28),
+            _buildHeader(context, primaryColor),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 24),
 
-                        // 1. Nama Lengkap
-                        _buildInputField(
-                          controller: nameController,
-                          label: 'Nama Lengkap',
-                          hintText: 'Masukkan nama lengkap',
-                          icon: Icons.person_outline,
-                          isDarkMode: isDarkMode,
-                          primaryColor: primaryColor,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // 2. Nomor Telepon
-                        _buildInputField(
-                          controller: phoneController,
-                          label: 'Nomor Telepon',
-                          hintText: 'Contoh: 081234567890',
-                          icon: Icons.call_outlined,
-                          keyboardType: TextInputType.phone,
-                          isDarkMode: isDarkMode,
-                          primaryColor: primaryColor,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // 3. Alamat Lengkap with [📍 Pilih dari Peta]
-                        _buildAddressField(
-                          context: context,
-                          controller: addressController,
-                          label: 'Alamat Lengkap',
-                          hintText: 'Masukkan alamat lengkap (Nama Jalan, No Rumah, RT/RW)',
-                          icon: Icons.home_outlined,
-                          maxLines: 3,
-                          isDarkMode: isDarkMode,
-                          primaryColor: primaryColor,
-                        ),
-
-                        // Koordinat badge if location picked
-                        if (selectedAddressModel != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8, bottom: 4),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isDarkMode
-                                    ? const Color(0xFF1E293B)
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isDarkMode
-                                      ? Colors.grey.shade800
-                                      : Colors.grey.shade300,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.my_location,
-                                    size: 16,
-                                    color: Color(0xFFEC5B13),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Koordinat: ${selectedAddressModel!.latitude.toStringAsFixed(6)}, ${selectedAddressModel!.longitude.toStringAsFixed(6)}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontFamily: 'monospace',
-                                        color: isDarkMode
-                                            ? Colors.grey.shade300
-                                            : Colors.grey.shade700,
-                                      ),
-                                    ),
-                                  ),
-                                  InkWell(
-                                    onTap: _openLocationPicker,
-                                    child: const Text(
-                                      'Ubah di Peta',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFFEC5B13),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                        const SizedBox(height: 20),
-
-                        // 4. Field Wilayah RajaOngkir (Section 5 & 6)
-                        _buildRegionField(
-                          context: context,
-                          isDarkMode: isDarkMode,
-                          primaryColor: primaryColor,
-                        ),
-
-                        const SizedBox(height: 28),
-
-                        // 5. Tombol Simpan
-                        _buildSaveButton(primaryColor),
-                        const SizedBox(height: 40),
-                      ],
+                    // 1. Nama Lengkap
+                    _buildInputField(
+                      controller: nameController,
+                      label: 'Nama Lengkap',
+                      hintText: 'Masukkan nama lengkap',
+                      icon: Icons.person_outline,
+                      isDarkMode: isDarkMode,
+                      primaryColor: primaryColor,
                     ),
-                  ),
+                    const SizedBox(height: 20),
+
+                    // 2. Nomor Telepon
+                    _buildInputField(
+                      controller: phoneController,
+                      label: 'Nomor Telepon',
+                      hintText: 'Contoh: 081234567890',
+                      icon: Icons.call_outlined,
+                      keyboardType: TextInputType.phone,
+                      isDarkMode: isDarkMode,
+                      primaryColor: primaryColor,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 3. Alamat Lengkap with [📍 Pilih dari Peta]
+                    _buildAddressField(
+                      context: context,
+                      controller: addressController,
+                      label: 'Alamat Lengkap',
+                      hintText: 'Masukkan alamat lengkap (Nama Jalan, No Rumah, RT/RW)',
+                      icon: Icons.home_outlined,
+                      maxLines: 3,
+                      isDarkMode: isDarkMode,
+                      primaryColor: primaryColor,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // 4. Field Wilayah RajaOngkir (No green, match image)
+                    _buildRegionField(
+                      context: context,
+                      isDarkMode: isDarkMode,
+                      primaryColor: primaryColor,
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // 5. Tombol Simpan
+                    _buildSaveButton(primaryColor),
+                    const SizedBox(height: 40),
+                  ],
                 ),
-              ],
-            ),
-            ThemeToggleFab(
-              onToggle: () {
-                setState(() {
-                  isDarkMode = !isDarkMode;
-                });
-              },
+              ),
             ),
           ],
         ),
@@ -352,20 +287,20 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
               Text(
                 label,
                 style: TextStyle(
-                  color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
+                  color: isDarkMode ? Colors.grey.shade300 : const Color(0xFF374151),
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              // Tombol Header: 📍 Pilih dari Peta
+              // Tombol Header: 📍 Pilih dari Peta (pill peach/orange matching screenshot)
               InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(20),
                 onTap: _openLocationPicker,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFFFF1EB),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
@@ -391,67 +326,54 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           decoration: BoxDecoration(
             color: isDarkMode
                 ? const Color(0xFF0F172A).withOpacity(0.5)
-                : Colors.grey.shade50,
+                : const Color(0xFFF9FAFB),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200,
+              color: isDarkMode ? Colors.grey.shade800 : const Color(0xFFE5E7EB),
             ),
           ),
-          child: Stack(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              TextField(
-                controller: controller,
-                maxLines: maxLines,
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                  fontSize: 14,
+              Icon(
+                Icons.home_outlined,
+                color: isDarkMode ? Colors.grey.shade500 : const Color(0xFF9CA3AF),
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  maxLines: maxLines,
+                  minLines: 1,
+                  style: TextStyle(
+                    color: isDarkMode ? Colors.white : const Color(0xFF1F2937),
+                    fontSize: 13.5,
+                    height: 1.35,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: _isLoadingMap ? 'Membuka Peta...' : hintText,
+                    hintStyle: TextStyle(
+                      color: isDarkMode ? Colors.grey.shade600 : const Color(0xFF9CA3AF),
+                      fontSize: 13,
+                    ),
+                    border: InputBorder.none,
+                  ),
                 ),
-                decoration: InputDecoration(
-                  hintText: _isLoadingMap ? 'Membuka Peta...' : hintText,
-                  hintStyle: TextStyle(
-                    color: isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400,
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: maxLines > 1 ? (maxLines * 16.0) - 24 : 0,
-                    ),
-                    child: Icon(
-                      icon,
-                      color: isDarkMode
-                          ? Colors.grey.shade500
-                          : Colors.grey.shade400,
-                      size: 20,
-                    ),
-                  ),
-                  // Icon 📍 di sebelah kanan input
-                  suffixIcon: _isLoadingMap
-                      ? Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: primaryColor,
-                            ),
-                          ),
-                        )
-                      : Tooltip(
-                          message: 'Pilih dari Peta',
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.location_on,
-                              color: Color(0xFFEC5B13),
-                              size: 26,
-                            ),
-                            onPressed: _openLocationPicker,
-                          ),
-                        ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: _openLocationPicker,
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.location_on,
+                    color: Color(0xFFEC5B13),
+                    size: 24,
                   ),
                 ),
               ),
@@ -462,19 +384,33 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
     );
   }
 
-  // ── Field Wilayah RajaOngkir (Section 5 & 6) ──────────────────────
+  // ── Field Wilayah RajaOngkir (No green color, matches screenshot) ──
   Widget _buildRegionField({
     required BuildContext context,
     required bool isDarkMode,
     required Color primaryColor,
   }) {
-    final regionLabel = selectedCity != null
-        ? (selectedCity!['kelurahan_name'] != null
-            ? '${selectedCity!['kelurahan_name']}, ${selectedCity!['kecamatan_name']}, ${selectedCity!['kabupaten_name']}'
-            : (selectedCity!['subdistrict_name'] != null
-                ? '${selectedCity!['subdistrict_name']}, ${selectedCity!['city_name']}'
-                : selectedCity!['city_name']))
-        : null;
+    String regionTitle = '';
+    if (selectedCity != null) {
+      final parts = <String>[];
+      final kel = selectedCity!['kelurahan_name'] ?? selectedCity!['subdistrict_name'];
+      final kec = selectedCity!['kecamatan_name'] ?? selectedCity!['district_name'];
+      final kab = selectedCity!['kabupaten_name'] ?? selectedCity!['city_name'];
+
+      if (kel != null && kel.toString().trim().isNotEmpty) {
+        parts.add(kel.toString().trim());
+      }
+      if (kec != null && kec.toString().trim().isNotEmpty && !parts.contains(kec.toString().trim())) {
+        parts.add(kec.toString().trim());
+      }
+      if (kab != null && kab.toString().trim().isNotEmpty && !parts.contains(kab.toString().trim())) {
+        parts.add(kab.toString().trim());
+      }
+
+      regionTitle = parts.isNotEmpty
+          ? parts.join(', ').toUpperCase()
+          : (selectedCity!['city_name'] ?? 'WILAYAH').toString().toUpperCase();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -487,57 +423,47 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
               Text(
                 'Wilayah (RajaOngkir)',
                 style: TextStyle(
-                  color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700,
+                  color: isDarkMode ? Colors.grey.shade300 : const Color(0xFF374151),
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              if (selectedCity != null)
-                InkWell(
-                  onTap: () async {
-                    await _openManualRegionPicker();
-                  },
-                  child: const Text(
-                    'Ubah Wilayah',
-                    style: TextStyle(
-                      color: Color(0xFFEC5B13),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+              InkWell(
+                onTap: _openManualRegionPicker,
+                child: const Text(
+                  'Ubah Wilayah',
+                  style: TextStyle(
+                    color: Color(0xFFEC5B13),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+              ),
             ],
           ),
         ),
 
-        // Box Wilayah
+        // Box Wilayah (Light grey, no green!)
         GestureDetector(
-          onTap: () async {
-            await _openManualRegionPicker();
-          },
+          onTap: _openManualRegionPicker,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: isDarkMode
                   ? const Color(0xFF0F172A).withOpacity(0.5)
-                  : (_isAutoMatchedRegion
-                      ? const Color(0xFFF0FDF4)
-                      : Colors.grey.shade50),
+                  : const Color(0xFFF9FAFB),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: _isAutoMatchedRegion
-                    ? const Color(0xFF86EFAC)
-                    : (isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200),
+                color: isDarkMode ? Colors.grey.shade800 : const Color(0xFFE5E7EB),
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Icon(
                   Icons.apartment_rounded,
-                  color: _isAutoMatchedRegion
-                      ? const Color(0xFF16A34A)
-                      : (isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400),
-                  size: 20,
+                  color: const Color(0xFF9CA3AF),
+                  size: 24,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -545,31 +471,31 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        regionLabel ?? 'Pilih Kelurahan atau Kecamatan',
+                        regionTitle.isNotEmpty
+                            ? regionTitle
+                            : 'PILIH KELURAHAN ATAU KECAMATAN',
                         style: TextStyle(
-                          color: regionLabel != null
-                              ? (isDarkMode ? Colors.white : Colors.black87)
-                              : (isDarkMode
-                                  ? Colors.grey.shade600
-                                  : Colors.grey.shade400),
-                          fontSize: 14,
-                          fontWeight: regionLabel != null
-                              ? FontWeight.w600
-                              : FontWeight.normal,
+                          color: regionTitle.isNotEmpty
+                              ? (isDarkMode ? Colors.white : const Color(0xFF111827))
+                              : const Color(0xFF9CA3AF),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _isAutoMatchedRegion
+                            ? '✓ Wilayah terdeteksi otomatis'
+                            : (selectedCity != null
+                                ? '✓ Wilayah dipilih manual'
+                                : 'Pilih dari peta atau klik Ubah Wilayah'),
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.grey.shade400 : const Color(0xFF6B7280),
+                          fontSize: 11.5,
                         ),
                       ),
-                      if (_isAutoMatchedRegion)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text(
-                            '✓ Wilayah terdeteksi otomatis',
-                            style: TextStyle(
-                              color: Color(0xFF15803D),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -577,7 +503,8 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                   Icons.keyboard_arrow_down,
                   color: isDarkMode
                       ? Colors.grey.shade500
-                      : Colors.grey.shade400,
+                      : const Color(0xFF9CA3AF),
+                  size: 22,
                 ),
               ],
             ),
@@ -734,7 +661,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Pengirim dan alamat berhasil disimpan'),
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFFEC5B13),
             ),
           );
           Navigator.pop(context, saved);
@@ -865,7 +792,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                   content: Text(
                     '✓ Wilayah RajaOngkir cocok: ${match['full_label'] ?? match['district_name']}',
                   ),
-                  backgroundColor: const Color(0xFF15803D),
+                  backgroundColor: const Color(0xFFEC5B13),
                   duration: const Duration(seconds: 3),
                 ),
               );
