@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
+import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
@@ -38,15 +39,12 @@ class DriverCompleteScreen extends StatelessWidget {
                         children: [
                           _buildMapMockup(),
                           Padding(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
                             child: Column(
                               children: [
-                                _buildOrderInfoCard(),
-                                const SizedBox(height: 16),
                                 _buildStatusCard(),
-                                const SizedBox(height: 16),
-                                _buildRincianCard(),
-                                const SizedBox(height: 160),
+                                const SizedBox(height: 12),
+                                _buildOrderInfoCard(context),
                               ],
                             ),
                           ),
@@ -56,73 +54,83 @@ class DriverCompleteScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              // Bottom Action
+              // Bottom Action (1 baris sejajar agar tidak menumpuk tinggi)
               Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color(0xFFFAFAFA).withOpacity(0.0),
-                        const Color(0xFFFAFAFA),
-                        const Color(0xFFFAFAFA),
-                      ],
-                      stops: const [0.0, 0.2, 1.0],
+                    color: Colors.white,
+                    border: const Border(
+                      top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-                            (route) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryOrange,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DriverShipmentScreen(),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: AppColors.primaryOrange,
+                              width: 1.5,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Kembali ke Beranda',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
+                          child: Text(
+                            'Lihat Riwayat',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.primaryOrange,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => const DriverShipmentScreen()),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DriverHomeScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
                           ),
-                        ),
-                        child: Text(
-                          'Lihat Riwayat Pengiriman',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.primaryOrange,
-                            fontWeight: FontWeight.w800,
+                          child: Text(
+                            'Ke Beranda',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ),
@@ -165,7 +173,7 @@ class DriverCompleteScreen extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
       color: Colors.white,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -181,7 +189,7 @@ class DriverCompleteScreen extends StatelessWidget {
               color: const Color(0xFF1A1A1A),
             ),
           ),
-          const Icon(Icons.headset_mic_outlined, color: AppColors.primaryOrange),
+          const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 22),
         ],
       ),
     );
@@ -190,11 +198,13 @@ class DriverCompleteScreen extends StatelessWidget {
   Widget _buildMapMockup() {
     // Read coordinates from backend
     double dLat = double.tryParse(order['latitude_delivery']?.toString() ?? '') ??
-                 double.tryParse(order['delivery_latitude']?.toString() ?? '') ??
-                 double.tryParse(order['dropoff_latitude']?.toString() ?? '') ?? 0;
+        double.tryParse(order['delivery_latitude']?.toString() ?? '') ??
+        double.tryParse(order['dropoff_latitude']?.toString() ?? '') ??
+        0;
     double dLng = double.tryParse(order['longitude_delivery']?.toString() ?? '') ??
-                 double.tryParse(order['delivery_longitude']?.toString() ?? '') ??
-                 double.tryParse(order['dropoff_longitude']?.toString() ?? '') ?? 0;
+        double.tryParse(order['delivery_longitude']?.toString() ?? '') ??
+        double.tryParse(order['dropoff_longitude']?.toString() ?? '') ??
+        0;
 
     // Fallback to pickup if delivery not available
     if (dLat == 0 || dLng == 0) {
@@ -202,17 +212,17 @@ class DriverCompleteScreen extends StatelessWidget {
       dLng = double.tryParse(order['pickup_longitude']?.toString() ?? '') ?? 106.816666;
     }
     final mapCenter = LatLng(dLat, dLng);
-    
+
     return Container(
       width: double.infinity,
-      height: 220,
+      height: 170,
       color: const Color(0xFFF8FAFC),
       child: Stack(
         children: [
           FlutterMap(
             options: MapOptions(
               initialCenter: mapCenter,
-              initialZoom: 14.0,
+              initialZoom: 14.5,
             ),
             children: [
               TileLayer(
@@ -227,59 +237,187 @@ class DriverCompleteScreen extends StatelessWidget {
                     height: 40,
                     child: const Icon(
                       Icons.location_on,
-                      color: AppColors.primaryOrange,
-                      size: 40,
+                      color: Color(0xFF22C55E),
+                      size: 38,
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          // Nav Map Button
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.navigation, color: Color(0xFF1A1A1A), size: 20),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildOrderInfoCard() {
-    final String trackingNumber = order['tracking_number'] ?? order['order_number'] ?? order['id']?.toString() ?? '-';
-    
-    // Read from backend flat fields with nested fallback
-    final pickupLoc = order['pickup_location'] ?? {};
-    final dropoffLoc = order['dropoff_location'] ?? {};
-    
-    final pickupName = pickupLoc['name'] ?? order['pickup_name'] ?? order['sender_name'] ?? 'Lokasi Penjemputan';
-    final pickupAddress = order['pickup_address'] ?? pickupLoc['address'] ?? '-';
-    
-    final dropoffName = dropoffLoc['name'] ?? order['dropoff_name'] ?? order['receiver_name'] ?? 'Lokasi Tujuan';
-    final dropoffAddress = order['dropoff_address'] ?? order['delivery_address'] ?? dropoffLoc['address'] ?? '-';
-
+  Widget _buildStatusCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildStepItem(label: 'Menjemput Paket'),
+          Expanded(child: _buildStepLine()),
+          _buildStepItem(label: 'Diperjalanan'),
+          Expanded(child: _buildStepLine()),
+          _buildStepItem(label: 'Sampai Tujuan'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepItem({required String label}) {
+    const Color greenColor = Color(0xFF22C55E);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: greenColor, width: 2),
+          ),
+          child: const Icon(Icons.check, color: greenColor, size: 17),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1A1A1A),
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'Selesai',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: greenColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepLine() {
+    return Container(
+      height: 2,
+      margin: const EdgeInsets.only(top: 16, left: 4, right: 4),
+      color: const Color(0xFF22C55E),
+    );
+  }
+
+  Widget _buildOrderInfoCard(BuildContext context) {
+    final nestedShip = order['shipment'] is Map ? order['shipment'] as Map : null;
+    final String trackingNumber = (order['tracking_number'] ??
+            order['order_number'] ??
+            order['id'] ??
+            '-')
+        .toString();
+
+    final pickupLoc = order['pickup_location'] ?? {};
+    final dropoffLoc = order['dropoff_location'] ?? {};
+
+    final String pickupName = (pickupLoc is Map ? pickupLoc['name'] : null)?.toString() ??
+        order['pickup_name']?.toString() ??
+        order['sender_name']?.toString() ??
+        'Pengirim';
+    final String pickupAddress = (order['pickup_address'] ??
+            (pickupLoc is Map ? pickupLoc['address'] : null) ??
+            '-')
+        .toString();
+
+    final String dropoffName = (dropoffLoc is Map ? dropoffLoc['name'] : null)?.toString() ??
+        order['dropoff_name']?.toString() ??
+        order['receiver_name']?.toString() ??
+        'Penerima';
+    final String dropoffAddress = (order['dropoff_address'] ??
+            order['delivery_address'] ??
+            (dropoffLoc is Map ? dropoffLoc['address'] : null) ??
+            '-')
+        .toString();
+
+    final String vehicleRaw = (order['vehicle'] ??
+            order['vehicle_type'] ??
+            nestedShip?['vehicle'] ??
+            'motor')
+        .toString()
+        .toLowerCase();
+    final bool isCar = vehicleRaw == 'mobil';
+    final String vehicleLabel = isCar ? 'Mobil' : 'Motor';
+
+    final String itemType = (order['package_description'] ??
+            order['item_type'] ??
+            nestedShip?['package_description'] ??
+            'Paket')
+        .toString();
+    final String weight = (order['package_weight'] ??
+            order['weight'] ??
+            nestedShip?['package_weight'] ??
+            '1')
+        .toString();
+
+    final String paymentMethod = (order['payment_method'] ??
+            nestedShip?['payment_method'] ??
+            'COD')
+        .toString()
+        .toUpperCase();
+    final String rawPrice = (order['price'] ??
+            order['total_amount'] ??
+            nestedShip?['total_cost'] ??
+            '25000')
+        .toString();
+    final double parsedPrice = double.tryParse(rawPrice) ?? 25000;
+    final String formattedPrice =
+        'Rp ${parsedPrice.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+
+    final now = DateTime.now();
+    final completedDateStr = DateFormat('dd MMM yyyy, HH:mm').format(now);
+
+    final scheduledAt = order['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'];
+    final rawPickupTime = (order['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final pickupTimeStr = ScheduleTimeConfig.extractTimeOnly(
+      rawPickupTime,
+      scheduledAtFallback: scheduledAt,
+    );
+    final bool isScheduled = order['scheduled_pickup'] == true ||
+        order['scheduled_pickup'] == 1 ||
+        order['scheduled_pickup'] == '1' ||
+        nestedShip?['scheduled_pickup'] == true ||
+        nestedShip?['scheduled_pickup'] == 1 ||
+        (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
+        rawPickupTime.isNotEmpty;
+    final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
+    final displayDateStr =
+        schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Hari Ini';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
@@ -291,18 +429,61 @@ class DriverCompleteScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Order ID: #$trackingNumber',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.primaryOrange,
-            ),
+          // Header: Order ID & Ringkasan Kendaraan/Paket
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  'Order ID: #$trackingNumber',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isCar ? Icons.directions_car : Icons.two_wheeler,
+                      size: 13,
+                      color: AppColors.primaryOrange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$vehicleLabel • $itemType ($weight kg)',
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 14),
+          // Baris Utama: Lokasi (Kiri) & Waktu/Harga (Kanan)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Kiri: Pickup & Dropoff
               Expanded(
+                flex: 3,
                 child: Column(
                   children: [
                     // Pickup
@@ -318,35 +499,49 @@ class DriverCompleteScreen extends StatelessWidget {
                                 color: AppColors.primaryOrange,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.arrow_upward, color: Colors.white, size: 12),
+                              child: const Icon(
+                                Icons.inventory_2_outlined,
+                                color: Colors.white,
+                                size: 10,
+                              ),
                             ),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              color: const Color(0xFFCBD5E1),
+                            Column(
+                              children: List.generate(
+                                6,
+                                (index) => Container(
+                                  width: 1.5,
+                                  height: 3,
+                                  margin: const EdgeInsets.symmetric(vertical: 2),
+                                  color: const Color(0xFFCBD5E1),
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 pickupName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: AppTypography.bodySmall.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: const Color(0xFF1A1A1A),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 pickupAddress,
-                                style: TextStyle(
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF64748B),
+                                  color: Color(0xFF1A1A1A),
+                                  height: 1.35,
                                 ),
                               ),
                             ],
@@ -354,6 +549,7 @@ class DriverCompleteScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
                     // Dropoff
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,27 +561,36 @@ class DriverCompleteScreen extends StatelessWidget {
                             color: Color(0xFF22C55E),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.location_on, color: Colors.white, size: 12),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.white,
+                            size: 12,
+                          ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 dropoffName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: AppTypography.bodySmall.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: const Color(0xFF1A1A1A),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 dropoffAddress,
-                                style: TextStyle(
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF64748B),
+                                  color: Color(0xFF1A1A1A),
+                                  height: 1.35,
                                 ),
                               ),
                             ],
@@ -396,213 +601,166 @@ class DriverCompleteScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              // Pembatas Vertikal
               Container(
                 width: 1,
-                height: 80,
+                height: 88,
                 color: const Color(0xFFE2E8F0),
-                margin: const EdgeInsets.symmetric(horizontal: 16),
+                margin: const EdgeInsets.symmetric(horizontal: 12),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Estimasi', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
-                  const SizedBox(height: 4),
-                  Text('11:30 - 12:00', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF1A1A1A))),
-                  const SizedBox(height: 16),
-                  Text('Harga', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
-                  const SizedBox(height: 4),
-                  Text('Rp ${order['price'] ?? order['total_amount'] ?? '25.000'}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF22C55E))),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
+              // Kanan: Waktu Selesai / Jadwal & Harga
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isScheduled ? 'Jadwal Pickup' : 'Waktu Selesai',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
-                    child: Text(
-                      'COD',
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: const Color(0xFF475569)),
+                    const SizedBox(height: 3),
+                    if (isScheduled) ...[
+                      Text(
+                        displayDateStr,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      if (pickupTimeStr.isNotEmpty)
+                        Text(
+                          pickupTimeStr,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                    ] else
+                      Text(
+                        completedDateStr,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Harga',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      formattedPrice,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF22C55E),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          child: Text(
+                            paymentMethod,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Lunas',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF22C55E),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Status Pengiriman',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1A1A),
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 10),
+          // Footer Ringkas: Info Penerima & Link Detail (menggantikan kartu Rincian Pengiriman terpisah)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildStepItem(
-                label: 'Menjemput\nPaket',
-                isDone: true,
-                iconData: Icons.check,
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: Color(0xFF22C55E),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Diterima oleh $dropoffName • $completedDateStr',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              Expanded(child: _buildStepLine(true)),
-              _buildStepItem(
-                label: 'Paket\nDiperjalanan',
-                isDone: true,
-                iconData: Icons.check,
-              ),
-              Expanded(child: _buildStepLine(true)),
-              _buildStepItem(
-                label: 'Selesai\nPengiriman',
-                isDone: true,
-                iconData: Icons.check,
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DriverDetailShipmentScreen(shipment: order),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    'Detail',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryOrange,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStepItem({required String label, required bool isDone, required IconData iconData}) {
-    Color iconColor = Colors.white;
-    Color borderColor = const Color(0xFF22C55E); // Green
-    Color bgColor = const Color(0xFF22C55E); // Green
-
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: bgColor,
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 2),
-          ),
-          child: Icon(iconData, color: iconColor, size: 20),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF64748B),
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'Selesai',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF22C55E),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepLine(bool isDone) {
-    return Container(
-      height: 2,
-      margin: const EdgeInsets.only(top: 20, left: 4, right: 4),
-      color: const Color(0xFF22C55E),
-    );
-  }
-
-  Widget _buildRincianCard() {
-    final dropoffLoc = order['dropoff_location'] ?? {};
-    final dropoffName = dropoffLoc['name'] ?? order['dropoff_name'] ?? order['receiver_name'] ?? 'Penerima';
-    final now = DateTime.now();
-    final dateString = DateFormat('dd MMM yyyy, HH:mm').format(now);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Rincian Pengiriman',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1A1A),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildInfoRow(Icons.calendar_today_outlined, 'Waktu Selesai', dateString),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.person_outline, 'Diterima oleh', dropoffName),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.payment_outlined, 'Metode Pembayaran', 'COD'),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.check_circle_outline, 'Status Pembayaran', 'Dibayar Tunai', isGreenValue: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value, {bool isGreenValue = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: const Color(0xFF64748B)),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF64748B)),
-            ),
-          ],
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: isGreenValue ? const Color(0xFF22C55E) : const Color(0xFF1A1A1A),
-          ),
-        ),
-      ],
     );
   }
 }
