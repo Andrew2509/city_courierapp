@@ -293,10 +293,57 @@ class CourierOrderService {
     }
   }
 
+  static Future<Map<String, dynamic>> rejectOrderOffer({
+    required String orderId,
+    required String reason,
+    String? notes,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/reject'),
+        headers: await _getHeaders(),
+        body: json.encode({
+          'order_id': orderId,
+          'reason': reason,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+          'latitude': ?latitude,
+          'longitude': ?longitude,
+        }),
+      );
+
+      final Map<String, dynamic> responseData = response.body.isNotEmpty
+          ? (json.decode(response.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+
+      final bool isSuccess = response.statusCode == 200 && responseData['success'] == true;
+      return {
+        'success': isSuccess,
+        'statusCode': response.statusCode,
+        'already_rejected': responseData['already_rejected'] == true,
+        'error_code': responseData['error_code'],
+        'title': responseData['title'] ??
+            (isSuccess ? 'Pesanan Telah Ditolak' : 'Penolakan Tidak Dapat Diproses'),
+        'message': responseData['message'] ??
+            (isSuccess
+                ? 'Pesanan berhasil ditolak dan dikembalikan ke sistem penugasan.'
+                : 'Penolakan pesanan tidak dapat diproses saat ini.'),
+        'data': responseData['data'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'title': 'Penolakan Tidak Dapat Diproses',
+        'message': 'Gagal terhubung ke server: $e',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> rejectPickupRequest(String requestId, {String? reason, String? notes}) async {
-    return cancelCourierAssignment(
+    return rejectOrderOffer(
       orderId: requestId,
-      reason: reason ?? 'Tidak dapat menjemput pada jadwal yang ditentukan.',
+      reason: reason ?? 'Lokasi pickup terlalu jauh.',
       notes: notes,
     );
   }

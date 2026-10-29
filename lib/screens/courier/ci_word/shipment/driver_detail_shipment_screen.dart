@@ -30,6 +30,7 @@ class _DriverDetailShipmentScreenState
 
   bool _isMapReady = false;
   bool _isAccepting = false;
+  bool _isRejectingOrder = false;
   bool _isCancellingAssignment = false;
   bool _isLoadingLocation = true;
   bool _isLocallyCancelled = false;
@@ -1183,32 +1184,47 @@ class _DriverDetailShipmentScreenState
     }
 
     if (isPending) {
+      final bool isBusy = _isAccepting || _isRejectingOrder;
       return Row(
         children: [
           Expanded(
             flex: 1,
             child: OutlinedButton(
-              onPressed: _isAccepting
+              onPressed: isBusy
                   ? null
-                  : () {
-                      Navigator.pop(context, false);
-                    },
+                  : _showRejectOrderConfirmationDialog,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.black, width: 1.2),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFDC2626), width: 1.3),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text(
-                'Tolak',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black),
-              ),
+              child: _isRejectingOrder
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFDC2626),
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Tolak Pesanan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            flex: 2,
+            flex: 1,
             child: ElevatedButton(
-              onPressed: _isAccepting
+              onPressed: isBusy
                   ? null
                   : () async {
                       setState(() {
@@ -1246,7 +1262,7 @@ class _DriverDetailShipmentScreenState
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF5A00),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
@@ -1958,6 +1974,279 @@ class _DriverDetailShipmentScreenState
                   : (isPendingApproval
                       ? 'Mengerti'
                       : 'Kembali ke Detail Pesanan'),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectOrderConfirmationDialog() {
+    String? selectedReason;
+    final notesController = TextEditingController();
+    final List<String> rejectReasons = [
+      'Lokasi pickup terlalu jauh.',
+      'Tidak tersedia pada jadwal pickup.',
+      'Kendaraan tidak sesuai atau sedang bermasalah.',
+      'Kapasitas barang tidak sesuai.',
+      'Sedang menangani pesanan lain.',
+      'Alasan lainnya.',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final bool isOtherSelected = selectedReason == 'Alasan lainnya.';
+            final bool canConfirm = selectedReason != null &&
+                (!isOtherSelected || notesController.text.trim().isNotEmpty);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'Tolak Pesanan?',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.black),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Apakah kamu yakin ingin menolak pesanan ini? Pesanan akan dikembalikan ke proses penugasan sesuai kebijakan sistem.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...rejectReasons.map(
+                      (reason) => RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          reason,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                          ),
+                        ),
+                        value: reason,
+                        groupValue: selectedReason,
+                        activeColor: const Color(0xFFDC2626),
+                        onChanged: (val) {
+                          setModalState(() {
+                            selectedReason = val;
+                          });
+                        },
+                      ),
+                    ),
+                    if (isOtherSelected) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: notesController,
+                        maxLines: 2,
+                        onChanged: (_) => setModalState(() {}),
+                        style: const TextStyle(fontSize: 12, color: Colors.black),
+                        decoration: InputDecoration(
+                          labelText: 'Keterangan tambahan (wajib diisi)',
+                          labelStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+                          hintText: 'Tuliskan alasan penolakan pesanan secara jelas...',
+                          hintStyle: const TextStyle(fontSize: 12, color: Colors.black45),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.all(12),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.black26, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text(
+                              'Kembali',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: canConfirm
+                                ? () async {
+                                    final chosenReason = selectedReason!;
+                                    final extraNotes = notesController.text.trim();
+                                    Navigator.pop(ctx);
+                                    await _submitCourierRejectOrder(
+                                      reason: chosenReason,
+                                      notes: extraNotes,
+                                    );
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFDC2626),
+                              disabledBackgroundColor: Colors.black12,
+                              foregroundColor: Colors.white,
+                              disabledForegroundColor: Colors.black38,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Konfirmasi Penolakan',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _submitCourierRejectOrder({
+    required String reason,
+    String? notes,
+  }) async {
+    final orderId = widget.shipment['id']?.toString() ?? '';
+    setState(() {
+      _isRejectingOrder = true;
+    });
+
+    final result = await CourierOrderService.rejectOrderOffer(
+      orderId: orderId,
+      reason: reason,
+      notes: notes,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isRejectingOrder = false;
+    });
+
+    _showCourierRejectResultDialog(result);
+  }
+
+  void _showCourierRejectResultDialog(Map<String, dynamic> result) {
+    final bool isSuccess = result['success'] == true;
+    final String title = isSuccess
+        ? 'Pesanan Telah Ditolak'
+        : (result['title'] ?? 'Penolakan Tidak Dapat Diproses').toString();
+    final String message = isSuccess
+        ? 'Pesanan berhasil ditolak dan dikembalikan ke sistem penugasan.'
+        : (result['message'] ??
+                'Pesanan ini mungkin sudah diterima oleh kurir lain atau penawaran sudah berakhir.')
+            .toString();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              isSuccess ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
+              color: isSuccess ? const Color(0xFF22C55E) : const Color(0xFFDC2626),
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: Colors.black87,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (isSuccess && mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isSuccess ? const Color(0xFF22C55E) : Colors.black,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: Text(
+              isSuccess ? 'Kembali ke Daftar Pesanan' : 'Mengerti',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
             ),
           ),

@@ -277,26 +277,208 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
   }
 
   Future<void> _handleRejectOrder(Map<String, dynamic> shipment) async {
-    final orderId = shipment['id']?.toString() ?? '';
-    final res = await CourierOrderService.rejectPickupRequest(orderId);
-    if (!mounted) return;
+    String? selectedReason;
+    final notesController = TextEditingController();
+    final List<String> rejectReasons = [
+      'Lokasi pickup terlalu jauh.',
+      'Tidak tersedia pada jadwal pickup.',
+      'Kendaraan tidak sesuai atau sedang bermasalah.',
+      'Kapasitas barang tidak sesuai.',
+      'Sedang menangani pesanan lain.',
+      'Alasan lainnya.',
+    ];
 
-    if (res['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pesanan ditolak.'),
-          backgroundColor: Colors.grey,
-        ),
-      );
-      _fetchShipments();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res['message'] ?? 'Gagal menolak pesanan'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final bool isOtherSelected = selectedReason == 'Alasan lainnya.';
+            final bool canConfirm = selectedReason != null &&
+                (!isOtherSelected || notesController.text.trim().isNotEmpty);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'Tolak Pesanan?',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.black),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Apakah kamu yakin ingin menolak pesanan ini? Pesanan akan dikembalikan ke proses penugasan sesuai kebijakan sistem.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...rejectReasons.map(
+                      (reason) => RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          reason,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                          ),
+                        ),
+                        value: reason,
+                        groupValue: selectedReason,
+                        activeColor: const Color(0xFFDC2626),
+                        onChanged: (val) {
+                          setModalState(() {
+                            selectedReason = val;
+                          });
+                        },
+                      ),
+                    ),
+                    if (isOtherSelected) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: notesController,
+                        maxLines: 2,
+                        onChanged: (_) => setModalState(() {}),
+                        style: const TextStyle(fontSize: 12, color: Colors.black),
+                        decoration: InputDecoration(
+                          labelText: 'Keterangan tambahan (wajib diisi)',
+                          labelStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+                          hintText: 'Tuliskan alasan penolakan pesanan secara jelas...',
+                          hintStyle: const TextStyle(fontSize: 12, color: Colors.black45),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.all(12),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.black26, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text(
+                              'Kembali',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: canConfirm
+                                ? () async {
+                                    final chosenReason = selectedReason!;
+                                    final extraNotes = notesController.text.trim();
+                                    Navigator.pop(ctx);
+                                    final orderId = shipment['id']?.toString() ?? '';
+                                    final res = await CourierOrderService.rejectOrderOffer(
+                                      orderId: orderId,
+                                      reason: chosenReason,
+                                      notes: extraNotes,
+                                    );
+                                    if (!mounted) return;
+                                    if (res['success'] == true) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            res['message']?.toString() ??
+                                                'Pesanan berhasil ditolak dan dikembalikan ke sistem penugasan.',
+                                          ),
+                                          backgroundColor: Colors.black87,
+                                        ),
+                                      );
+                                      _fetchShipments();
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            res['message']?.toString() ?? 'Gagal menolak pesanan',
+                                          ),
+                                          backgroundColor: const Color(0xFFDC2626),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFDC2626),
+                              disabledBackgroundColor: Colors.black12,
+                              foregroundColor: Colors.white,
+                              disabledForegroundColor: Colors.black38,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Konfirmasi Penolakan',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleStartPickup(Map<String, dynamic> shipment) async {
@@ -854,7 +1036,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     final pLng = double.tryParse(shipment['pickup_longitude']?.toString() ?? '');
     final pAddress = shipment['pickup_address'];
 
-    // 1. Pesanan Baru (status: pending) -> [Tolak] & [Terima Pesanan]
+    // 1. Pesanan Baru (status: pending) -> [Tolak Pesanan] & [Terima Pesanan]
     if (status == 'pending') {
       return Row(
         children: [
@@ -863,30 +1045,35 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             child: OutlinedButton(
               onPressed: () => _handleRejectOrder(shipment),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFDC2626), width: 1.2),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text(
-                'Tolak',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                'Tolak Pesanan',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: Color(0xFFDC2626)),
               ),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            flex: 2,
+            flex: 1,
             child: ElevatedButton(
               onPressed: () => _handleAcceptOrder(shipment),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF5A00),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
               child: const Text(
                 'Terima Pesanan',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
               ),
             ),

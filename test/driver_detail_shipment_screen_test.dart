@@ -242,6 +242,96 @@ void main() {
         expect(find.text('Batalkan Pesanan'), findsNothing);
       }
     });
+
+    testWidgets('5. Menampilkan tombol Tolak Pesanan & Terima Pesanan pada status pending dan membuka dialog konfirmasi 6 alasan', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DriverDetailShipmentScreen(
+            shipment: buildMockShipment(status: 'pending'),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('Tolak Pesanan'), findsOneWidget);
+      expect(find.text('Terima Pesanan'), findsOneWidget);
+      expect(find.text('Batalkan Pesanan'), findsNothing);
+
+      await tester.tap(find.text('Tolak Pesanan'));
+      await tester.pumpAndSettle();
+
+      // Verifikasi judul, pesan, dan 6 pilihan alasan penolakan
+      expect(find.text('Tolak Pesanan?'), findsOneWidget);
+      expect(
+        find.text('Apakah kamu yakin ingin menolak pesanan ini? Pesanan akan dikembalikan ke proses penugasan sesuai kebijakan sistem.'),
+        findsOneWidget,
+      );
+      expect(find.text('Lokasi pickup terlalu jauh.'), findsOneWidget);
+      expect(find.text('Tidak tersedia pada jadwal pickup.'), findsOneWidget);
+      expect(find.text('Kendaraan tidak sesuai atau sedang bermasalah.'), findsOneWidget);
+      expect(find.text('Kapasitas barang tidak sesuai.'), findsOneWidget);
+      expect(find.text('Sedang menangani pesanan lain.'), findsOneWidget);
+      expect(find.text('Alasan lainnya.'), findsOneWidget);
+      expect(find.text('Kembali'), findsOneWidget);
+      expect(find.text('Konfirmasi Penolakan'), findsOneWidget);
+
+      // Tombol Konfirmasi Penolakan nonaktif sebelum alasan dipilih
+      final confirmBefore = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Konfirmasi Penolakan'),
+      );
+      expect(confirmBefore.onPressed, isNull);
+
+      // Pilih alasan standar -> tombol Konfirmasi Penolakan aktif
+      await tester.tap(find.text('Lokasi pickup terlalu jauh.'));
+      await tester.pumpAndSettle();
+
+      final confirmAfter = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Konfirmasi Penolakan'),
+      );
+      expect(confirmAfter.onPressed, isNotNull);
+
+      // Pilih 'Alasan lainnya.' -> kolom keterangan tambahan muncul & wajib diisi
+      await tester.tap(find.text('Alasan lainnya.'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Keterangan tambahan (wajib diisi)'), findsOneWidget);
+      final confirmOtherEmpty = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Konfirmasi Penolakan'),
+      );
+      expect(confirmOtherEmpty.onPressed, isNull);
+
+      // Isi keterangan tambahan -> tombol Konfirmasi Penolakan aktif kembali
+      await tester.enterText(find.byType(TextField), 'Sedang di bengkel untuk ganti oli');
+      await tester.pumpAndSettle();
+
+      final confirmOtherFilled = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Konfirmasi Penolakan'),
+      );
+      expect(confirmOtherFilled.onPressed, isNotNull);
+    });
+
+    testWidgets('6. Menyembunyikan tombol Tolak Pesanan setelah pesanan diterima atau selesai/dibatalkan', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      for (final nonPendingStatus in ['assigned', 'picking_up', 'picked_up', 'delivering', 'delivered', 'cancelled']) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DriverDetailShipmentScreen(
+              shipment: buildMockShipment(status: nonPendingStatus),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(find.text('Tolak Pesanan'), findsNothing);
+      }
+    });
   });
 }
 
