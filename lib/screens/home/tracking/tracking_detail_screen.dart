@@ -700,626 +700,646 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
             _tracking?.status != TrackingStatus.confirmed &&
             _tracking?.status != TrackingStatus.cancelled);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── CARD 1: Status & Resi ──
-          Container(
-            padding: const EdgeInsets.all(16),
+    return Stack(
+      children: [
+        // ── 1. PETA UTAMA INTERAKTIF (Latar Belakang Penuh) ──
+        Positioned.fill(
+          child: _tracking != null
+              ? TrackingMapWidget(
+                  tracking: _tracking!,
+                  route: _route,
+                  isLoadingRoute: _isLoadingRoute,
+                  mapController: _mapController,
+                )
+              : Container(color: Colors.grey.shade100),
+        ),
+
+        // ── 2. Top Info Bar di Atas Peta ──
+        Positioned(
+          top: 12,
+          left: 16,
+          right: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2)),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Nomor Resi',
-                            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  _resi,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: darkNavy,
-                                    letterSpacing: 0.5,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              InkWell(
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: _resi));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Nomor resi disalin ke clipboard!'),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(4),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(2),
-                                  child: Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Status Badge Pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFFED7AA)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time_rounded, size: 14, color: orangeAccent),
-                          const SizedBox(width: 5),
-                          Text(
-                            _tracking?.statusLabel ?? 'Menunggu Kurir',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: orangeAccent),
-                          ),
-                          const SizedBox(width: 3),
-                          const Icon(Icons.chevron_right_rounded, size: 14, color: orangeAccent),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Notice Banner
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBEB),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFEF3C7)),
-                  ),
+                const Flexible(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: orangeAccent,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
+                      Text('●', style: TextStyle(color: orangeAccent, fontSize: 10)),
+                      SizedBox(width: 6),
+                      Flexible(
                         child: Text(
-                          isCourierAssigned ? '🛵' : '⏱',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isCourierAssigned
-                                  ? 'Kurir Ditugaskan: ${_tracking?.courier?.name ?? "Kurir City Courier"}'
-                                  : 'Menunggu kurir menerima pesanan.',
-                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isCourierAssigned
-                                  ? 'Kurir sedang dalam proses penjemputan/pengantaran paket Anda.'
-                                  : 'Lokasi kurir akan muncul secara live setelah kurir mengambil tugas ini.',
-                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
-                            ),
-                          ],
+                          'Peta Rute & Posisi Kurir',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Diperbarui: $_lastUpdatedTime',
+                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+        ),
 
-          // ── CARD 2: Peta Rute & Posisi Kurir ──
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
+        // ── 3. Zoom Controls (Kiri Atas) ──
+        Positioned(
+          top: 64,
+          left: 16,
+          child: Column(
+            children: [
+              _buildMiniIconButton(
+                icon: Icons.add,
+                onTap: () {
+                  final currentZoom = _mapController.camera.zoom;
+                  _mapController.move(_mapController.camera.center, currentZoom + 1);
+                },
+              ),
+              const SizedBox(height: 6),
+              _buildMiniIconButton(
+                icon: Icons.remove,
+                onTap: () {
+                  final currentZoom = _mapController.camera.zoom;
+                  _mapController.move(_mapController.camera.center, currentZoom - 1);
+                },
+              ),
+            ],
+          ),
+        ),
+
+        // ── 4. Floating Button "Pusatkan" ──
+        Positioned(
+          bottom: MediaQuery.of(context).size.height * 0.40,
+          right: 16,
+          child: Material(
+            color: Colors.white,
+            elevation: 4,
+            borderRadius: BorderRadius.circular(20),
+            shadowColor: Colors.black26,
+            child: InkWell(
+              onTap: _centerMap,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2)),
-              ],
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.near_me_outlined, size: 14, color: orangeAccent),
+                    SizedBox(width: 5),
+                    Text(
+                      'Pusatkan',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: darkNavy,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Flexible(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('●', style: TextStyle(color: orangeAccent, fontSize: 10)),
-                            SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                'Peta Rute & Posisi Kurir',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkNavy),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+          ),
+        ),
+
+        // ── 5. GoSend-Style Draggable Bottom Sheet Ringkas ──
+        DraggableScrollableSheet(
+          initialChildSize: 0.38,
+          minChildSize: 0.22,
+          maxChildSize: 0.90,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.12),
+                    blurRadius: 20,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Drag Handle Bar
+                    Center(
+                      child: Container(
+                        width: 38,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Diperbarui: $_lastUpdatedTime',
-                            style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20),
-                  ),
-                  child: SizedBox(
-                    height: 280,
-                    child: Stack(
-                      children: [
-                        // Map
-                        _tracking != null
-                            ? TrackingMapWidget(
-                                tracking: _tracking!,
-                                route: _route,
-                                isLoadingRoute: _isLoadingRoute,
-                                mapController: _mapController,
-                              )
-                            : Container(color: Colors.grey.shade100),
+                    ),
+                    const SizedBox(height: 12),
 
-                        // Zoom Buttons Top-Left
-                        Positioned(
-                          top: 12,
-                          left: 12,
+                    // ── SEKSI 1: Status & Resi ──
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildMiniIconButton(
-                                icon: Icons.add,
-                                onTap: () {
-                                  final currentZoom = _mapController.camera.zoom;
-                                  _mapController.move(_mapController.camera.center, currentZoom + 1);
-                                },
+                              const Text(
+                                'Nomor Resi',
+                                style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                               ),
-                              const SizedBox(height: 4),
-                              _buildMiniIconButton(
-                                icon: Icons.remove,
-                                onTap: () {
-                                  final currentZoom = _mapController.camera.zoom;
-                                  _mapController.move(_mapController.camera.center, currentZoom - 1);
-                                },
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _resi,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: darkNavy,
+                                        letterSpacing: 0.5,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  InkWell(
+                                    onTap: () {
+                                      Clipboard.setData(ClipboardData(text: _resi));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Nomor resi disalin ke clipboard!'),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(2),
+                                      child: Icon(Icons.copy_rounded, size: 15, color: Color(0xFF64748B)),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-
-                        // Center Map Floating Button Bottom-Right
-                        Positioned(
-                          bottom: 12,
-                          right: 12,
-                          child: Material(
-                            color: Colors.white,
-                            elevation: 3,
+                        const SizedBox(width: 8),
+                        // Status Badge Pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
                             borderRadius: BorderRadius.circular(20),
-                            child: InkWell(
-                              onTap: _centerMap,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                            border: Border.all(color: const Color(0xFFFED7AA)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.access_time_rounded, size: 13, color: orangeAccent),
+                              const SizedBox(width: 4),
+                              Text(
+                                _tracking?.statusLabel ?? 'Menunggu Kurir',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: orangeAccent),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Notice Banner Kurir
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFEF3C7)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: const BoxDecoration(
+                              color: orangeAccent,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              isCourierAssigned ? '🛵' : '⏱',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isCourierAssigned
+                                      ? 'Kurir Ditugaskan: ${_tracking?.courier?.name ?? "Kurir City Courier"}'
+                                      : 'Menunggu kurir menerima pesanan.',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: darkNavy),
                                 ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
+                                const SizedBox(height: 1),
+                                Text(
+                                  isCourierAssigned
+                                      ? 'Kurir sedang dalam proses penjemputan/pengantaran paket Anda.'
+                                      : 'Lokasi kurir akan muncul secara live setelah kurir mengambil tugas ini.',
+                                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Hint Geser ke Atas
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.keyboard_arrow_up_rounded, size: 16, color: Color(0xFF94A3B8)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Geser ke atas untuk detail pengiriman & QR',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(color: Color(0xFFF1F5F9), height: 1),
+                    const SizedBox(height: 14),
+
+                    // ── SEKSI 2: Informasi Pengiriman ──
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Informasi Pengiriman',
+                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: darkNavy),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Pickup & Destination
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Lokasi Pickup
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.near_me_outlined, size: 14, color: orangeAccent),
-                                    SizedBox(width: 4),
+                                    const Row(
+                                      children: [
+                                        Text('●', style: TextStyle(color: Color(0xFF10B981), fontSize: 10)),
+                                        SizedBox(width: 5),
+                                        Text(
+                                          'Lokasi Pickup',
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
                                     Text(
-                                      'Pusatkan',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: darkNavy,
+                                      _getSenderName(),
+                                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    InkWell(
+                                      onTap: () {
+                                        final p = _getSenderPhone().replaceAll(RegExp(r'\s+'), '');
+                                        launchUrl(Uri.parse('tel:$p'));
+                                      },
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
+                                          const SizedBox(width: 3),
+                                          Flexible(
+                                            child: Text(
+                                              '(${_getSenderPhone()})',
+                                              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _getSenderAddress(),
+                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), height: 1.3),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('📦', style: TextStyle(fontSize: 9.5)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Jadwal: ${_getScheduleText()}',
+                                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
+                              const SizedBox(width: 10),
 
-          // ── CARD 3: Informasi Pengiriman ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Informasi Pengiriman',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: darkNavy),
-                ),
-                const SizedBox(height: 14),
+                              // Divider
+                              Container(width: 1, height: 105, color: const Color(0xFFE2E8F0)),
+                              const SizedBox(width: 10),
 
-                // Pickup & Destination
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Lokasi Pickup
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Text('●', style: TextStyle(color: Color(0xFF10B981), fontSize: 10)),
-                              SizedBox(width: 5),
-                              Text(
-                                'Lokasi Pickup',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                              // Lokasi Tujuan
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Text('●', style: TextStyle(color: Color(0xFFEF4444), fontSize: 10)),
+                                        SizedBox(width: 5),
+                                        Text(
+                                          'Lokasi Tujuan',
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _getReceiverName(),
+                                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    InkWell(
+                                      onTap: () {
+                                        final p = _getReceiverPhone().replaceAll(RegExp(r'\s+'), '');
+                                        launchUrl(Uri.parse('tel:$p'));
+                                      },
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
+                                          const SizedBox(width: 3),
+                                          Flexible(
+                                            child: Text(
+                                              '(${_getReceiverPhone()})',
+                                              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _getReceiverAddress(),
+                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), height: 1.3),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getSenderName(),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkNavy),
-                          ),
-                          const SizedBox(height: 2),
-                          InkWell(
-                            onTap: () {
-                              final p = _getSenderPhone().replaceAll(RegExp(r'\s+'), '');
-                              launchUrl(Uri.parse('tel:$p'));
-                            },
-                            child: Row(
-                              children: [
-                                const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
-                                const SizedBox(width: 3),
-                                Flexible(
-                                  child: Text(
-                                    '(${_getSenderPhone()})',
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getSenderAddress(),
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('📦', style: TextStyle(fontSize: 10)),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Jadwal: ${_getScheduleText()}',
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-                                ),
-                              ],
-                            ),
+                          const SizedBox(height: 12),
+
+                          // 4-Box Specs Grid
+                          Row(
+                            children: [
+                              _buildSpecBox(label: 'Kendaraan', icon: '🛵', value: _getVehicleName()),
+                              const SizedBox(width: 6),
+                              _buildSpecBox(label: 'Berat Barang', icon: '⚖️', value: _getPackageWeight()),
+                              const SizedBox(width: 6),
+                              _buildSpecBox(label: 'Pembayaran', icon: '💳', value: _getPaymentMethod()),
+                              const SizedBox(width: 6),
+                              _buildSpecBox(
+                                label: 'Total Biaya',
+                                icon: '💰',
+                                value: _getTotalCost(),
+                                isHighlight: true,
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(height: 14),
 
-                    // Divider
-                    Container(width: 1, height: 110, color: const Color(0xFFF1F5F9)),
-                    const SizedBox(width: 12),
-
-                    // Lokasi Tujuan
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Text('●', style: TextStyle(color: Color(0xFFEF4444), fontSize: 10)),
-                              SizedBox(width: 5),
-                              Text(
-                                'Lokasi Tujuan',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getReceiverName(),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkNavy),
-                          ),
-                          const SizedBox(height: 2),
-                          InkWell(
-                            onTap: () {
-                              final p = _getReceiverPhone().replaceAll(RegExp(r'\s+'), '');
-                              launchUrl(Uri.parse('tel:$p'));
-                            },
-                            child: Row(
-                              children: [
-                                const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
-                                const SizedBox(width: 3),
-                                Flexible(
-                                  child: Text(
-                                    '(${_getReceiverPhone()})',
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getReceiverAddress(),
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // 4-Box Specs Grid
-                Row(
-                  children: [
-                    _buildSpecBox(label: 'Kendaraan', icon: '🛵', value: _getVehicleName()),
-                    const SizedBox(width: 8),
-                    _buildSpecBox(label: 'Berat Barang', icon: '⚖️', value: _getPackageWeight()),
-                    const SizedBox(width: 8),
-                    _buildSpecBox(label: 'Pembayaran', icon: '💳', value: _getPaymentMethod()),
-                    const SizedBox(width: 8),
-                    _buildSpecBox(
-                      label: 'Total Biaya',
-                      icon: '💰',
-                      value: _getTotalCost(),
-                      isHighlight: true,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── CARD 4: Riwayat Perjalanan ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Riwayat Perjalanan',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: darkNavy),
-                    ),
-                    Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                _buildTimelineList(),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── CARD 5: QR Code Pesanan & Action Buttons ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    // QR Code Box with Bracket Accents
+                    // ── SEKSI 3: Riwayat Perjalanan ──
                     Container(
-                      width: 84,
-                      height: 84,
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: orangeAccent, width: 1.5),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFF1F5F9)),
                       ),
-                      padding: const EdgeInsets.all(6),
-                      child: QrImageView(
-                        data: _resi,
-                        version: QrVersions.auto,
-                        size: 72,
-                        eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: darkNavy),
-                        dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: darkNavy),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-
-                    // QR Texts
-                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'QR Code Pesanan',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: darkNavy),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Tunjukkan QR Code ini kepada kurir saat proses pickup.',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Text(
-                              _resi,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                                color: darkNavy,
+                          const Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Riwayat Perjalanan',
+                                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: darkNavy),
                               ),
-                            ),
+                              Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _buildTimelineList(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── SEKSI 4: QR Code Pesanan & Action Buttons ──
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              // QR Code Box with Bracket Accents
+                              Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: orangeAccent, width: 1.5),
+                                ),
+                                padding: const EdgeInsets.all(4),
+                                child: QrImageView(
+                                  data: _resi,
+                                  version: QrVersions.auto,
+                                  size: 64,
+                                  eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: darkNavy),
+                                  dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: darkNavy),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // QR Texts
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'QR Code Pesanan',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkNavy),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    const Text(
+                                      'Tunjukkan QR Code ini kepada kurir saat proses pickup.',
+                                      style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B), height: 1.3),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      ),
+                                      child: Text(
+                                        _resi,
+                                        style: const TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                          color: darkNavy,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(color: Color(0xFFF1F5F9), height: 1),
+                          const SizedBox(height: 10),
+
+                          // Buttons: [ 💬 Bantuan ] & [ 🔗 Bagikan Resi ]
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _contactSupport,
+                                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15, color: darkNavy),
+                                  label: const Text(
+                                    'Bantuan',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: darkNavy),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _shareTracking,
+                                  icon: const Icon(Icons.share_rounded, size: 15, color: Colors.white),
+                                  label: const Text(
+                                    'Bagikan Resi',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: orangeAccent,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFF1F5F9), height: 1),
-                const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
-                // Buttons: [ 💬 Bantuan ] & [ 🔗 Bagikan Resi ]
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _contactSupport,
-                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: darkNavy),
-                        label: const Text(
-                          'Bantuan',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: darkNavy),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                    // ── FOOTER ──
+                    const Center(
+                      child: Text(
+                        '© 2026 City Courier • Pengiriman Kilat Dalam Kota',
+                        style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8)),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _shareTracking,
-                        icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
-                        label: const Text(
-                          'Bagikan Resi',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: orangeAccent,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // ── FOOTER ──
-          const Center(
-            child: Text(
-              '© 2026 City Courier • Pengiriman Kilat Dalam Kota',
-              style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-            ),
-          ),
-          const SizedBox(height: 18),
-        ],
-      ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

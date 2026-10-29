@@ -330,17 +330,17 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.10),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,10 +356,10 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     Flexible(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3.5),
+                            horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
                           color: badgeBg,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: badgeBorder),
                         ),
                         child: Row(
@@ -395,7 +395,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       child: Text(
                         isDelivered ? estTime : 'Tiba $estTime',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w500,
                           color: Color(0xFF475569),
                         ),
@@ -429,7 +429,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         Text(
                           orderId,
                           style: const TextStyle(
-                            fontSize: 11.5,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0F172A),
                             letterSpacing: -0.2,
@@ -438,7 +438,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         const SizedBox(width: 3),
                         const Icon(
                           Icons.copy_rounded,
-                          size: 13,
+                          size: 12.5,
                           color: Color(0xFF94A3B8),
                         ),
                       ],
@@ -468,7 +468,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // 2. Driver Info Row: [Avatar] + [Name & Vehicle] + [Call & Chat]
           Row(
@@ -478,8 +478,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                 clipBehavior: Clip.none,
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
                       shape: BoxShape.circle,
@@ -488,15 +488,15 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     child: Icon(
                       hasCourier ? Icons.person : Icons.access_time_rounded,
                       color: const Color(0xFF94A3B8),
-                      size: 24,
+                      size: 20,
                     ),
                   ),
                   Positioned(
                     bottom: -1,
                     right: -1,
                     child: Container(
-                      width: 15,
-                      height: 15,
+                      width: 14,
+                      height: 14,
                       decoration: BoxDecoration(
                         color: const Color(0xFFEA580C),
                         shape: BoxShape.circle,
@@ -505,13 +505,13 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       child: const Icon(
                         Icons.priority_high_rounded,
                         color: Colors.white,
-                        size: 9,
+                        size: 8,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
 
               // Name & Vehicle details
               Expanded(
@@ -521,18 +521,18 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     Text(
                       courierName,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF0F172A),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       courierVehicle,
                       style: const TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         color: Color(0xFF64748B),
                       ),
                       maxLines: 1,
@@ -547,6 +547,8 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                 children: [
                   _buildCircleAction(
                     icon: Icons.phone_outlined,
+                    size: 32,
+                    iconSize: 15,
                     onTap: () async {
                       if (!hasCourier || courierPhone.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -572,9 +574,11 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       }
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   _buildCircleAction(
                     icon: Icons.chat_bubble_outline_rounded,
+                    size: 32,
+                    iconSize: 15,
                     onTap: () async {
                       if (!hasCourier || courierPhone.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -606,14 +610,14 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // 3. Status Message Banner
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8.5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFF1F5F9)),
             ),
             child: Row(
@@ -622,17 +626,17 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                   isDelivered
                       ? Icons.check_circle_rounded
                       : Icons.access_time_rounded,
-                  size: 16,
+                  size: 14,
                   color: isDelivered
                       ? const Color(0xFF10B981)
                       : const Color(0xFFEA580C),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     statusMsg,
                     style: const TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF334155),
                     ),
@@ -643,23 +647,24 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
 
           // 4. Stepper Progress: Jemput Paket ── Dalam Perjalanan ── Terkirim
           _buildStepper(step, isDelivered: isDelivered),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
 
           // 5. CTA Button: "Lihat Live Tracking >"
           SizedBox(
             width: double.infinity,
-            height: 44,
+            height: 38,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEA580C), // Vibrant Orange
                 foregroundColor: Colors.white,
                 elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               onPressed: () {
@@ -681,7 +686,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     child: Text(
                       isDelivered ? 'Lihat Bukti Pengiriman' : 'Lihat Live Tracking',
                       style: const TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -689,7 +694,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                   const Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
@@ -853,13 +858,15 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
   Widget _buildCircleAction({
     required IconData icon,
     required VoidCallback onTap,
+    double size = 32,
+    double iconSize = 15,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(size / 2),
       child: Container(
-        width: 36,
-        height: 36,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
           shape: BoxShape.circle,
@@ -867,7 +874,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         ),
         child: Icon(
           icon,
-          size: 17,
+          size: iconSize,
           color: const Color(0xFF334155),
         ),
       ),
