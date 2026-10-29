@@ -131,7 +131,6 @@ class _SelectSubDistrictScreenState extends State<SelectSubDistrictScreen> {
   // ── 1. Top Header dengan Stepper Breadcrumbs ───────────────────────
   Widget _buildTopHeader() {
     return Container(
-      color: Colors.white,
       padding: const EdgeInsets.only(top: 8, bottom: 10, left: 12, right: 12),
       decoration: const BoxDecoration(
         color: Colors.white,
