@@ -248,7 +248,7 @@ class _DriverDetailShipmentScreenState
                               LatLng(_dropoffLat, _dropoffLng),
                             ],
                             strokeWidth: 5.0,
-                            color: const Color(0xFF2563EB),
+                            color: const Color(0xFFFF5A00),
                           ),
                         ],
                       ),
@@ -356,7 +356,7 @@ class _DriverDetailShipmentScreenState
                     child: const Icon(
                       Icons.arrow_back,
                       size: 20,
-                      color: Color(0xFF1E293B),
+                      color: Colors.black,
                     ),
                   ),
                 ),
@@ -386,7 +386,7 @@ class _DriverDetailShipmentScreenState
                             style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E293B),
+                              color: Colors.black,
                             ),
                           ),
                         ),
@@ -394,15 +394,16 @@ class _DriverDetailShipmentScreenState
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.black26),
                           ),
                           child: Text(
                             orderId,
                             style: const TextStyle(
                               fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
                             ),
                           ),
                         ),
@@ -455,11 +456,11 @@ class _DriverDetailShipmentScreenState
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB),
+                  color: const Color(0xFFFF5A00),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF2563EB).withOpacity(0.3),
+                      color: const Color(0xFFFF5A00).withOpacity(0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
@@ -477,7 +478,7 @@ class _DriverDetailShipmentScreenState
           // Map Controls: Recenter Location
           Positioned(
             left: 16,
-            bottom: MediaQuery.of(context).size.height * 0.58 + 14,
+            bottom: MediaQuery.of(context).size.height * 0.58 + 24,
             child: GestureDetector(
               onTap: _fitBounds,
               child: Container(
@@ -497,7 +498,7 @@ class _DriverDetailShipmentScreenState
                 child: const Icon(
                   Icons.my_location_rounded,
                   size: 19,
-                  color: Color(0xFF1E293B),
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -544,24 +545,16 @@ class _DriverDetailShipmentScreenState
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: isPending
-                                    ? const Color(0xFFFEF3C7)
-                                    : isAssigned
-                                    ? const Color(0xFFE0E7FF)
-                                    : isPickingUp
-                                    ? const Color(0xFFDBEAFE)
-                                    : isPickedUp
-                                    ? const Color(0xFFDCFCE7)
-                                    : isDelivering
-                                    ? const Color(0xFFFFEDD5)
-                                    : isDelivered
-                                    ? const Color(0xFFF1F5F9)
-                                    : isCancelled
-                                    ? const Color(0xFFFEE2E2)
-                                    : const Color(0xFFDCFCE7),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: (isPickedUp || isDelivered)
+                                      ? const Color(0xFF22C55E)
+                                      : const Color(0xFFFF5A00),
+                                  width: 1.5,
+                                ),
                               ),
                               child: Text(
                                 isPending
@@ -579,35 +572,21 @@ class _DriverDetailShipmentScreenState
                                     : isCancelled
                                     ? 'Dibatalkan'
                                     : 'Diproses',
-                                style: TextStyle(
-                                  fontSize: 10,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
-                                  color: isPending
-                                      ? const Color(0xFFB45309)
-                                      : isAssigned
-                                      ? const Color(0xFF4338CA)
-                                      : isPickingUp
-                                      ? const Color(0xFF1D4ED8)
-                                      : isPickedUp
-                                      ? const Color(0xFF15803D)
-                                      : isDelivering
-                                      ? const Color(0xFFC2410C)
-                                      : isDelivered
-                                      ? const Color(0xFF475569)
-                                      : const Color(0xFFDC2626),
+                                  color: Colors.black,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             // Vehicle Chip
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: isCar ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDF4),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: isCar ? const Color(0xFFBFDBFE) : const Color(0xFFBBF7D0),
-                                ),
+                                border: Border.all(color: Colors.black26),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -615,15 +594,15 @@ class _DriverDetailShipmentScreenState
                                   Icon(
                                     isCar ? Icons.directions_car : Icons.two_wheeler,
                                     size: 13,
-                                    color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+                                    color: const Color(0xFFFF5A00),
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
                                     vehicleName,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+                                    style: const TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
                                     ),
                                   ),
                                 ],
@@ -648,14 +627,14 @@ class _DriverDetailShipmentScreenState
                                 orderId,
                                 style: const TextStyle(
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFFF5A00),
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black,
                                 ),
                               ),
                               const SizedBox(width: 4),
                               const Icon(
                                 Icons.copy_rounded,
-                                size: 12,
+                                size: 13,
                                 color: Color(0xFFFF5A00),
                               ),
                             ],
@@ -666,7 +645,7 @@ class _DriverDetailShipmentScreenState
                   ),
 
                   const SizedBox(height: 4),
-                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 1, color: Colors.black12),
 
                   // Scrollable Content
                   Expanded(
@@ -681,45 +660,44 @@ class _DriverDetailShipmentScreenState
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: isOverdue ? const Color(0xFFFECACA) : const Color(0xFFFDE68A),
+                                  color: const Color(0xFFFF5A00),
+                                  width: 1.2,
                                 ),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.schedule_rounded,
                                     size: 16,
-                                    color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                                    color: Color(0xFFFF5A00),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'Pickup: $displayDateStr, ${pickupTimeStr.isNotEmpty ? pickupTimeStr : 'Fleksibel'}',
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: isOverdue ? const Color(0xFF991B1B) : const Color(0xFF92400E),
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.black,
                                       ),
                                     ),
                                   ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: isOverdue
-                                          ? const Color(0xFFEF4444)
-                                          : canStartPickup
-                                              ? const Color(0xFF16A34A)
-                                              : const Color(0xFFF59E0B),
+                                      color: canStartPickup
+                                          ? const Color(0xFF22C55E)
+                                          : const Color(0xFFFF5A00),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      statusLabel,
+                                      isOverdue ? '$statusLabel (Terlambat)' : statusLabel,
                                       style: const TextStyle(
                                         fontSize: 9.5,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w800,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -736,16 +714,16 @@ class _DriverDetailShipmentScreenState
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(color: Colors.black12),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Tarif Pengiriman',
-                                        style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                                        style: TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700),
                                       ),
                                       const SizedBox(height: 3),
                                       Row(
@@ -756,9 +734,9 @@ class _DriverDetailShipmentScreenState
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFF16A34A),
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: Color(0xFF22C55E),
                                               ),
                                             ),
                                           ),
@@ -767,12 +745,13 @@ class _DriverDetailShipmentScreenState
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFFF1F5F9),
+                                                color: Colors.white,
                                                 borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: const Color(0xFF22C55E)),
                                               ),
                                               child: const Text(
                                                 'COD',
-                                                style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: Color(0xFF475569)),
+                                                style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: Colors.black),
                                               ),
                                             ),
                                           ],
@@ -787,16 +766,16 @@ class _DriverDetailShipmentScreenState
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(color: Colors.black12),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Waktu & Kendaraan',
-                                        style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                                        style: TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700),
                                       ),
                                       const SizedBox(height: 3),
                                       Row(
@@ -804,7 +783,7 @@ class _DriverDetailShipmentScreenState
                                           Icon(
                                             isCar ? Icons.directions_car : Icons.two_wheeler,
                                             size: 14,
-                                            color: const Color(0xFF2563EB),
+                                            color: const Color(0xFFFF5A00),
                                           ),
                                           const SizedBox(width: 5),
                                           Expanded(
@@ -814,8 +793,8 @@ class _DriverDetailShipmentScreenState
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                 fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: Color(0xFF1E293B),
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.black,
                                               ),
                                             ),
                                           ),
@@ -834,9 +813,9 @@ class _DriverDetailShipmentScreenState
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFAFAFA),
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.all(color: Colors.black12),
                             ),
                             child: Column(
                               children: [
@@ -872,8 +851,8 @@ class _DriverDetailShipmentScreenState
                                             'Penjemputan • $senderName',
                                             style: const TextStyle(
                                               fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF0F172A),
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.black,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
@@ -882,8 +861,8 @@ class _DriverDetailShipmentScreenState
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
-                                              fontSize: 10.5,
-                                              color: Color(0xFF64748B),
+                                              fontSize: 11,
+                                              color: Colors.black,
                                               height: 1.35,
                                             ),
                                           ),
@@ -898,7 +877,7 @@ class _DriverDetailShipmentScreenState
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: const Color(0xFFFED7AA)),
+                                          border: Border.all(color: const Color(0xFFFF5A00)),
                                           boxShadow: [
                                             BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4),
                                           ],
@@ -917,7 +896,7 @@ class _DriverDetailShipmentScreenState
                                     child: Container(
                                       width: 2,
                                       height: 14,
-                                      color: const Color(0xFFCBD5E1),
+                                      color: Colors.black26,
                                     ),
                                   ),
                                 ),
@@ -954,8 +933,8 @@ class _DriverDetailShipmentScreenState
                                             'Tujuan • $receiverName',
                                             style: const TextStyle(
                                               fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF0F172A),
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.black,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
@@ -964,8 +943,8 @@ class _DriverDetailShipmentScreenState
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
-                                              fontSize: 10.5,
-                                              color: Color(0xFF64748B),
+                                              fontSize: 11,
+                                              color: Colors.black,
                                               height: 1.35,
                                             ),
                                           ),
@@ -980,12 +959,12 @@ class _DriverDetailShipmentScreenState
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                                          border: Border.all(color: const Color(0xFF22C55E)),
                                           boxShadow: [
                                             BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4),
                                           ],
                                         ),
-                                        child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF16A34A)),
+                                        child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF22C55E)),
                                       ),
                                     ),
                                   ],
@@ -999,17 +978,17 @@ class _DriverDetailShipmentScreenState
                             margin: const EdgeInsets.only(top: 10),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.all(color: Colors.black12),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF64748B)),
+                                const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFFFF5A00)),
                                 const SizedBox(width: 8),
                                 const Text(
                                   'Barang:',
-                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black),
                                 ),
                                 const SizedBox(width: 6),
                                 Expanded(
@@ -1017,7 +996,7 @@ class _DriverDetailShipmentScreenState
                                     '$itemType • $weight kg',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black),
                                   ),
                                 ),
                               ],
@@ -1030,21 +1009,21 @@ class _DriverDetailShipmentScreenState
                               margin: const EdgeInsets.only(top: 10),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFFBEB),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFFDE68A)),
+                                border: Border.all(color: const Color(0xFFFF5A00)),
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.notes_rounded, size: 15, color: Color(0xFFD97706)),
+                                  const Icon(Icons.notes_rounded, size: 15, color: Color(0xFFFF5A00)),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'Catatan: $notes',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF92400E), height: 1.35),
+                                      style: const TextStyle(fontSize: 11, color: Colors.black, height: 1.35, fontWeight: FontWeight.w600),
                                     ),
                                   ),
                                 ],
@@ -1061,7 +1040,7 @@ class _DriverDetailShipmentScreenState
                     padding: EdgeInsets.fromLTRB(18, 10, 18, 12 + MediaQuery.of(context).padding.bottom),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      border: const Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1.5)),
+                      border: const Border(top: BorderSide(color: Colors.black12, width: 1.5)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.04),
@@ -1114,13 +1093,13 @@ class _DriverDetailShipmentScreenState
                       Navigator.pop(context, false);
                     },
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                side: const BorderSide(color: Colors.black, width: 1.2),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text(
                 'Tolak',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black),
               ),
             ),
           ),
@@ -1145,7 +1124,7 @@ class _DriverDetailShipmentScreenState
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Pesanan berhasil diterima!'),
-                              backgroundColor: Colors.green,
+                              backgroundColor: Color(0xFF22C55E),
                             ),
                           );
                           Navigator.pop(context, true);
@@ -1153,7 +1132,7 @@ class _DriverDetailShipmentScreenState
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
-                              backgroundColor: Colors.red,
+                              backgroundColor: const Color(0xFFFF5A00),
                             ),
                           );
                         }
@@ -1209,7 +1188,7 @@ class _DriverDetailShipmentScreenState
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(res['message'] ?? 'Gagal memulai penjemputan'),
-                        backgroundColor: Colors.red,
+                        backgroundColor: const Color(0xFFFF5A00),
                       ),
                     );
                   }
@@ -1220,14 +1199,15 @@ class _DriverDetailShipmentScreenState
                       content: Text(
                         'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal pickup ($pickupTimeStr).',
                       ),
-                      backgroundColor: const Color(0xFFD97706),
+                      backgroundColor: const Color(0xFFFF5A00),
                       duration: const Duration(seconds: 4),
                     ),
                   );
                 },
           style: ElevatedButton.styleFrom(
-            backgroundColor: canStartPickup ? const Color(0xFFFF5A00) : const Color(0xFF94A3B8),
-            foregroundColor: Colors.white,
+            backgroundColor: canStartPickup ? const Color(0xFFFF5A00) : Colors.white,
+            foregroundColor: canStartPickup ? Colors.white : Colors.black,
+            side: canStartPickup ? BorderSide.none : const BorderSide(color: Colors.black, width: 1.2),
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             elevation: 0,
@@ -1238,11 +1218,16 @@ class _DriverDetailShipmentScreenState
               Icon(
                 canStartPickup ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
                 size: 18,
+                color: canStartPickup ? Colors.white : Colors.black,
               ),
               const SizedBox(width: 8),
               Text(
                 canStartPickup ? 'Mulai Pickup Sekarang' : 'Mulai Pickup (Terkunci)',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: canStartPickup ? Colors.white : Colors.black,
+                ),
               ),
             ],
           ),
@@ -1257,13 +1242,13 @@ class _DriverDetailShipmentScreenState
             child: OutlinedButton(
               onPressed: _showReportIssueDialog,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                side: const BorderSide(color: Colors.black, width: 1.2),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text(
                 'Kendala Pickup',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black),
               ),
             ),
           ),
@@ -1364,7 +1349,7 @@ class _DriverDetailShipmentScreenState
         child: OutlinedButton(
           onPressed: () {},
           style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: Color(0xFF22C55E)),
+            side: const BorderSide(color: Color(0xFF22C55E), width: 1.5),
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -1419,11 +1404,11 @@ class _DriverDetailShipmentScreenState
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                          color: Colors.black,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(Icons.close, color: Colors.black),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -1431,13 +1416,13 @@ class _DriverDetailShipmentScreenState
                   const SizedBox(height: 10),
                   const Text(
                     'Pilih kendala yang Anda hadapi di lokasi penjemputan:',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black),
                   ),
                   const SizedBox(height: 12),
                   RadioListTile<String>(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Pengirim tidak dapat dihubungi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    title: const Text('Pengirim tidak dapat dihubungi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
                     value: 'customer_unreachable',
                     groupValue: selectedReason,
                     activeColor: const Color(0xFFFF5A00),
@@ -1446,7 +1431,7 @@ class _DriverDetailShipmentScreenState
                   RadioListTile<String>(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Barang belum siap untuk dijemput', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    title: const Text('Barang belum siap untuk dijemput', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
                     value: 'package_not_ready',
                     groupValue: selectedReason,
                     activeColor: const Color(0xFFFF5A00),
@@ -1455,7 +1440,7 @@ class _DriverDetailShipmentScreenState
                   RadioListTile<String>(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Pengirim meminta penyesuaian jadwal (Reschedule)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    title: const Text('Pengirim meminta penyesuaian jadwal (Reschedule)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
                     value: 'reschedule_requested',
                     groupValue: selectedReason,
                     activeColor: const Color(0xFFFF5A00),
@@ -1464,7 +1449,7 @@ class _DriverDetailShipmentScreenState
                   RadioListTile<String>(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Alamat pickup tidak ditemukan / tidak sesuai', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    title: const Text('Alamat pickup tidak ditemukan / tidak sesuai', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
                     value: 'address_not_found',
                     groupValue: selectedReason,
                     activeColor: const Color(0xFFFF5A00),
@@ -1473,7 +1458,7 @@ class _DriverDetailShipmentScreenState
                   RadioListTile<String>(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Kendala lainnya', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    title: const Text('Kendala lainnya', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
                     value: 'other',
                     groupValue: selectedReason,
                     activeColor: const Color(0xFFFF5A00),
@@ -1483,9 +1468,10 @@ class _DriverDetailShipmentScreenState
                   TextField(
                     controller: notesController,
                     maxLines: 2,
+                    style: const TextStyle(fontSize: 12, color: Colors.black),
                     decoration: InputDecoration(
                       hintText: 'Tambahkan catatan penjelasan kendala...',
-                      hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      hintStyle: const TextStyle(fontSize: 12, color: Colors.black45),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       contentPadding: const EdgeInsets.all(12),
                     ),

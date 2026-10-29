@@ -1430,7 +1430,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
           // ── 5. Floating Navigation Buttons (Comfortably above bottom sheet) ──
           Positioned(
-            bottom: effectiveSheetHeight + 16,
+            bottom: effectiveSheetHeight + 28,
             left: 16,
             right: 16,
             child: Row(
