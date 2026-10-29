@@ -138,47 +138,35 @@ class CourierOrderService {
   }
 
   static Future<Map<String, dynamic>> getPendingPickupRequests() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/orders/available'),
-        headers: await _getHeaders(),
-      );
-
-      final responseData = json.decode(response.body);
-      if (response.statusCode == 200 && responseData['success'] == true) {
-        final dynamic rawData = responseData['data'];
-        final List<dynamic> orders = (rawData is Map && rawData.containsKey('data'))
-            ? (rawData['data'] as List? ?? [])
-            : (rawData is List ? rawData : []);
-        return {
-          'success': true,
-          'data': orders,
-        };
-      }
-      return {'success': false, 'message': responseData['message'] ?? 'Gagal mengambil data'};
-    } catch (e) {
-      return {'success': false, 'message': e.toString()};
-    }
+    return getAvailableOrders();
   }
 
   static Future<Map<String, dynamic>> updateOrderStatus({
     required String orderId,
     required String status,
     String? photoPath,
+    double? latitude,
+    double? longitude,
+    String? notes,
+    String? issueReason,
+    String? issueNotes,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/update-status-order');
-      final request = http.MultipartRequest('POST', uri); // Use POST for Multipart
+      final request = http.MultipartRequest('POST', uri);
       
-      // Laravel PATCH spoofing if needed, but OrderController is configured for POST/PATCH
-      // We'll use PATCH if specified in api.php, but MultipartRequest is usually POST
       request.fields['_method'] = 'PATCH'; 
-      
       request.headers.addAll(await _getHeaders());
       request.fields['order_id'] = orderId;
       request.fields['status'] = status;
 
-      if (photoPath != null) {
+      if (latitude != null) request.fields['latitude'] = latitude.toString();
+      if (longitude != null) request.fields['longitude'] = longitude.toString();
+      if (notes != null) request.fields['notes'] = notes;
+      if (issueReason != null) request.fields['issue_reason'] = issueReason;
+      if (issueNotes != null) request.fields['issue_notes'] = issueNotes;
+
+      if (photoPath != null && photoPath.isNotEmpty) {
         request.files.add(await http.MultipartFile.fromPath('photo', photoPath));
       }
 
@@ -189,6 +177,38 @@ class CourierOrderService {
       return {
         'success': response.statusCode == 200 && responseData['success'] == true,
         'message': responseData['message'] ?? (response.statusCode == 200 ? 'Sukses' : 'Gagal'),
+        'data': responseData['data'],
+        'statusCode': response.statusCode,
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> reportPickupIssue({
+    required String orderId,
+    required String reason,
+    String? notes,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/report-issue'),
+        headers: await _getHeaders(),
+        body: json.encode({
+          'order_id': orderId,
+          'issue_reason': reason,
+          'issue_notes': notes,
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
+        }),
+      );
+
+      final responseData = json.decode(response.body);
+      return {
+        'success': response.statusCode == 200 && responseData['success'] == true,
+        'message': responseData['message'] ?? 'Laporan berhasil dicatat',
         'data': responseData['data'],
       };
     } catch (e) {
@@ -201,7 +221,11 @@ class CourierOrderService {
   }
 
   static Future<Map<String, dynamic>> rejectPickupRequest(String requestId) async {
-    // Current backend doesn't have a specific reject logic for couriers other than cancelled
-    return updateOrderStatus(orderId: requestId, status: 'cancelled');
+    return updateOrderStatus(
+      orderId: requestId,
+      status: 'cancelled',
+      issueReason: 'courier_rejected',
+      issueNotes: 'Kurir menolak penugasan',
+    );
   }
 }

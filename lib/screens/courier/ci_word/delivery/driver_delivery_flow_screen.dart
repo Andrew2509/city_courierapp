@@ -16,7 +16,9 @@ import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
 import 'package:geolocator/geolocator.dart';
 
-enum DeliveryFlowState { pickingUp, delivering, arrived }
+import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_photo_capture_screen.dart';
+
+enum DeliveryFlowState { pickingUp, pickedUp, delivering, arrived }
 
 class DriverDeliveryFlowScreen extends StatefulWidget {
   final Map<String, dynamic> order;
@@ -40,8 +42,10 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
   void initState() {
     super.initState();
     final status = widget.order['status']?.toString().toLowerCase();
-    if (status == 'delivering' || status == 'picked_up' || status == 'in_transit') {
+    if (status == 'delivering' || status == 'in_transit') {
       _currentState = DeliveryFlowState.delivering;
+    } else if (status == 'picked_up') {
+      _currentState = DeliveryFlowState.pickedUp;
     } else if (status == 'arrived') {
       _currentState = DeliveryFlowState.arrived;
     } else {
@@ -87,20 +91,69 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
     }
   }
 
+  Future<void> _handleConfirmPickup() async {
+    String? photoPath;
+    try {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DriverPhotoCaptureScreen(order: widget.order),
+        ),
+      );
+      if (result is String) {
+        photoPath = result;
+      }
+    } catch (_) {}
+
+    setState(() => _isLoading = true);
+    try {
+      final result = await CourierOrderService.updateOrderStatus(
+        orderId: widget.order['id'].toString(),
+        status: 'picked_up',
+        photoPath: photoPath,
+      );
+
+      if (mounted) {
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Paket berhasil diambil! Siap untuk diantar.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          setState(() {
+            _currentState = DeliveryFlowState.pickedUp;
+          });
+          _fetchRoute();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'] ?? 'Gagal memperbarui status')),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _onBottomActionPressed() async {
     switch (_currentState) {
       case DeliveryFlowState.pickingUp:
+        await _handleConfirmPickup();
+        break;
+      case DeliveryFlowState.pickedUp:
         setState(() => _isLoading = true);
         try {
           final result = await CourierOrderService.updateOrderStatus(
             orderId: widget.order['id'].toString(),
-            status: 'picking_up',
+            status: 'delivering',
           );
           if (mounted) {
             if (result['success'] == true) {
               setState(() {
                 _currentState = DeliveryFlowState.delivering;
               });
+              _fetchRoute();
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(result['message'] ?? 'Gagal memperbarui status')),
@@ -112,26 +165,9 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
         }
         break;
       case DeliveryFlowState.delivering:
-        setState(() => _isLoading = true);
-        try {
-          final result = await CourierOrderService.updateOrderStatus(
-            orderId: widget.order['id'].toString(),
-            status: 'delivering',
-          );
-          if (mounted) {
-            if (result['success'] == true) {
-              setState(() {
-                _currentState = DeliveryFlowState.arrived;
-              });
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(result['message'] ?? 'Gagal memperbarui status')),
-              );
-            }
-          }
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
-        }
+        setState(() {
+          _currentState = DeliveryFlowState.arrived;
+        });
         break;
       case DeliveryFlowState.arrived:
         // Navigate to confirm screen with replacement so back button goes to home
@@ -143,6 +179,158 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
         );
         break;
     }
+  }
+
+  void _showReportIssueDialog() {
+    String selectedReason = 'customer_unreachable';
+    final notesController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Laporkan Kendala Pickup',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Pilih kendala yang Anda hadapi di lokasi penjemputan:',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 12),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Pengirim tidak dapat dihubungi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    value: 'customer_unreachable',
+                    groupValue: selectedReason,
+                    activeColor: AppColors.primaryOrange,
+                    onChanged: (val) => setModalState(() => selectedReason = val!),
+                  ),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Barang belum siap untuk dijemput', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    value: 'package_not_ready',
+                    groupValue: selectedReason,
+                    activeColor: AppColors.primaryOrange,
+                    onChanged: (val) => setModalState(() => selectedReason = val!),
+                  ),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Pengirim meminta penyesuaian jadwal (Reschedule)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    value: 'reschedule_requested',
+                    groupValue: selectedReason,
+                    activeColor: AppColors.primaryOrange,
+                    onChanged: (val) => setModalState(() => selectedReason = val!),
+                  ),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Alamat pickup tidak ditemukan / tidak sesuai', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    value: 'address_not_found',
+                    groupValue: selectedReason,
+                    activeColor: AppColors.primaryOrange,
+                    onChanged: (val) => setModalState(() => selectedReason = val!),
+                  ),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Kendala lainnya', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    value: 'other',
+                    groupValue: selectedReason,
+                    activeColor: AppColors.primaryOrange,
+                    onChanged: (val) => setModalState(() => selectedReason = val!),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Tambahkan catatan penjelasan kendala...',
+                      hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        setState(() => _isLoading = true);
+                        final res = await CourierOrderService.reportPickupIssue(
+                          orderId: widget.order['id'].toString(),
+                          reason: selectedReason,
+                          notes: notesController.text.trim(),
+                        );
+                        if (!mounted) return;
+                        setState(() => _isLoading = false);
+                        if (res['success'] == true) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Kendala pickup berhasil dilaporkan.'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res['message'] ?? 'Gagal melaporkan kendala'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryOrange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Kirim Laporan Kendala', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _callContact(String phone) async {
@@ -313,11 +501,13 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
   String _getButtonText() {
     switch (_currentState) {
       case DeliveryFlowState.pickingUp:
-        return 'Saya Sudah Menjemput Paket';
+        return 'Konfirmasi Barang Diambil';
+      case DeliveryFlowState.pickedUp:
+        return 'Mulai Antar ke Penerima';
       case DeliveryFlowState.delivering:
         return 'Sampai di Lokasi Penerima';
       case DeliveryFlowState.arrived:
-        return 'Konfirmasi Penerima';
+        return 'Konfirmasi Penerima (POD)';
     }
   }
 
@@ -346,7 +536,14 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
               color: const Color(0xFF1A1A1A),
             ),
           ),
-          const Icon(Icons.headset_mic_outlined, color: AppColors.primaryOrange),
+          if (_currentState == DeliveryFlowState.pickingUp)
+            IconButton(
+              onPressed: _showReportIssueDialog,
+              icon: const Icon(Icons.report_problem_outlined, color: Color(0xFFD97706), size: 20),
+              tooltip: 'Laporkan Kendala Pickup',
+            )
+          else
+            const Icon(Icons.headset_mic_outlined, color: AppColors.primaryOrange),
         ],
       ),
     );
@@ -355,11 +552,13 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
   String _getHeaderText() {
     switch (_currentState) {
       case DeliveryFlowState.pickingUp:
-        return 'Pesanan Diterima';
+        return 'Menjemput Paket';
+      case DeliveryFlowState.pickedUp:
+        return 'Paket Siap Diantar';
       case DeliveryFlowState.delivering:
         return 'Paket Diperjalanan';
       case DeliveryFlowState.arrived:
-        return 'Sampai di Lokasi Penerima';
+        return 'Tiba di Lokasi Penerima';
     }
   }
 
@@ -993,27 +1192,31 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
               _buildStepItem(
                 label: 'Menjemput\nPaket',
                 isActive: _currentState == DeliveryFlowState.pickingUp,
-                isDone: _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived,
+                isDone: _currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived,
                 iconData: Icons.inventory_2_outlined,
                 doneIconData: Icons.check,
-                subLabel: (_currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived) ? 'Selesai' : null,
+                subLabel: (_currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived)
+                    ? 'Selesai'
+                    : 'Menuju Lokasi',
               ),
-              Expanded(child: _buildStepLine(_currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived)),
+              Expanded(child: _buildStepLine(_currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived)),
               _buildStepItem(
                 label: 'Paket\nDiperjalanan',
-                isActive: _currentState == DeliveryFlowState.delivering,
+                isActive: _currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering,
                 isDone: _currentState == DeliveryFlowState.arrived,
                 iconData: Icons.local_shipping_outlined,
                 doneIconData: Icons.check,
-                subLabel: _currentState == DeliveryFlowState.delivering ? 'Sedang\nBerlangsung' : (_currentState == DeliveryFlowState.arrived ? 'Selesai' : null),
+                subLabel: _currentState == DeliveryFlowState.pickedUp
+                    ? 'Siap Antar'
+                    : (_currentState == DeliveryFlowState.delivering ? 'Sedang Antar' : (_currentState == DeliveryFlowState.arrived ? 'Selesai' : null)),
               ),
               Expanded(child: _buildStepLine(_currentState == DeliveryFlowState.arrived)),
               _buildStepItem(
-                label: _currentState == DeliveryFlowState.pickingUp ? 'Selesai' : 'Sampai di\nLokasi Penerima',
+                label: 'Sampai di\nLokasi Penerima',
                 isActive: _currentState == DeliveryFlowState.arrived,
                 isDone: false,
-                iconData: _currentState == DeliveryFlowState.pickingUp ? Icons.check : (_currentState == DeliveryFlowState.delivering ? Icons.stop : Icons.location_on_outlined),
-                subLabel: (_currentState == DeliveryFlowState.delivering) ? 'Belum' : (_currentState == DeliveryFlowState.arrived ? 'Saat Ini' : null),
+                iconData: Icons.location_on_outlined,
+                subLabel: _currentState == DeliveryFlowState.arrived ? 'Saat Ini' : 'Tujuan Akhir',
               ),
             ],
           ),
@@ -1167,6 +1370,9 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
     switch (_currentState) {
       case DeliveryFlowState.pickingUp:
         message = 'Silakan menuju ke lokasi penjemputan paket.';
+        break;
+      case DeliveryFlowState.pickedUp:
+        message = 'Paket telah diambil. Silakan mulai antar ke lokasi penerima.';
         break;
       case DeliveryFlowState.delivering:
         message = 'Paket sedang dalam perjalanan.\nSilakan antarkan ke lokasi penerima.';

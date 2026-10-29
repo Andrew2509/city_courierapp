@@ -413,4 +413,98 @@ class ScheduleTimeConfig {
 
     return pickupDate.add(const Duration(days: 1));
   }
+
+  /// Toleransi waktu awal penjemputan (kurir diizinkan mulai maksimal 30 menit sebelum jadwal)
+  static const int earlyPickupToleranceMinutes = 30;
+
+  /// Memeriksa apakah kurir sudah dapat menekan tombol "Mulai Pickup"
+  /// Order instan (non-scheduled): selalu true
+  /// Order terjadwal: true jika waktu sekarang >= (jadwal - 30 menit)
+  static bool canStartPickup(dynamic scheduledAtInput, {DateTime? referenceNow}) {
+    if (scheduledAtInput == null) return true;
+    final scheduledAt = parseDateTimeSafe(scheduledAtInput);
+    if (scheduledAt == null) return true;
+
+    final now = referenceNow ?? DateTime.now();
+    final allowedStart = scheduledAt.subtract(const Duration(minutes: earlyPickupToleranceMinutes));
+    return now.isAfter(allowedStart) || now.isAtSameMomentAs(allowedStart);
+  }
+
+  /// Memeriksa apakah waktu pickup telah terlewati (overdue / terlambat)
+  static bool isPickupOverdue(dynamic scheduledAtInput, {DateTime? referenceNow}) {
+    if (scheduledAtInput == null) return false;
+    final scheduledAt = parseDateTimeSafe(scheduledAtInput);
+    if (scheduledAt == null) return false;
+
+    final now = referenceNow ?? DateTime.now();
+    return now.isAfter(scheduledAt);
+  }
+
+  /// Menghitung selisih menit antara waktu sekarang dan jadwal
+  /// Positif = belum tiba jadwalnya, Negatif = sudah lewat (overdue)
+  static int? getMinutesUntilPickup(dynamic scheduledAtInput, {DateTime? referenceNow}) {
+    if (scheduledAtInput == null) return null;
+    final scheduledAt = parseDateTimeSafe(scheduledAtInput);
+    if (scheduledAt == null) return null;
+
+    final now = referenceNow ?? DateTime.now();
+    return scheduledAt.difference(now).inMinutes;
+  }
+
+  /// Label countdown atau status yang ramah kurir
+  static String getCourierPickupStatusLabel(dynamic scheduledAtInput, {DateTime? referenceNow}) {
+    if (scheduledAtInput == null) return 'Siap Dijemput';
+    final scheduledAt = parseDateTimeSafe(scheduledAtInput);
+    if (scheduledAt == null) return 'Siap Dijemput';
+
+    final now = referenceNow ?? DateTime.now();
+    final diffMins = scheduledAt.difference(now).inMinutes;
+
+    if (diffMins < 0) {
+      final absMins = diffMins.abs();
+      if (absMins < 60) {
+        return 'Terlambat $absMins mnt';
+      }
+      final hours = absMins ~/ 60;
+      return 'Terlambat $hours jam';
+    }
+
+    if (diffMins <= earlyPickupToleranceMinutes) {
+      return 'Siap Dijemput';
+    }
+
+    if (diffMins < 60) {
+      return 'Mulai dlm ${diffMins - earlyPickupToleranceMinutes} mnt';
+    }
+
+    final hours = diffMins ~/ 60;
+    final remMins = diffMins % 60;
+    return 'Jadwal $hours j $remMins m lagi';
+  }
+
+  /// Memeriksa apakah order dijadwalkan untuk hari ini
+  static bool isScheduledForToday(dynamic scheduledAtInput, {DateTime? referenceNow}) {
+    if (scheduledAtInput == null) return false;
+    final scheduledAt = parseDateTimeSafe(scheduledAtInput);
+    if (scheduledAt == null) return false;
+
+    final now = referenceNow ?? DateTime.now();
+    return scheduledAt.year == now.year &&
+           scheduledAt.month == now.month &&
+           scheduledAt.day == now.day;
+  }
+
+  /// Parser aman untuk berbagai tipe DateTime / String ISO
+  static DateTime? parseDateTimeSafe(dynamic input) {
+    if (input == null) return null;
+    if (input is DateTime) return input;
+    if (input is String) {
+      try {
+        return DateTime.parse(input);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
 }
