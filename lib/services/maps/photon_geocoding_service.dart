@@ -112,6 +112,60 @@ class PhotonGeocodingService implements GeocodingService {
     final postcode = properties['postcode'] as String?;
     final country = properties['country'] as String? ?? 'Indonesia';
 
+    // POI & Category Detection (POI-First Architecture)
+    final osmValue = (properties['osm_value'] ?? properties['type']) as String?;
+    String? category;
+    String? poiName;
+
+    if (name != null && name.trim().isNotEmpty) {
+      if (street == null || name.toLowerCase().trim() != street.toLowerCase().trim()) {
+        poiName = name.trim();
+      }
+    }
+
+    final catHint = '${osmValue ?? ''} ${name ?? ''}'.toLowerCase();
+    if (catHint.contains('universitas') ||
+        catHint.contains('kampus') ||
+        catHint.contains('institut') ||
+        catHint.contains('sekolah') ||
+        catHint.contains('politeknik') ||
+        catHint.contains('untag') ||
+        catHint.contains('university') ||
+        catHint.contains('college') ||
+        catHint.contains('school')) {
+      category = 'KAMPUS / INSTANSI';
+    } else if (catHint.contains('hospital') ||
+        catHint.contains('rumah sakit') ||
+        catHint.contains('klinik') ||
+        catHint.contains('puskesmas') ||
+        catHint.contains('clinic')) {
+      category = 'KESEHATAN';
+    } else if (catHint.contains('mall') ||
+        catHint.contains('plaza') ||
+        catHint.contains('supermarket') ||
+        catHint.contains('market')) {
+      category = 'PUSAT BELANJA';
+    } else if (catHint.contains('office') ||
+        catHint.contains('commercial') ||
+        catHint.contains('gedung') ||
+        catHint.contains('kantor') ||
+        catHint.contains('menara') ||
+        catHint.contains('bank')) {
+      category = 'KANTOR / BISNIS';
+    } else if (catHint.contains('mosque') ||
+        catHint.contains('church') ||
+        catHint.contains('masjid') ||
+        catHint.contains('gereja')) {
+      category = 'TEMPAT IBADAH';
+    } else if (catHint.contains('hotel') ||
+        catHint.contains('apartemen') ||
+        catHint.contains('residence') ||
+        catHint.contains('wisma')) {
+      category = 'HUNIAN / PROPERTI';
+    } else if (poiName != null) {
+      category = 'TEMPAT / POI';
+    }
+
     // Build formatted address carefully without fabricating nonexistent numbers
     final addressParts = <String>[];
 
@@ -181,6 +235,8 @@ class PhotonGeocodingService implements GeocodingService {
       latitude: latitude,
       longitude: longitude,
       locationSource: 'provider',
+      poiName: poiName,
+      category: category,
     );
   }
 }

@@ -116,13 +116,67 @@ class NominatimGeocodingService implements GeocodingService {
         addressDetails['quarter'] ??
         addressDetails['neighbourhood'];
 
+    final rawName = data['name'] ??
+        addressDetails['university'] ??
+        addressDetails['amenity'] ??
+        addressDetails['building'] ??
+        addressDetails['shop'] ??
+        addressDetails['office'];
+    final road = addressDetails['road'] ?? addressDetails['pedestrian'] ?? addressDetails['path'];
+
+    String? poiName;
+    if (rawName != null && rawName.toString().trim().isNotEmpty) {
+      if (road == null || rawName.toString().toLowerCase().trim() != road.toString().toLowerCase().trim()) {
+        poiName = rawName.toString().trim();
+      }
+    }
+
+    String? category;
+    final catHint = '${data['type'] ?? ''} ${poiName ?? ''}'.toLowerCase();
+    if (catHint.contains('universitas') ||
+        catHint.contains('kampus') ||
+        catHint.contains('institut') ||
+        catHint.contains('sekolah') ||
+        catHint.contains('untag') ||
+        catHint.contains('university') ||
+        catHint.contains('college') ||
+        catHint.contains('school')) {
+      category = 'KAMPUS / INSTANSI';
+    } else if (catHint.contains('hospital') ||
+        catHint.contains('rumah sakit') ||
+        catHint.contains('klinik') ||
+        catHint.contains('puskesmas') ||
+        catHint.contains('clinic')) {
+      category = 'KESEHATAN';
+    } else if (catHint.contains('mall') ||
+        catHint.contains('plaza') ||
+        catHint.contains('supermarket')) {
+      category = 'PUSAT BELANJA';
+    } else if (catHint.contains('office') ||
+        catHint.contains('gedung') ||
+        catHint.contains('kantor') ||
+        catHint.contains('bank')) {
+      category = 'KANTOR / BISNIS';
+    } else if (catHint.contains('mosque') ||
+        catHint.contains('church') ||
+        catHint.contains('masjid') ||
+        catHint.contains('gereja')) {
+      category = 'TEMPAT IBADAH';
+    } else if (catHint.contains('hotel') ||
+        catHint.contains('apartemen') ||
+        catHint.contains('residence')) {
+      category = 'HUNIAN / PROPERTI';
+    } else if (poiName != null) {
+      category = 'TEMPAT / POI';
+    }
+
     return Address(
       placeId: data['place_id']?.toString(),
       osmType: data['osm_type'],
       osmId: data['osm_id']?.toString(),
       formattedAddress: data['display_name'] ?? '',
       houseNumber: addressDetails['house_number'],
-      streetName: addressDetails['road'] ?? addressDetails['pedestrian'] ?? addressDetails['path'],
+      streetName: road,
       neighbourhood: addressDetails['neighbourhood'] ?? addressDetails['suburb'],
       village: village,
       district: district,
@@ -133,6 +187,8 @@ class NominatimGeocodingService implements GeocodingService {
       latitude: double.tryParse(data['lat']?.toString() ?? '0') ?? 0.0,
       longitude: double.tryParse(data['lon']?.toString() ?? '0') ?? 0.0,
       locationSource: 'provider',
+      poiName: poiName,
+      category: category,
     );
   }
 }

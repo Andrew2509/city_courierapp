@@ -18,6 +18,8 @@ class Address {
   final double? accuracy;
   final String locationSource; // e.g. provider, gps, manual_pin
   final String? addressDetail;
+  final String? poiName;
+  final String? category;
 
   Address({
     this.id,
@@ -39,6 +41,8 @@ class Address {
     this.accuracy,
     required this.locationSource,
     this.addressDetail,
+    this.poiName,
+    this.category,
   });
 
   factory Address.fromJson(Map<String, dynamic> json) {
@@ -62,6 +66,8 @@ class Address {
       accuracy: (json['accuracy'] as num?)?.toDouble(),
       locationSource: json['location_source'] ?? 'provider',
       addressDetail: json['address_detail'],
+      poiName: json['poi_name'],
+      category: json['category'],
     );
   }
 
@@ -86,6 +92,8 @@ class Address {
       'accuracy': accuracy,
       'location_source': locationSource,
       'address_detail': addressDetail,
+      'poi_name': poiName,
+      'category': category,
     };
   }
 
@@ -109,6 +117,8 @@ class Address {
     double? accuracy,
     String? locationSource,
     String? addressDetail,
+    String? poiName,
+    String? category,
   }) {
     return Address(
       id: id ?? this.id,
@@ -130,6 +140,8 @@ class Address {
       accuracy: accuracy ?? this.accuracy,
       locationSource: locationSource ?? this.locationSource,
       addressDetail: addressDetail ?? this.addressDetail,
+      poiName: poiName ?? this.poiName,
+      category: category ?? this.category,
     );
   }
 }
