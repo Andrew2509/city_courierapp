@@ -617,7 +617,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
         selectedCity = result;
-        _isAutoMatchedRegion = false;
+        _isAutoMatchedRegion = result['is_gps_detected'] == true;
         _showUnmatchedWarning = false;
       });
     }

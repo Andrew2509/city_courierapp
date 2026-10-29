@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:city_courierapp/screens/home/shipping/select_regency_screen.dart';
-import 'package:city_courierapp/screens/home/shipping/select_district_screen.dart';
 import 'package:city_courierapp/services/shipping/rajaongkir_service.dart';
+import 'package:city_courierapp/services/shipping/rajaongkir_matcher_service.dart';
 
 class SelectRegionScreen extends StatefulWidget {
   const SelectRegionScreen({super.key});
@@ -779,114 +779,132 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
     );
   }
 
-  // ── 7. Deteksi Otomatis Lokasi GPS ─────────────────────────────────
+  // ── 7. Deteksi Otomatis Lokasi GPS & Kode Pos Langsung ───────────
   Future<void> _useCurrentLocation() async {
     setState(() => isDetectingLocation = true);
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw 'Layanan lokasi tidak aktif.';
+        throw 'Layanan lokasi (GPS) tidak aktif. Silakan aktifkan GPS perangkat Anda.';
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          throw 'Izin lokasi ditolak.';
+          throw 'Izin akses lokasi ditolak.';
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        throw 'Izin lokasi ditolak permanen.';
+        throw 'Izin lokasi ditolak permanen. Silakan aktifkan lewat Pengaturan.';
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
       );
 
-      List<Placemark> placemarks = await placemarkFromCoordinates(
+      final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );
 
-      if (placemarks.isEmpty) {
-        throw 'Gagal mendapatkan nama wilayah dari lokasi.';
+      Placemark? place;
+      if (placemarks.isNotEmpty) {
+        place = placemarks.first;
       }
 
-      Placemark place = placemarks[0];
-      String detectedProv = place.administrativeArea ?? '';
-      String detectedCity = place.subAdministrativeArea ?? '';
+      final fullAddress = [
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+        place?.subAdministrativeArea,
+        place?.administrativeArea,
+        place?.postalCode,
+      ].where((s) => s != null && s.toString().trim().isNotEmpty).join(', ');
 
-      String searchProv = detectedProv.replaceAll(RegExp(r'Provinsi\s+', caseSensitive: false), '').trim();
-      String searchCity = detectedCity.replaceAll(RegExp(r'Kota\s+|Kabupaten\s+', caseSensitive: false), '').trim();
-
-      final provResult = await RajaOngkirService.getProvinces();
-      if (provResult['success'] != true) {
-        throw 'Gagal memuat data provinsi.';
-      }
-
-      List<dynamic> provinces = provResult['data'];
-      dynamic foundProv = provinces.firstWhere(
-        (p) => (p['province'] ?? '').toString().toLowerCase().contains(searchProv.toLowerCase()),
-        orElse: () => null,
+      // Cocokkan koordinat & petunjuk alamat ke data resmi RajaOngkir lengkap sampai kode pos
+      final match = await RajaOngkirMatcherService.match(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        village: place?.subLocality,
+        district: place?.locality,
+        city: place?.subAdministrativeArea,
+        province: place?.administrativeArea,
+        postalCode: place?.postalCode,
+        fullAddress: fullAddress.isNotEmpty ? fullAddress : null,
       );
 
-      if (foundProv == null) {
-        throw 'Provinsi $searchProv tidak ditemukan.';
-      }
+      if (!mounted) return;
+      setState(() => isDetectingLocation = false);
 
-      String provId = foundProv['province_id'].toString();
-      String provName = foundProv['province'];
+      // JIKA BERHASIL COCOK: Kembalikan langsung data hierarki lengkap sampai kode pos!
+      if (match['matched'] == true) {
+        final verifiedZip = match['postal_code'] ?? place?.postalCode;
+        final village = match['village'] ??
+            (match['subdistrict_name'] != match['district_name'] ? match['subdistrict_name'] : null) ??
+            place?.subLocality;
+        final district = match['district_name'] ?? place?.locality;
+        final city = match['city_name'] ?? place?.subAdministrativeArea;
+        final province = match['province_name'] ?? place?.administrativeArea;
 
-      final cityResult = await RajaOngkirService.getCities(int.parse(provId));
-      if (cityResult['success'] != true) {
-        throw 'Gagal memuat data kota.';
-      }
-
-      List<dynamic> cities = cityResult['data'];
-      dynamic foundCity = cities.firstWhere(
-        (c) {
-          String cName = (c['city_name'] ?? '').toString().toLowerCase();
-          return cName.contains(searchCity.toLowerCase()) || searchCity.toLowerCase().contains(cName);
-        },
-        orElse: () => null,
-      );
-
-      if (foundCity == null) {
-        throw 'Kota $searchCity tidak ditemukan.';
-      }
-
-      int cityId = int.parse(foundCity['city_id'].toString());
-      String cityName = foundCity['city_name'];
-      String cityType = foundCity['type'] ?? '';
-
-      if (mounted) {
-        setState(() => isDetectingLocation = false);
+        final summaryList = [
+          if (village != null && village.toString().isNotEmpty) village,
+          if (district != null && district.toString().isNotEmpty) district,
+          if (city != null && city.toString().isNotEmpty) city,
+          if (province != null && province.toString().isNotEmpty) province,
+          if (verifiedZip != null && verifiedZip.toString().isNotEmpty) verifiedZip,
+        ];
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lokasi terdeteksi: $cityType $cityName, $provName'),
-            backgroundColor: const Color(0xFF16A34A),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SelectDistrictScreen(
-              provinsiId: int.parse(provId),
-              provinsiName: provName,
-              kabupatenId: cityId,
-              kabupatenName: '$cityType $cityName',
+            content: Text(
+              '✓ Lokasi & kode pos terdeteksi otomatis:\n${summaryList.join(', ')}',
             ),
+            backgroundColor: const Color(0xFF16A34A),
+            duration: const Duration(seconds: 3),
           ),
         );
 
-        if (result != null && mounted) {
-          Navigator.pop(context, result);
-        }
+        Navigator.pop(context, {
+          'provinsi_id': match['province_id'],
+          'provinsi_name': province,
+          'province_name': province,
+          'kabupaten_id': match['rajaongkir_city_id'] ?? match['city_id'],
+          'kabupaten_name': city,
+          'city_id': match['rajaongkir_city_id'] ?? match['city_id'],
+          'city_name': city,
+          'kecamatan_id': match['rajaongkir_subdistrict_id'] ?? match['rajaongkir_region_id'],
+          'kecamatan_name': district,
+          'district_name': district,
+          'kelurahan_id': match['rajaongkir_subdistrict_id'],
+          'kelurahan_name': village,
+          'subdistrict_name': village ?? district,
+          'zip_code': verifiedZip,
+          'postal_code': verifiedZip,
+          'postal_code_verified': match['postal_code_verified'] == true || verifiedZip != null,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'is_gps_detected': true,
+        });
+        return;
+      }
+
+      // Fallback jika belum cocok sempurna: Arahkan pengguna ke tahap konfirmasi
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lokasi GPS terdeteksi. Silakan konfirmasi wilayah Anda.'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+
+      if (place?.administrativeArea != null) {
+        final provGuess = place!.administrativeArea!
+            .replaceAll(RegExp(r'Provinsi\s+', caseSensitive: false), '')
+            .trim();
+        searchController.text = provGuess;
+        _filterList(provGuess);
       }
     } catch (e) {
       if (mounted) {
