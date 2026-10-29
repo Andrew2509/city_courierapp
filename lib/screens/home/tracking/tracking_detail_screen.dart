@@ -1141,41 +1141,32 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: darkNavy, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Row(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
               'assets/images/Logo City Courie.png',
-              height: 32,
+              height: 26,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) => Container(
-                width: 32,
-                height: 32,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(
                   color: const Color(0xFFEC5B13),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 alignment: Alignment.center,
                 child: const Text(
                   'CC',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'City Courier',
-                  style: TextStyle(color: darkNavy, fontSize: 14.5, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Live Delivery Tracking',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 10.5, fontWeight: FontWeight.w500),
-                ),
-              ],
+            const SizedBox(height: 2),
+            const Text(
+              'Live Delivery Tracking',
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 10.5, fontWeight: FontWeight.w500),
             ),
           ],
         ),

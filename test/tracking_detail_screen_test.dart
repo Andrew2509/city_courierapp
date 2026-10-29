@@ -118,7 +118,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. Verifikasi Header
-      expect(find.text('City Courier'), findsOneWidget);
+      expect(find.text('City Courier'), findsNothing);
       expect(find.text('Live Delivery Tracking'), findsOneWidget);
       expect(find.text('Live'), findsOneWidget);
 
