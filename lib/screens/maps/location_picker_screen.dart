@@ -123,20 +123,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   // ── Address Text Helpers (GoSend 2-tier format) ───────────────────
 
-  String get _addressMainTitle {
-    if (_isReverseGeocoding) return 'Menentukan lokasi...';
-    if (_currentAddress == null) return 'Pilih lokasi pada peta';
-
-    final street = _currentAddress!.streetName;
-    final num = _currentAddress!.houseNumber;
+  String _getAddressPrimaryText(Address address) {
+    final street = address.streetName;
+    final houseNo = address.houseNumber;
     if (street != null && street.trim().isNotEmpty) {
-      if (num != null && num.trim().isNotEmpty) {
-        return '$street No. $num';
+      if (houseNo != null && houseNo.trim().isNotEmpty) {
+        return '$street No. $houseNo';
       }
       return street;
     }
-
-    final raw = _currentAddress!.formattedAddress.trim();
+    final raw = address.formattedAddress.trim();
     if (raw.isNotEmpty) {
       final parts = raw.split(',');
       if (parts.isNotEmpty && parts.first.trim().isNotEmpty) {
@@ -144,8 +140,34 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       }
       return raw;
     }
+    return 'Titik Lokasi';
+  }
 
-    return 'Titik Lokasi Terpilih';
+  String _getAddressSecondaryText(Address address) {
+    final parts = <String>[];
+    if (address.village != null && address.village!.trim().isNotEmpty) {
+      parts.add(address.village!.trim());
+    }
+    if (address.district != null && address.district!.trim().isNotEmpty) {
+      parts.add('Kec. ${address.district!.trim()}');
+    }
+    if (address.city != null && address.city!.trim().isNotEmpty) {
+      parts.add(address.city!.trim());
+    }
+    if (address.province != null && address.province!.trim().isNotEmpty) {
+      parts.add(address.province!.trim());
+    }
+    if (parts.isNotEmpty) {
+      return parts.join(', ');
+    }
+    return address.formattedAddress;
+  }
+
+  String get _addressMainTitle {
+    if (_isReverseGeocoding) return 'Menentukan lokasi...';
+    if (_currentAddress == null) return 'Pilih lokasi pada peta';
+
+    return _getAddressPrimaryText(_currentAddress!);
   }
 
   String get _addressSubTitle {
@@ -156,12 +178,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     return _currentAddress!.formattedAddress;
   }
 
-  // ── Search ──────────────────────────────────────────────────────────
+  // ── Search (Photon search-as-you-type with proximity bias) ─────────
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
 
-    if (query.isEmpty) {
+    if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
         _showResults = false;
@@ -178,11 +200,23 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       });
 
       try {
-        List<Address> results = await _locationRepository.searchAddress(query);
+        // Bias search results towards current map center via Photon
+        List<Address> results = await _locationRepository.searchAddress(
+          query.trim(),
+          latitude: _currentCenter.latitude,
+          longitude: _currentCenter.longitude,
+          limit: 6,
+        );
 
         if (results.isEmpty && widget.regionHint != null && widget.regionHint!.isNotEmpty) {
-          if (!query.toLowerCase().contains(widget.regionHint!.toLowerCase().split(',').first)) {
-            results = await _locationRepository.searchAddress('$query, ${widget.regionHint}');
+          final hintPart = widget.regionHint!.split(',').first.trim();
+          if (!query.toLowerCase().contains(hintPart.toLowerCase())) {
+            results = await _locationRepository.searchAddress(
+              '$query, ${widget.regionHint}',
+              latitude: _currentCenter.latitude,
+              longitude: _currentCenter.longitude,
+              limit: 6,
+            );
           }
         }
 
@@ -228,6 +262,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _showResults = false;
       _searchErrorMessage = '';
     });
+  }
+
+  void _zoomIn() {
+    final currentZoom = _mapController.camera.zoom;
+    _mapController.move(_currentCenter, (currentZoom + 1).clamp(3.0, 19.0));
+  }
+
+  void _zoomOut() {
+    final currentZoom = _mapController.camera.zoom;
+    _mapController.move(_currentCenter, (currentZoom - 1).clamp(3.0, 19.0));
   }
 
   // ── RajaOngkir Region Matching ─────────────────────────────────────
@@ -611,43 +655,79 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     ),
                   ),
 
-                // Search Results
+                // Search Results (Kryonex & Photon styled suggestions)
                 if (_showResults && _searchResults.isNotEmpty)
                   Card(
                     elevation: 6,
                     margin: const EdgeInsets.only(top: 4),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                    clipBehavior: Clip.antiAlias,
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 240),
+                      constraints: const BoxConstraints(maxHeight: 250),
                       child: ListView.separated(
                         shrinkWrap: true,
-                        padding: EdgeInsets.zero,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         itemCount: _searchResults.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => Divider(height: 1, color: Colors.grey.shade200),
                         itemBuilder: (context, index) {
                           final address = _searchResults[index];
-                          return ListTile(
-                            dense: true,
-                            leading: const Icon(
-                              Icons.location_on,
-                              color: Color(0xFFEC5B13),
-                              size: 20,
-                            ),
-                            title: Text(
-                              address.streetName ?? address.formattedAddress,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              address.formattedAddress,
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          final primary = _getAddressPrimaryText(address);
+                          final secondary = _getAddressSecondaryText(address);
+                          return InkWell(
                             onTap: () => _onSelectSearchResult(address),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    margin: const EdgeInsets.only(top: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF7ED),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Color(0xFFEC5B13),
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          primary,
+                                          style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF111827),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          secondary,
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: Colors.grey.shade600,
+                                            height: 1.25,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -658,16 +738,37 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 if (_showResults && !_isSearching && _searchErrorMessage.isNotEmpty)
                   Card(
                     margin: const EdgeInsets.only(top: 4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline, size: 16, color: Colors.orange.shade700),
-                          const SizedBox(width: 8),
-                          Text(
-                            _searchErrorMessage,
-                            style: const TextStyle(fontSize: 12, color: Colors.black87),
+                          Icon(Icons.info_outline, size: 18, color: Colors.orange.shade800),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _searchErrorMessage,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Periksa kata kunci atau geser pin langsung pada peta ke titik tujuan.',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -717,20 +818,40 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Floating Action Buttons (Back on Left, GPS on Right)
+                // Floating Action Buttons (Back on Left, Zoom & GPS on Right)
                 Padding(
                   padding: const EdgeInsets.only(left: 16, right: 16, bottom: 14),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       _CircleMapButton(
                         icon: Icons.arrow_back,
                         onTap: () => Navigator.pop(context),
                       ),
-                      _CircleMapButton(
-                        icon: Icons.my_location,
-                        isLoading: _isGettingGps,
-                        onTap: _isGettingGps ? null : _useCurrentLocation,
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _CircleMapButton(
+                            icon: Icons.add,
+                            size: 38,
+                            iconSize: 20,
+                            onTap: _zoomIn,
+                          ),
+                          const SizedBox(height: 8),
+                          _CircleMapButton(
+                            icon: Icons.remove,
+                            size: 38,
+                            iconSize: 20,
+                            onTap: _zoomOut,
+                          ),
+                          const SizedBox(height: 8),
+                          _CircleMapButton(
+                            icon: Icons.my_location,
+                            isLoading: _isGettingGps,
+                            onTap: _isGettingGps ? null : _useCurrentLocation,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -922,11 +1043,15 @@ class _CircleMapButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final bool isLoading;
+  final double size;
+  final double iconSize;
 
   const _CircleMapButton({
     required this.icon,
     this.onTap,
     this.isLoading = false,
+    this.size = 44,
+    this.iconSize = 22,
   });
 
   @override
@@ -940,19 +1065,19 @@ class _CircleMapButton extends StatelessWidget {
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Container(
-          width: 44,
-          height: 44,
+          width: size,
+          height: size,
           alignment: Alignment.center,
           child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
+              ? SizedBox(
+                  width: size * 0.45,
+                  height: size * 0.45,
+                  child: const CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Color(0xFF00880D),
                   ),
                 )
-              : Icon(icon, size: 22, color: const Color(0xFF1F2937)),
+              : Icon(icon, size: iconSize, color: const Color(0xFF1F2937)),
         ),
       ),
     );

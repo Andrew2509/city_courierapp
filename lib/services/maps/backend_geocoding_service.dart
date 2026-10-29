@@ -23,13 +23,24 @@ class BackendGeocodingService implements GeocodingService {
 
   // ── Search / Forward Geocoding ─────────────────────────────────────
   @override
-  Future<List<Address>> searchAddress(String query) async {
+  Future<List<Address>> searchAddress(
+    String query, {
+    double? latitude,
+    double? longitude,
+    int limit = 5,
+  }) async {
     try {
+      final queryParams = <String, String>{
+        'q': query,
+        'limit': limit.toString(),
+      };
+      if (latitude != null && longitude != null) {
+        queryParams['lat'] = latitude.toString();
+        queryParams['lng'] = longitude.toString();
+      }
+
       final uri = Uri.parse('$_baseUrl/geocoding/search').replace(
-        queryParameters: {
-          'q': query,
-          'limit': '5',
-        },
+        queryParameters: queryParams,
       );
 
       final response = await client

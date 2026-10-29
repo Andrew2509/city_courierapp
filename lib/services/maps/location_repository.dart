@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../../data/models/address_model.dart';
 import '../../core/config/map_config.dart';
 import 'geocoding_service.dart';
@@ -29,82 +30,110 @@ class LocationRepository {
         _nominatim = nominatim ?? NominatimGeocodingService(),
         _photon = photon ?? PhotonGeocodingService();
 
-  /// Search address with fallback: Backend → Nominatim → Photon (PRD §44).
+  /// Search address with autocomplete-friendly provider strategy:
   ///
-  /// Primary: Backend API (handles Nominatim + Photon with server-side cache).
-  /// Fallback: Direct Nominatim if backend is unreachable.
-  /// Fallback: Direct Photon if Nominatim also fails.
+  /// 1. Check in-memory cache.
+  /// 2. Primary: Photon (designed for search-as-you-type autocomplete with proximity bias).
+  /// 3. Secondary: Backend API (caching proxy).
+  /// 4. Fallback: Direct Nominatim (strictly as fallback to comply with OSM usage policy).
   Future<List<Address>> searchAddress(
     String query, {
+    double? latitude,
+    double? longitude,
+    int limit = 5,
     int minResults = 1,
   }) async {
+    final cleanQuery = query.toLowerCase().trim();
+    if (cleanQuery.isEmpty) return [];
+
+    final cacheKey =
+        '${cleanQuery}_${latitude != null ? latitude.toStringAsFixed(3) : ""}_${longitude != null ? longitude.toStringAsFixed(3) : ""}';
+
     // Check in-memory cache first (PRD §37)
-    final cached = _searchCache[query.toLowerCase().trim()];
+    final cached = _searchCache[cacheKey];
     if (cached != null && !cached.isExpired) {
-      print('[LocationRepo] Cache hit for: $query');
+      debugPrint('[LocationRepo] Cache hit for: $query');
       return cached.data;
     }
 
-    // 1️⃣ Try backend API (server-side Nominatim → Photon + cache)
     List<Address> results = [];
+
+    // 1️⃣ Primary: Photon (built for autocomplete search with proximity bias)
     try {
-      print('[LocationRepo] Trying backend API for: $query');
-      results = await _backend.searchAddress(query);
-      print('[LocationRepo] Backend returned ${results.length} results');
-      if (results.length >= minResults) {
-        _searchCache[query.toLowerCase().trim()] = _CacheEntry(results);
+      debugPrint('[LocationRepo] Querying Photon autocomplete for: $query (lat: $latitude, lon: $longitude)');
+      final photonResults = await _photon.searchAddress(
+        query,
+        latitude: latitude,
+        longitude: longitude,
+        limit: limit,
+      );
+      if (photonResults.isNotEmpty) {
+        results = photonResults;
+        debugPrint('[LocationRepo] Photon returned ${results.length} results');
+        _searchCache[cacheKey] = _CacheEntry(results);
         return results;
       }
     } catch (e) {
-      print('[LocationRepo] Backend failed: $e');
+      debugPrint('[LocationRepo] Photon failed: $e');
     }
 
-    // 2️⃣ Fallback: Direct Nominatim
+    // 2️⃣ Secondary: Backend API proxy
     try {
-      print('[LocationRepo] Trying direct Nominatim for: $query');
-      final nominatimResults = await _nominatim.searchAddress(query);
-      print('[LocationRepo] Nominatim returned ${nominatimResults.length} results');
-      if (nominatimResults.isNotEmpty) {
-        results = nominatimResults;
+      debugPrint('[LocationRepo] Trying backend API for: $query');
+      final backendResults = await _backend.searchAddress(
+        query,
+        latitude: latitude,
+        longitude: longitude,
+        limit: limit,
+      );
+      debugPrint('[LocationRepo] Backend returned ${backendResults.length} results');
+      if (backendResults.length >= minResults) {
+        _searchCache[cacheKey] = _CacheEntry(backendResults);
+        return backendResults;
+      }
+      if (backendResults.isNotEmpty) {
+        results = backendResults;
       }
     } catch (e) {
-      print('[LocationRepo] Nominatim failed: $e');
+      debugPrint('[LocationRepo] Backend failed: $e');
     }
 
     if (results.length >= minResults) {
-      _searchCache[query.toLowerCase().trim()] = _CacheEntry(results);
+      _searchCache[cacheKey] = _CacheEntry(results);
       return results;
     }
 
-    // 3️⃣ Fallback: Direct Photon
+    // 3️⃣ Last Fallback: Direct Nominatim (only on failure/empty of primary providers)
     try {
-      print('[LocationRepo] Trying Photon for: $query');
-      final photonResults = await _photon.searchAddress(query);
-      print('[LocationRepo] Photon returned ${photonResults.length} results');
-      if (photonResults.isNotEmpty) {
-        // Merge: prefer existing results, supplement with Photon
-        final merged = <Address>[...results, ...photonResults];
-        // Deduplicate by coordinates
+      debugPrint('[LocationRepo] Trying Nominatim fallback for: $query');
+      final nominatimResults = await _nominatim.searchAddress(
+        query,
+        latitude: latitude,
+        longitude: longitude,
+        limit: limit,
+      );
+      debugPrint('[LocationRepo] Nominatim returned ${nominatimResults.length} results');
+      if (nominatimResults.isNotEmpty) {
+        // Merge & deduplicate
+        final merged = <Address>[...results, ...nominatimResults];
         final seen = <String>{};
         final unique = <Address>[];
         for (final addr in merged) {
           final key =
-              '${addr.latitude.toStringAsFixed(5)},${addr.longitude.toStringAsFixed(5)}';
+              '${addr.latitude.toStringAsFixed(4)},${addr.longitude.toStringAsFixed(4)}';
           if (seen.add(key)) {
             unique.add(addr);
           }
         }
-        _searchCache[query.toLowerCase().trim()] = _CacheEntry(unique);
+        _searchCache[cacheKey] = _CacheEntry(unique);
         return unique;
       }
     } catch (e) {
-      print('[LocationRepo] Photon failed: $e');
+      debugPrint('[LocationRepo] Nominatim fallback failed: $e');
     }
 
-    // Return whatever we have (possibly empty)
-    print('[LocationRepo] All providers returned 0 results for: $query');
     if (results.isNotEmpty) {
-      _searchCache[query.toLowerCase().trim()] = _CacheEntry(results);
+      _searchCache[cacheKey] = _CacheEntry(results);
     }
     return results;
   }

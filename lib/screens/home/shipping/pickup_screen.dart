@@ -390,7 +390,10 @@ class _PickupScreenState extends State<PickupScreen> {
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const SelectSenderScreen(),
+                            builder: (context) => const SelectSenderScreen(
+                              title: 'Pilih Pengirim',
+                              subtitle: 'Pilih pengirim untuk penjemputan',
+                            ),
                           ),
                         );
                         if (result != null && result is Map<String, dynamic>) {
@@ -502,7 +505,10 @@ class _PickupScreenState extends State<PickupScreen> {
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const SelectSenderScreen(),
+                            builder: (context) => const SelectSenderScreen(
+                              title: 'Pilih Penerima',
+                              subtitle: 'Pilih penerima untuk pengiriman',
+                            ),
                           ),
                         );
                         if (result != null && result is Map<String, dynamic>) {

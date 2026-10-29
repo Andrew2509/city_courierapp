@@ -449,9 +449,19 @@ class _SelectSenderScreenState extends State<SelectSenderScreen> {
       ),
       child: GestureDetector(
         onTap: () async {
+          final isReceiver = widget.title.toLowerCase().contains('penerima');
           final result = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const AddSenderScreen()),
+            MaterialPageRoute(
+              builder: (_) => AddSenderScreen(
+                title: isReceiver ? 'Tambah Penerima Baru' : 'Tambah Pengirim Baru',
+                subtitle: isReceiver
+                    ? 'Lengkapi data penerima & alamat tujuan'
+                    : 'Lengkapi data pengirim & alamat penjemputan',
+                pickerTitle: isReceiver ? 'Set lokasi pengiriman' : 'Set lokasi penjemputan',
+                isReceiver: isReceiver,
+              ),
+            ),
           );
           if (result != null && result is Map<String, dynamic>) {
             // Reload from API after adding

@@ -9,7 +9,18 @@ import 'package:city_courierapp/services/maps/nominatim_geocoding_service.dart';
 import 'package:city_courierapp/core/utils/address_region.dart';
 
 class AddSenderScreen extends StatefulWidget {
-  const AddSenderScreen({super.key});
+  final String title;
+  final String subtitle;
+  final String pickerTitle;
+  final bool isReceiver;
+
+  const AddSenderScreen({
+    super.key,
+    this.title = 'Tambah Pengirim Baru',
+    this.subtitle = 'Lengkapi data pengirim & alamat pengiriman',
+    this.pickerTitle = 'Set lokasi pengiriman',
+    this.isReceiver = false,
+  });
 
   @override
   State<AddSenderScreen> createState() => _AddSenderScreenState();
@@ -224,9 +235,9 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Tambah Pengiriman Baru',
-                style: TextStyle(
+              Text(
+                widget.title,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -234,7 +245,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Lengkapi data pengirim & alamat pengiriman',
+                widget.subtitle,
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.85),
                   fontSize: 12,
@@ -821,7 +832,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
         MaterialPageRoute(
           builder: (context) => LocationPickerScreen(
             initialAddress: initialAddr,
-            title: 'Pilih Lokasi Pengiriman',
+            title: widget.pickerTitle,
           ),
         ),
       );

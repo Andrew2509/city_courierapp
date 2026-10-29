@@ -13,21 +13,39 @@ class NominatimGeocodingService implements GeocodingService {
   NominatimGeocodingService({http.Client? client}) : client = client ?? http.Client();
 
   @override
-  Future<List<Address>> searchAddress(String query) async {
-    final url = Uri.parse('${MapConfig.nominatimBaseUrl}/search').replace(queryParameters: {
+  Future<List<Address>> searchAddress(
+    String query, {
+    double? latitude,
+    double? longitude,
+    int limit = 5,
+  }) async {
+    final queryParams = <String, String>{
       'q': query,
       'format': 'json',
       'addressdetails': '1',
-      'limit': '5',
-    });
+      'limit': limit.toString(),
+      'countrycodes': 'id',
+    };
+
+    if (latitude != null && longitude != null) {
+      // Define a bounding box around the coordinates (~25km) to bias results
+      final delta = 0.25;
+      queryParams['viewbox'] =
+          '${longitude - delta},${latitude + delta},${longitude + delta},${latitude - delta}';
+    }
+
+    final url = Uri.parse('${MapConfig.nominatimBaseUrl}/search').replace(
+      queryParameters: queryParams,
+    );
 
     try {
       final response = await client.get(url, headers: {
-        'User-Agent': 'CityCourierApp/1.0',
+        'User-Agent': 'CityCourierApp/1.0 (contact: developer@citycourier.com)',
+        'Accept': 'application/json',
       }).timeout(MapConfig.networkTimeout);
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((item) => _mapNominatimToAddress(item)).toList();
       }
     } catch (e) {
@@ -47,11 +65,12 @@ class NominatimGeocodingService implements GeocodingService {
 
     try {
       final response = await client.get(url, headers: {
-        'User-Agent': 'CityCourierApp/1.0',
+        'User-Agent': 'CityCourierApp/1.0 (contact: developer@citycourier.com)',
+        'Accept': 'application/json',
       }).timeout(MapConfig.networkTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = json.decode(utf8.decode(response.bodyBytes));
         if (data['error'] != null) return null;
         return _mapNominatimToAddress(data);
       }
