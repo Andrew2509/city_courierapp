@@ -4,7 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import 'package:city_courierapp/core/config/app_colors.dart';
-import 'package:city_courierapp/core/config/app_typography.dart';
+
+import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/services/courier/courier_live_location_service.dart';
 import 'package:city_courierapp/services/courier/courier_status_service.dart';
@@ -14,7 +15,7 @@ import 'package:city_courierapp/services/courier/pickup_request_polling_service.
 
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_detail_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
+
 import 'package:city_courierapp/screens/courier/ci_word/earnings/driver_earnings_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
@@ -710,58 +711,205 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
+  String _formatCurrency(dynamic raw) {
+    final double val = double.tryParse(raw?.toString() ?? '0') ?? 0;
+    return 'Rp ${val.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+  }
+
+  Future<void> _acceptOrderFromHome(Map<String, dynamic> task) async {
+    final requestId = task['id']?.toString() ?? '';
+    if (requestId.isEmpty) return;
+
+    final acceptResult = await CourierOrderService.acceptPickupRequest(requestId);
+    if (!mounted) return;
+
+    if (acceptResult['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pesanan berhasil diterima!'),
+          backgroundColor: Color(0xFF22C55E),
+        ),
+      );
+      await _fetchHomeData();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
+          backgroundColor: const Color(0xFFFF5A00),
+        ),
+      );
+    }
+  }
+
   Widget _buildActiveOrderSection() {
+    final order = _activeOrder!;
+    final nestedShip = order['shipment'] is Map ? order['shipment'] as Map : null;
+    final status = (order['status'] ?? 'assigned').toString().toLowerCase();
+    final isAssigned = status == 'assigned';
+
+    final scheduledAt = order['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'] ?? order['pickup_date'];
+    final pickupTimeStr = (order['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final bool isScheduled = order['scheduled_pickup'] == true ||
+        order['scheduled_pickup'] == 1 ||
+        order['scheduled_pickup'] == '1' ||
+        nestedShip?['scheduled_pickup'] == true ||
+        nestedShip?['scheduled_pickup'] == 1 ||
+        (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
+        pickupTimeStr.isNotEmpty;
+
+    final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
+    final displayDateStr = schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Hari Ini';
+    final canStartPickup = isScheduled ? ScheduleTimeConfig.canStartPickup(scheduledAt) : true;
+    final statusLabel = isScheduled ? ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt) : 'Siap Pickup';
+
+    final vehicleType = (order['vehicle'] ?? order['vehicle_type'] ?? nestedShip?['vehicle'] ?? 'motor').toString().toLowerCase();
+    final isCar = vehicleType == 'mobil';
+    final vehicleName = isCar ? 'Mobil' : 'Motor';
+
+    final String statusDisplay = status == 'assigned'
+        ? (isScheduled ? 'Terjadwal' : 'Ditugaskan')
+        : status == 'picking_up'
+            ? 'Menjemput Paket'
+            : status == 'picked_up'
+                ? 'Paket Diambil'
+                : status == 'delivering'
+                    ? 'Dalam Perjalanan'
+                    : status.toUpperCase();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.textWhite,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textPrimary.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFF5A00), width: 1.5),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row
+          // Top Row: Status Badge, Vehicle Badge, Resi
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE9F9F0),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Sedang Berjalan',
-                  style: TextStyle(
-                    color: greenColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (isAssigned && isScheduled) ? const Color(0xFFFF5A00) : const Color(0xFF22C55E),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      (isAssigned && isScheduled) ? 'Pickup Terjadwal' : 'Sedang Berjalan',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF22C55E), width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isCar ? Icons.directions_car : Icons.two_wheeler,
+                          size: 13,
+                          color: const Color(0xFF22C55E),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          vehicleName,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFF5A00), width: 1.2),
                 ),
                 child: Text(
-                  _activeOrder!['tracking_number'] ?? _activeOrder!['order_number'] ?? '#${_activeOrder!['id']}',
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.primaryBlue, fontWeight: FontWeight.w800, fontSize: 11),
+                  order['tracking_number'] ?? order['order_number'] ?? '#${order['id']}',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10.5,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          
+
+          // Scheduled Pickup Banner (jika order terjadwal)
+          if (isScheduled) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: canStartPickup ? const Color(0xFF22C55E) : const Color(0xFFFF5A00),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.schedule_rounded,
+                    size: 16,
+                    color: canStartPickup ? const Color(0xFF22C55E) : const Color(0xFFFF5A00),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Jadwal Pickup: $displayDateStr \u2022 ${pickupTimeStr.isNotEmpty ? pickupTimeStr : 'Sesuai Jadwal'}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: canStartPickup ? const Color(0xFF22C55E) : const Color(0xFFFF5A00),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 14),
+
           // Middle Row: Addresses & Info
           IntrinsicHeight(
             child: Row(
@@ -788,28 +936,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               child: Icon(Icons.inventory_2, color: Colors.white, size: 10),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _activeOrder!['sender_name'] ?? _activeOrder!['pickup_address'] ?? 'Lokasi Penjemputan',
+                                  order['sender_name'] ?? order['pickup_address'] ?? 'Lokasi Penjemputan',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
-                                    color: Color(0xFF1A1A1A),
+                                    color: Colors.black,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Text(
-                                  _activeOrder!['pickup_address'] ?? '',
+                                  order['pickup_address'] ?? '',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                     fontSize: 11,
-                                    color: Color(0xFF64748B),
+                                    color: Colors.black,
                                     height: 1.3,
                                   ),
                                   maxLines: 2,
@@ -825,20 +973,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         children: [
                           Container(
                             width: 16,
-                            height: 30,
+                            height: 24,
                             alignment: Alignment.center,
                             child: CustomPaint(
-                              size: const Size(1, 30),
-                              painter: _VerticalDottedPainter(color: const Color(0xFFCBD5E1)),
+                              size: const Size(1, 24),
+                              painter: _VerticalDottedPainter(color: const Color(0xFFFF5A00)),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Container(
                               height: 1,
-                              margin: const EdgeInsets.symmetric(vertical: 10),
+                              margin: const EdgeInsets.symmetric(vertical: 8),
                               child: CustomPaint(
-                                painter: _HorizontalDottedPainter(color: const Color(0xFFE2E8F0)),
+                                painter: _HorizontalDottedPainter(color: const Color(0xFFFF5A00)),
                               ),
                             ),
                           ),
@@ -852,28 +1000,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             padding: EdgeInsets.only(top: 2),
                             child: Icon(Icons.location_on, color: Color(0xFF22C55E), size: 18),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _activeOrder!['receiver_name'] ?? 'Tujuan',
+                                  order['receiver_name'] ?? 'Tujuan',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
-                                    color: Color(0xFF1A1A1A),
+                                    color: Colors.black,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Text(
-                                  _activeOrder!['dropoff_address'] ?? '',
+                                  order['dropoff_address'] ?? '',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                     fontSize: 11,
-                                    color: Color(0xFF64748B),
+                                    color: Colors.black,
                                     height: 1.3,
                                   ),
                                   maxLines: 2,
@@ -887,16 +1035,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     ],
                   ),
                 ),
-                
+
                 // Vertical Divider
                 Container(
                   width: 1,
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   child: CustomPaint(
-                    painter: _VerticalDottedPainter(color: const Color(0xFFE2E8F0)),
+                    painter: _VerticalDottedPainter(color: const Color(0xFFFF5A00)),
                   ),
                 ),
-                
+
                 // Right Column: Info
                 Expanded(
                   flex: 2,
@@ -906,39 +1054,39 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       const Text(
                         'Status',
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
                           fontSize: 10,
-                          color: Color(0xFF64748B),
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _activeOrder!['status'].toString().toUpperCase(),
+                        statusDisplay,
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                          color: Color(0xFF1A1A1A),
+                          fontSize: 11.5,
+                          color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Customer',
+                      const SizedBox(height: 10),
+                      Text(
+                        isScheduled ? 'Waktu Pickup' : 'Tarif',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isScheduled
+                            ? (pickupTimeStr.isNotEmpty ? '$displayDateStr\n$pickupTimeStr' : displayDateStr)
+                            : _formatCurrency(order['price']),
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 10,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _activeOrder!['receiver_name'] ?? 'Pelanggan',
-                        style: const TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                          color: Color(0xFFFF5A00),
+                          fontSize: 11.5,
+                          color: isScheduled ? Colors.black : const Color(0xFF22C55E),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -946,8 +1094,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          
+          const SizedBox(height: 16),
+
           // Bottom Row: Buttons
           Row(
             children: [
@@ -957,23 +1105,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DriverDeliveryFlowScreen(
-                          order: _activeOrder!,
+                        builder: (context) => DriverDetailShipmentScreen(
+                          shipment: order,
                         ),
                       ),
                     ).then((_) => _fetchHomeData());
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF5A00),
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                     side: const BorderSide(color: Color(0xFFFF5A00), width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text(
-                    'Detail',
+                    'Lihat Detail',
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: Colors.black,
                     ),
                   ),
                 ),
@@ -982,26 +1132,54 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
+                    if (isAssigned && !canStartPickup) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal ($pickupTimeStr).',
+                          ),
+                          backgroundColor: const Color(0xFFFF5A00),
+                        ),
+                      );
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DriverNavigationScreen(order: _activeOrder!),
+                        builder: (context) => isAssigned
+                            ? DriverDetailShipmentScreen(shipment: order)
+                            : DriverDeliveryFlowScreen(order: order),
                       ),
-                    );
+                    ).then((_) => _fetchHomeData());
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF5A00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    backgroundColor: (isAssigned && !canStartPickup) ? Colors.white : const Color(0xFFFF5A00),
+                    foregroundColor: (isAssigned && !canStartPickup) ? Colors.black : Colors.white,
+                    side: (isAssigned && !canStartPickup)
+                        ? const BorderSide(color: Color(0xFFFF5A00), width: 1.5)
+                        : BorderSide.none,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Navigasi',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isAssigned && !canStartPickup) ...[
+                        const Icon(Icons.lock_outline_rounded, size: 15, color: Color(0xFFFF5A00)),
+                        const SizedBox(width: 5),
+                      ],
+                      Text(
+                        isAssigned
+                            ? (canStartPickup ? 'Mulai Pickup' : 'Belum Waktunya')
+                            : 'Lanjutkan',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12.5,
+                          color: (isAssigned && !canStartPickup) ? Colors.black : Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1013,55 +1191,106 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Widget _buildPendingTaskCard(Map<String, dynamic> task) {
-    String formattedPrice = 'Rp 0';
-    if (task['price'] != null) {
-      formattedPrice = 'Rp ${task['price']}';
-    } else if (task['amount'] != null) {
-      formattedPrice = 'Rp ${task['amount']}';
-    }
+    final nestedShip = task['shipment'] is Map ? task['shipment'] as Map : null;
+    final String formattedPrice = _formatCurrency(task['price'] ?? task['amount'] ?? 0);
+
+    final scheduledAt = task['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'] ?? task['pickup_date'];
+    final pickupTimeStr = (task['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final bool isScheduled = task['scheduled_pickup'] == true ||
+        task['scheduled_pickup'] == 1 ||
+        task['scheduled_pickup'] == '1' ||
+        nestedShip?['scheduled_pickup'] == true ||
+        nestedShip?['scheduled_pickup'] == 1 ||
+        (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
+        pickupTimeStr.isNotEmpty;
+
+    final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
+    final displayDateStr = schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Terjadwal';
+    final canStartPickup = isScheduled ? ScheduleTimeConfig.canStartPickup(scheduledAt) : true;
+    final statusLabel = isScheduled ? ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt) : 'Siap Pickup';
+
+    final vehicleType = (task['vehicle'] ?? task['vehicle_type'] ?? nestedShip?['vehicle'] ?? 'motor').toString().toLowerCase();
+    final isCar = vehicleType == 'mobil';
+    final vehicleName = isCar ? 'Mobil' : 'Motor';
+    final paymentMethod = (task['payment_method'] ?? nestedShip?['payment_method'] ?? 'COD').toString().toUpperCase();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.textWhite,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textPrimary.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFF5A00), width: 1.5),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Baru & Distance
+          // Top Row: Badge Status + Kendaraan & Distance
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF0E6),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Baru',
-                  style: TextStyle(
-                    color: Color(0xFFFF5A00),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF5A00),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isScheduled) ...[
+                          const Icon(Icons.schedule_rounded, size: 12, color: Colors.white),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          isScheduled ? 'Pickup Terjadwal' : 'Pesanan Baru',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF22C55E), width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isCar ? Icons.directions_car : Icons.two_wheeler,
+                          size: 13,
+                          color: const Color(0xFF22C55E),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          vehicleName,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const Row(
                 children: [
                   Text(
                     '2.4 km',
                     style: TextStyle(
-                      color: Color(0xFFFF5A00),
+                      color: Colors.black,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
@@ -1072,9 +1301,61 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          
-          // Middle Row: Addresses & Price
+
+          // Banner Jadwal Pickup (Tampil otomatis jika pelanggan memilih Jadwal Pickup)
+          if (isScheduled) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: canStartPickup ? const Color(0xFF22C55E) : const Color(0xFFFF5A00),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.event_available_rounded,
+                    size: 16,
+                    color: canStartPickup ? const Color(0xFF22C55E) : const Color(0xFFFF5A00),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Jadwal: $displayDateStr \u2022 ${pickupTimeStr.isNotEmpty ? pickupTimeStr : 'Sesuai Jadwal'}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: canStartPickup ? const Color(0xFF22C55E) : const Color(0xFFFF5A00),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 14),
+
+          // Middle Row: Addresses & Price / Schedule Info
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1100,28 +1381,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               child: Icon(Icons.inventory_2, color: Colors.white, size: 10),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  task['sender_name'] ?? task['pickup_address'] ?? 'Toko Elektronik Surabaya',
+                                  task['sender_name'] ?? task['pickup_address'] ?? 'Pengirim',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
-                                    color: Color(0xFF1A1A1A),
+                                    color: Colors.black,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Text(
-                                  task['pickup_address'] ?? 'Jl. Raya Darmo No. 123\nSurabaya, Jawa Timur',
+                                  task['pickup_address'] ?? '-',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                     fontSize: 11,
-                                    color: Color(0xFF64748B),
+                                    color: Colors.black,
                                     height: 1.3,
                                   ),
                                   maxLines: 2,
@@ -1137,20 +1418,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         children: [
                           Container(
                             width: 16,
-                            height: 30,
+                            height: 24,
                             alignment: Alignment.center,
                             child: CustomPaint(
-                              size: const Size(1, 30),
-                              painter: _VerticalDottedPainter(color: const Color(0xFFCBD5E1)),
+                              size: const Size(1, 24),
+                              painter: _VerticalDottedPainter(color: const Color(0xFFFF5A00)),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Container(
                               height: 1,
-                              margin: const EdgeInsets.symmetric(vertical: 10),
+                              margin: const EdgeInsets.symmetric(vertical: 8),
                               child: CustomPaint(
-                                painter: _HorizontalDottedPainter(color: const Color(0xFFE2E8F0)),
+                                painter: _HorizontalDottedPainter(color: const Color(0xFFFF5A00)),
                               ),
                             ),
                           ),
@@ -1164,28 +1445,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             padding: EdgeInsets.only(top: 2),
                             child: Icon(Icons.location_on, color: Color(0xFF22C55E), size: 18),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  task['receiver_name'] ?? 'Budi Santoso',
+                                  task['receiver_name'] ?? 'Penerima',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
-                                    color: Color(0xFF1A1A1A),
+                                    color: Colors.black,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Text(
-                                  task['dropoff_address'] ?? 'Jl. Kutisari Indah No. 45\nSurabaya, Jawa Timur',
+                                  task['dropoff_address'] ?? task['delivery_address'] ?? '-',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                     fontSize: 11,
-                                    color: Color(0xFF64748B),
+                                    color: Colors.black,
                                     height: 1.3,
                                   ),
                                   maxLines: 2,
@@ -1199,70 +1480,74 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     ],
                   ),
                 ),
-                
+
                 // Vertical Divider
                 Container(
                   width: 1,
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   child: CustomPaint(
-                    painter: _VerticalDottedPainter(color: const Color(0xFFE2E8F0)),
+                    painter: _VerticalDottedPainter(color: const Color(0xFFFF5A00)),
                   ),
                 ),
-                
-                // Right Column: Price & Info
+
+                // Right Column: Jadwal/Estimasi & Harga
                 Expanded(
                   flex: 2,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Estimasi',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
+                      Text(
+                        isScheduled ? 'Waktu Pickup' : 'Estimasi',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
                           fontSize: 10,
-                          color: Color(0xFF64748B),
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
-                        '20 - 30 mnt',
-                        style: TextStyle(
+                      Text(
+                        isScheduled
+                            ? (pickupTimeStr.isNotEmpty ? '$displayDateStr\n$pickupTimeStr' : displayDateStr)
+                            : '20 - 30 mnt',
+                        style: const TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          color: Color(0xFF1A1A1A),
+                          fontSize: 11.5,
+                          color: Colors.black,
+                          height: 1.3,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       const Text(
                         'Harga',
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
                           fontSize: 10,
-                          color: Color(0xFF64748B),
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         formattedPrice,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13.5,
                           color: Color(0xFF22C55E),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(6),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: const Color(0xFF22C55E), width: 1.2),
                         ),
-                        child: const Text(
-                          'COD',
-                          style: TextStyle(
+                        child: Text(
+                          paymentMethod,
+                          style: const TextStyle(
                             fontWeight: FontWeight.w800,
-                            fontSize: 10,
-                            color: Color(0xFF334155),
+                            fontSize: 9.5,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -1272,8 +1557,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          
+          const SizedBox(height: 16),
+
           // Bottom Row: Buttons
           Row(
             children: [
@@ -1285,19 +1570,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       MaterialPageRoute(
                         builder: (context) => DriverDetailShipmentScreen(shipment: task),
                       ),
-                    );
+                    ).then((_) => _fetchHomeData());
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF5A00),
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                     side: const BorderSide(color: Color(0xFFFF5A00), width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text(
                     'Lihat Detail',
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: Colors.black,
                     ),
                   ),
                 ),
@@ -1305,26 +1592,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DriverDetailShipmentScreen(shipment: task),
-                      ),
-                    );
-                  },
+                  onPressed: () => _acceptOrderFromHome(task),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF5A00),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
                   child: const Text(
                     'Terima',
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: Colors.white,
                     ),
                   ),
                 ),

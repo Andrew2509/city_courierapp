@@ -18,6 +18,11 @@ class DriverShipmentScreen extends StatefulWidget {
 }
 
 class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteAware {
+  static const Color _orange = Color(0xFFFF5A00);
+  static const Color _green = Color(0xFF22C55E);
+  static const Color _white = Colors.white;
+  static const Color _black = Colors.black;
+
   List<Map<String, dynamic>> _allShipments = [];
   bool _isLoading = true;
   int _selectedTabIndex = 0;
@@ -52,6 +57,29 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
   @override
   void didPopNext() {
     _fetchShipments();
+  }
+
+  bool _isOrderScheduled(Map<String, dynamic> s) {
+    final nested = s['shipment'] is Map ? s['shipment'] as Map : null;
+    final rawFlag = s['scheduled_pickup'] ?? nested?['scheduled_pickup'];
+    final scheduledAt = s['pickup_scheduled_at'] ?? nested?['pickup_scheduled_at'];
+    final pickupTime = (s['pickup_time'] ?? nested?['pickup_time'] ?? '').toString().trim();
+    return rawFlag == true ||
+        rawFlag == 1 ||
+        rawFlag == '1' ||
+        rawFlag == 'true' ||
+        (scheduledAt != null && scheduledAt.toString().trim().isNotEmpty) ||
+        pickupTime.isNotEmpty;
+  }
+
+  dynamic _getScheduledAt(Map<String, dynamic> s) {
+    final nested = s['shipment'] is Map ? s['shipment'] as Map : null;
+    return s['pickup_scheduled_at'] ?? nested?['pickup_scheduled_at'];
+  }
+
+  String _getPickupTime(Map<String, dynamic> s) {
+    final nested = s['shipment'] is Map ? s['shipment'] as Map : null;
+    return (s['pickup_time'] ?? nested?['pickup_time'] ?? '').toString().trim();
   }
 
   Future<void> _fetchShipments() async {
@@ -143,8 +171,8 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
           final status = s['status'] ?? 'pending';
           if (status == 'delivered' || status == 'cancelled') return false;
 
-          final scheduledAt = s['pickup_scheduled_at'];
-          final isScheduled = s['scheduled_pickup'] == true || s['scheduled_pickup'] == 1 || s['scheduled_pickup'] == '1';
+          final scheduledAt = _getScheduledAt(s);
+          final isScheduled = _isOrderScheduled(s);
 
           if (isScheduled && scheduledAt != null) {
             return ScheduleTimeConfig.isScheduledForToday(scheduledAt, referenceNow: now);
@@ -165,10 +193,10 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
 
         // Urutkan berdasarkan jam pickup terdekat
         list.sort((a, b) {
-          final dtA = ScheduleTimeConfig.parseDateTimeSafe(a['pickup_scheduled_at']) ??
+          final dtA = ScheduleTimeConfig.parseDateTimeSafe(_getScheduledAt(a)) ??
               ScheduleTimeConfig.parseDateTimeSafe(a['created_at']) ??
               DateTime.now();
-          final dtB = ScheduleTimeConfig.parseDateTimeSafe(b['pickup_scheduled_at']) ??
+          final dtB = ScheduleTimeConfig.parseDateTimeSafe(_getScheduledAt(b)) ??
               ScheduleTimeConfig.parseDateTimeSafe(b['created_at']) ??
               DateTime.now();
           return dtA.compareTo(dtB);
@@ -178,7 +206,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       case 3: // Pickup Terjadwal (jadwal mendatang / assigned)
         return _allShipments.where((s) {
           final status = s['status'] ?? 'pending';
-          final isScheduled = s['scheduled_pickup'] == true || s['scheduled_pickup'] == 1 || s['scheduled_pickup'] == '1';
+          final isScheduled = _isOrderScheduled(s);
           return isScheduled && (status == 'assigned' || status == 'pending');
         }).toList();
 
@@ -235,7 +263,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Pesanan berhasil diterima! Masuk ke Pickup Terjadwal.'),
-          backgroundColor: Colors.green,
+          backgroundColor: _green,
         ),
       );
       _fetchShipments();
@@ -243,7 +271,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(res['message'] ?? 'Gagal menerima pesanan'),
-          backgroundColor: Colors.red,
+          backgroundColor: _orange,
         ),
       );
     }
@@ -258,7 +286,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Pesanan ditolak.'),
-          backgroundColor: Colors.grey,
+          backgroundColor: _orange,
         ),
       );
       _fetchShipments();
@@ -266,27 +294,27 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(res['message'] ?? 'Gagal menolak pesanan'),
-          backgroundColor: Colors.red,
+          backgroundColor: _orange,
         ),
       );
     }
   }
 
   Future<void> _handleStartPickup(Map<String, dynamic> shipment) async {
-    final scheduledAt = shipment['pickup_scheduled_at'];
-    final isScheduled = shipment['scheduled_pickup'] == true || shipment['scheduled_pickup'] == 1 || shipment['scheduled_pickup'] == '1';
+    final scheduledAt = _getScheduledAt(shipment);
+    final isScheduled = _isOrderScheduled(shipment);
 
     // Cek schedule tolerance jika order terjadwal
     if (isScheduled && scheduledAt != null) {
       if (!ScheduleTimeConfig.canStartPickup(scheduledAt)) {
-        final timeStr = shipment['pickup_time'] ?? '';
+        final timeStr = _getPickupTime(shipment);
         final statusLabel = ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal pickup ($timeStr).',
             ),
-            backgroundColor: const Color(0xFFD97706),
+            backgroundColor: _orange,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -306,7 +334,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Status diubah: Menuju lokasi pickup!'),
-          backgroundColor: Colors.green,
+          backgroundColor: _green,
         ),
       );
       final updatedOrder = (res['data'] as Map<String, dynamic>?) ?? shipment;
@@ -320,7 +348,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(res['message'] ?? 'Gagal memulai penjemputan'),
-          backgroundColor: Colors.red,
+          backgroundColor: _orange,
         ),
       );
     }
@@ -329,14 +357,14 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _white,
       body: SafeArea(
         child: Column(
           children: [
             // Header
             Container(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
-              color: Colors.white,
+              color: _white,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -345,14 +373,14 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
+                      color: _black,
                     ),
                   ),
                   IconButton(
                     onPressed: _fetchShipments,
                     icon: const Icon(
                       Icons.refresh_rounded,
-                      color: Color(0xFFFF5A00),
+                      color: _orange,
                       size: 22,
                     ),
                     tooltip: 'Muat ulang data',
@@ -363,7 +391,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
 
             // Horizontal Tab Bar
             Container(
-              color: Colors.white,
+              color: _white,
               width: double.infinity,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -382,7 +410,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color: isActive ? const Color(0xFFFF5A00) : Colors.transparent,
+                              color: isActive ? _orange : Colors.transparent,
                               width: 2.5,
                             ),
                           ),
@@ -392,7 +420,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                            color: isActive ? const Color(0xFFFF5A00) : const Color(0xFF64748B),
+                            color: isActive ? _orange : _black,
                           ),
                         ),
                       ),
@@ -404,19 +432,19 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
 
             // Divider below tabs
             Container(
-              height: 1,
-              color: const Color(0xFFE2E8F0),
+              height: 1.5,
+              color: _orange,
             ),
 
             // Content
             Expanded(
               child: _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFFFF5A00)),
+                      child: CircularProgressIndicator(color: _orange),
                     )
                   : RefreshIndicator(
                       onRefresh: _fetchShipments,
-                      color: const Color(0xFFFF5A00),
+                      color: _orange,
                       child: _filteredShipments.isEmpty
                           ? _buildEmptyState()
                           : ListView.builder(
@@ -471,30 +499,31 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: _white,
                 shape: BoxShape.circle,
+                border: Border.all(color: _orange, width: 2),
               ),
               child: const Icon(
                 Icons.inventory_2_outlined,
                 size: 56,
-                color: Color(0xFFFF5A00),
+                color: _orange,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               'Tidak Ada Pesanan ($tabName)',
               style: const TextStyle(
-                color: Color(0xFF1E293B),
-                fontWeight: FontWeight.w700,
+                color: _black,
+                fontWeight: FontWeight.w800,
                 fontSize: 15,
               ),
             ),
             const SizedBox(height: 6),
-            Text(
+            const Text(
               'Belum ada penugasan pengiriman pada kategori ini.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.grey[500],
+                color: _black,
                 fontWeight: FontWeight.w500,
                 fontSize: 12,
               ),
@@ -506,49 +535,64 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
   }
 
   Widget _buildShipmentCard(Map<String, dynamic> shipment) {
+    final nested = shipment['shipment'] is Map ? shipment['shipment'] as Map : null;
     final status = shipment['status'] ?? 'pending';
     final trackingNumber = shipment['tracking_number'] ?? shipment['order_number'] ?? '#CC-${shipment['id']}';
-    final vehicleType = (shipment['vehicle'] ?? shipment['vehicle_type'] ?? 'motor').toString().toLowerCase();
+    final vehicleType = (shipment['vehicle'] ?? shipment['vehicle_type'] ?? nested?['vehicle'] ?? 'motor').toString().toLowerCase();
     final isCar = vehicleType == 'mobil';
 
-    final isScheduled = shipment['scheduled_pickup'] == true || shipment['scheduled_pickup'] == 1 || shipment['scheduled_pickup'] == '1';
-    final scheduledAt = shipment['pickup_scheduled_at'];
-    final pickupTimeStr = shipment['pickup_time'] ?? '';
+    final isScheduled = _isOrderScheduled(shipment);
+    final scheduledAt = _getScheduledAt(shipment);
+    final pickupTimeStr = _getPickupTime(shipment);
+    final scheduledDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
+
+    String displayDateStr = 'Hari Ini';
+    if (scheduledDt != null) {
+      final now = DateTime.now();
+      final isToday = scheduledDt.year == now.year &&
+          scheduledDt.month == now.month &&
+          scheduledDt.day == now.day;
+      final tomorrow = now.add(const Duration(days: 1));
+      final isTomorrow = scheduledDt.year == tomorrow.year &&
+          scheduledDt.month == tomorrow.month &&
+          scheduledDt.day == tomorrow.day;
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      final shortDate = '${scheduledDt.day} ${months[scheduledDt.month - 1]}';
+      if (isToday) {
+        displayDateStr = 'Hari Ini, $shortDate';
+      } else if (isTomorrow) {
+        displayDateStr = 'Besok, $shortDate';
+      } else {
+        displayDateStr = shortDate;
+      }
+    }
 
     // Schedule status calculation
-    final isOverdue = ScheduleTimeConfig.isPickupOverdue(scheduledAt);
     final canPickup = ScheduleTimeConfig.canStartPickup(scheduledAt);
     final statusLabel = ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt);
 
-    // Status translations
-    String badgeText = 'Pesanan Baru';
-    Color badgeBg = const Color(0xFFFEF3C7);
-    Color badgeFg = const Color(0xFFB45309);
+    // Status translations (strict 3-color rule: Orange, Green, White)
+    String badgeText = isScheduled ? 'Pickup Terjadwal' : 'Pesanan Baru';
+    Color badgeColor = _orange;
 
     if (status == 'assigned') {
       badgeText = isScheduled ? 'Terjadwal' : 'Ditugaskan';
-      badgeBg = const Color(0xFFE0E7FF);
-      badgeFg = const Color(0xFF4338CA);
+      badgeColor = _orange;
     } else if (status == 'picking_up') {
       badgeText = 'Proses Pickup';
-      badgeBg = const Color(0xFFDBEAFE);
-      badgeFg = const Color(0xFF1D4ED8);
+      badgeColor = _orange;
     } else if (status == 'picked_up') {
       badgeText = 'Paket Diambil';
-      badgeBg = const Color(0xFFDCFCE7);
-      badgeFg = const Color(0xFF15803D);
+      badgeColor = _green;
     } else if (status == 'delivering') {
       badgeText = 'Dalam Perjalanan';
-      badgeBg = const Color(0xFFFFEDD5);
-      badgeFg = const Color(0xFFC2410C);
+      badgeColor = _orange;
     } else if (status == 'delivered') {
       badgeText = 'Terkirim';
-      badgeBg = const Color(0xFFF1F5F9);
-      badgeFg = const Color(0xFF475569);
+      badgeColor = _green;
     } else if (status == 'cancelled') {
       badgeText = 'Dibatalkan';
-      badgeBg = const Color(0xFFFEE2E2);
-      badgeFg = const Color(0xFFB91C1C);
+      badgeColor = _orange;
     }
 
     final senderName = shipment['sender_name'] ?? shipment['customer_name'] ?? 'Pengirim';
@@ -562,16 +606,9 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: _orange, width: 1.5),
       ),
       child: Material(
         color: Colors.transparent,
@@ -601,20 +638,18 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                           fontFamily: 'monospace',
-                          color: Color(0xFF0F172A),
+                          color: _black,
                         ),
                       ),
                     ),
                     // Vehicle Badge (Motor / Mobil)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
-                        color: isCar ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: isCar ? const Color(0xFFBFDBFE) : const Color(0xFFBBF7D0),
-                        ),
+                        color: _white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _green, width: 1.2),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -622,15 +657,15 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                           Icon(
                             isCar ? Icons.directions_car : Icons.two_wheeler,
                             size: 13,
-                            color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+                            color: _green,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             isCar ? 'Mobil' : 'Motor',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: isCar ? const Color(0xFF1D4ED8) : const Color(0xFF15803D),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: _black,
                             ),
                           ),
                         ],
@@ -638,17 +673,17 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                     ),
                     // Status Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: badgeBg,
+                        color: badgeColor,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         badgeText,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: badgeFg,
+                          color: _white,
                         ),
                       ),
                     ),
@@ -660,49 +695,46 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                 // Scheduled Pickup Banner (jika terjadwal)
                 if (isScheduled) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: isOverdue ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(8),
+                      color: _white,
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: isOverdue ? const Color(0xFFFECACA) : const Color(0xFFFDE68A),
+                        color: canPickup ? _green : _orange,
+                        width: 1.5,
                       ),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          Icons.schedule,
+                          Icons.event_available_rounded,
                           size: 16,
-                          color: isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                          color: canPickup ? _green : _orange,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Jadwal Pickup: ${pickupTimeStr.isNotEmpty ? pickupTimeStr : 'Fleksibel'}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: isOverdue ? const Color(0xFF991B1B) : const Color(0xFF92400E),
+                            'Jadwal: $displayDateStr${pickupTimeStr.isNotEmpty ? ' • $pickupTimeStr' : ''}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: _black,
                             ),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: isOverdue
-                                ? const Color(0xFFEF4444)
-                                : canPickup
-                                    ? const Color(0xFF16A34A)
-                                    : const Color(0xFFF59E0B),
-                            borderRadius: BorderRadius.circular(4),
+                            color: canPickup ? _green : _orange,
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             statusLabel,
                             style: const TextStyle(
                               fontSize: 9.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              color: _white,
                             ),
                           ),
                         ),
@@ -720,24 +752,22 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                         Container(
                           width: 10,
                           height: 10,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF5A00),
+                          decoration: const BoxDecoration(
+                            color: _orange,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
                           ),
                         ),
                         Container(
-                          width: 1.5,
+                          width: 2,
                           height: 24,
-                          color: const Color(0xFFCBD5E1),
+                          color: _orange,
                         ),
                         Container(
                           width: 10,
                           height: 10,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF16A34A),
+                          decoration: const BoxDecoration(
+                            color: _green,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
                           ),
                         ),
                       ],
@@ -752,9 +782,9 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E293B),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _black,
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -763,9 +793,9 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E293B),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _black,
                             ),
                           ),
                         ],
@@ -775,27 +805,32 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                 ),
 
                 const SizedBox(height: 12),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                Container(height: 1, color: _orange),
                 const SizedBox(height: 10),
 
                 // Package & Price Info
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '$packageDesc ($weight kg)',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        '$packageDesc ($weight kg)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: _black,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       _formatCurrency(price),
                       style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFFFF5A00),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        color: _green,
                       ),
                     ),
                   ],
@@ -823,6 +858,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     final pLat = double.tryParse(shipment['pickup_latitude']?.toString() ?? '');
     final pLng = double.tryParse(shipment['pickup_longitude']?.toString() ?? '');
     final pAddress = shipment['pickup_address'];
+    final pickupTimeStr = _getPickupTime(shipment);
 
     // 1. Pesanan Baru (status: pending) -> [Tolak] & [Terima Pesanan]
     if (status == 'pending') {
@@ -833,13 +869,14 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             child: OutlinedButton(
               onPressed: () => _handleRejectOrder(shipment),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                backgroundColor: _white,
+                side: const BorderSide(color: _orange, width: 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text(
                 'Tolak',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _black),
               ),
             ),
           ),
@@ -849,15 +886,15 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             child: ElevatedButton(
               onPressed: () => _handleAcceptOrder(shipment),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF5A00),
-                foregroundColor: Colors.white,
+                backgroundColor: _orange,
+                foregroundColor: _white,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
               child: const Text(
                 'Terima Pesanan',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _white),
               ),
             ),
           ),
@@ -870,33 +907,38 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       return Row(
         children: [
           if (senderPhone != null) ...[
-            IconButton(
+            OutlinedButton(
               onPressed: () => _openDialer(senderPhone),
-              icon: const Icon(Icons.call, size: 18, color: Color(0xFF16A34A)),
-              tooltip: 'Hubungi Pengirim',
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFFDCFCE7),
-                padding: const EdgeInsets.all(8),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: _white,
+                side: const BorderSide(color: _green, width: 1.5),
+                padding: const EdgeInsets.all(10),
+                minimumSize: const Size(42, 42),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              child: const Icon(Icons.call, size: 18, color: _green),
             ),
             const SizedBox(width: 6),
           ],
-          IconButton(
+          OutlinedButton(
             onPressed: () => _openMaps(pLat, pLng, pAddress),
-            icon: const Icon(Icons.navigation, size: 18, color: Color(0xFF2563EB)),
-            tooltip: 'Navigasi ke Pickup',
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFDBEAFE),
-              padding: const EdgeInsets.all(8),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: _white,
+              side: const BorderSide(color: _orange, width: 1.5),
+              padding: const EdgeInsets.all(10),
+              minimumSize: const Size(42, 42),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            child: const Icon(Icons.navigation, size: 18, color: _orange),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: ElevatedButton(
               onPressed: () => _handleStartPickup(shipment),
               style: ElevatedButton.styleFrom(
-                backgroundColor: canPickup ? const Color(0xFFFF5A00) : const Color(0xFFCBD5E1),
-                foregroundColor: Colors.white,
+                backgroundColor: canPickup ? _orange : _white,
+                foregroundColor: canPickup ? _white : _black,
+                side: BorderSide(color: _orange, width: canPickup ? 0 : 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
@@ -905,13 +947,23 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    canPickup ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
+                    canPickup ? Icons.play_arrow_rounded : Icons.lock_clock_outlined,
                     size: 16,
+                    color: canPickup ? _white : _orange,
                   ),
                   const SizedBox(width: 4),
-                  Text(
-                    canPickup ? 'Mulai Pickup' : 'Mulai Pickup (Terkunci)',
-                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                  Flexible(
+                    child: Text(
+                      canPickup
+                          ? 'Mulai Pickup'
+                          : 'Jadwal Pickup${pickupTimeStr.isNotEmpty ? ' ($pickupTimeStr)' : ''}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: canPickup ? _white : _black,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -921,18 +973,20 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       );
     }
 
-    // 3. Dalam Proses Pickup (status: picking_up) -> [Navigasi] & [Lanjut ke Pickup]
+    // 3. Dalam Proses Pickup (status: picking_up) -> [Navigasi] & [Konfirmasi Barang Diambil]
     if (status == 'picking_up') {
       return Row(
         children: [
-          IconButton(
+          OutlinedButton(
             onPressed: () => _openMaps(pLat, pLng, pAddress),
-            icon: const Icon(Icons.navigation, size: 18, color: Color(0xFF2563EB)),
-            tooltip: 'Navigasi',
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFDBEAFE),
-              padding: const EdgeInsets.all(8),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: _white,
+              side: const BorderSide(color: _orange, width: 1.5),
+              padding: const EdgeInsets.all(10),
+              minimumSize: const Size(42, 42),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            child: const Icon(Icons.navigation, size: 18, color: _orange),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -946,8 +1000,8 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                 ).then((_) => _fetchShipments());
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF16A34A),
-                foregroundColor: Colors.white,
+                backgroundColor: _green,
+                foregroundColor: _white,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
@@ -955,11 +1009,11 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 16),
+                  Icon(Icons.check_circle_outline, size: 16, color: _white),
                   SizedBox(width: 4),
                   Text(
                     'Konfirmasi Barang Diambil',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _white),
                   ),
                 ],
               ),
@@ -990,8 +1044,8 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             }
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5A00),
-            foregroundColor: Colors.white,
+            backgroundColor: _orange,
+            foregroundColor: _white,
             padding: const EdgeInsets.symmetric(vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 0,
@@ -999,11 +1053,11 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.local_shipping_outlined, size: 16),
+              Icon(Icons.local_shipping_outlined, size: 16, color: _white),
               SizedBox(width: 6),
               Text(
                 'Mulai Antar ke Penerima',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _white),
               ),
             ],
           ),
@@ -1025,8 +1079,8 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             ).then((_) => _fetchShipments());
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5A00),
-            foregroundColor: Colors.white,
+            backgroundColor: _orange,
+            foregroundColor: _white,
             padding: const EdgeInsets.symmetric(vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             elevation: 0,
@@ -1034,11 +1088,11 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.delivery_dining, size: 16),
+              Icon(Icons.delivery_dining, size: 16, color: _white),
               SizedBox(width: 6),
               Text(
                 'Lanjutkan Pengantaran',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _white),
               ),
             ],
           ),
@@ -1059,13 +1113,14 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
           ).then((_) => _fetchShipments());
         },
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          backgroundColor: _white,
+          side: const BorderSide(color: _orange, width: 1.5),
           padding: const EdgeInsets.symmetric(vertical: 9),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: const Text(
           'Lihat Rincian Pengiriman',
-          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _black),
         ),
       ),
     );

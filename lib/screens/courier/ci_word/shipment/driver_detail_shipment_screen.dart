@@ -162,16 +162,23 @@ class _DriverDetailShipmentScreenState
     final isDelivered = status == 'delivered';
     final isCancelled = status == 'cancelled';
 
-    final vehicleType = (widget.shipment['vehicle'] ?? widget.shipment['vehicle_type'] ?? 'motor').toString().toLowerCase();
+    final nestedShip = widget.shipment['shipment'] is Map ? widget.shipment['shipment'] as Map : null;
+    final vehicleType = (widget.shipment['vehicle'] ?? widget.shipment['vehicle_type'] ?? nestedShip?['vehicle'] ?? 'motor').toString().toLowerCase();
     final isCar = vehicleType == 'mobil';
     final vehicleName = isCar ? 'Mobil' : 'Motor';
 
-    final isScheduled = widget.shipment['scheduled_pickup'] == true || widget.shipment['scheduled_pickup'] == 1 || widget.shipment['scheduled_pickup'] == '1';
-    final scheduledAt = widget.shipment['pickup_scheduled_at'];
-    final pickupTimeStr = widget.shipment['pickup_time'] ?? '';
-    final canStartPickup = ScheduleTimeConfig.canStartPickup(scheduledAt);
-    final isOverdue = ScheduleTimeConfig.isPickupOverdue(scheduledAt);
-    final statusLabel = ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt);
+    final scheduledAt = widget.shipment['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'];
+    final pickupTimeStr = (widget.shipment['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final isScheduled = widget.shipment['scheduled_pickup'] == true ||
+        widget.shipment['scheduled_pickup'] == 1 ||
+        widget.shipment['scheduled_pickup'] == '1' ||
+        nestedShip?['scheduled_pickup'] == true ||
+        nestedShip?['scheduled_pickup'] == 1 ||
+        (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
+        pickupTimeStr.isNotEmpty;
+    final canStartPickup = isScheduled ? ScheduleTimeConfig.canStartPickup(scheduledAt) : true;
+    final isOverdue = isScheduled ? ScheduleTimeConfig.isPickupOverdue(scheduledAt) : false;
+    final statusLabel = isScheduled ? ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt) : 'Siap Pickup';
 
     final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
     final displayDateStr = schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Hari Ini';
@@ -773,9 +780,9 @@ class _DriverDetailShipmentScreenState
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
-                                        'Waktu & Kendaraan',
-                                        style: TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700),
+                                      Text(
+                                        isScheduled ? 'Jadwal & Kendaraan' : 'Waktu & Kendaraan',
+                                        style: const TextStyle(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w700),
                                       ),
                                       const SizedBox(height: 3),
                                       Row(
@@ -788,7 +795,9 @@ class _DriverDetailShipmentScreenState
                                           const SizedBox(width: 5),
                                           Expanded(
                                             child: Text(
-                                              '~25 mnt • $vehicleName',
+                                              isScheduled
+                                                  ? '${pickupTimeStr.isNotEmpty ? pickupTimeStr : displayDateStr} • $vehicleName'
+                                                  : '~25 mnt • $vehicleName',
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(

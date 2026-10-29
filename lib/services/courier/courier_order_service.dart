@@ -19,6 +19,15 @@ class CourierOrderService {
 
   static Future<Map<String, dynamic>> _enrichOrderWithResi(Map<String, dynamic> order) async {
     final Map<String, dynamic> enriched = Map<String, dynamic>.from(order);
+    if (enriched['shipment'] is Map) {
+      final ship = enriched['shipment'] as Map;
+      enriched['scheduled_pickup'] ??= ship['scheduled_pickup'];
+      enriched['pickup_time'] ??= ship['pickup_time'];
+      enriched['pickup_scheduled_at'] ??= ship['pickup_scheduled_at'];
+      enriched['vehicle'] ??= ship['vehicle'];
+      enriched['payment_method'] ??= ship['payment_method'];
+    }
+
     final trackingNumber = enriched['tracking_number'];
     final orderNumber = enriched['order_number'] ?? enriched['shipment_number'];
 
@@ -31,10 +40,16 @@ class CourierOrderService {
         if (trackRes.statusCode == 200) {
           final trackData = json.decode(trackRes.body);
           if (trackData['success'] == true && trackData['data'] != null) {
-            final realResi = trackData['data']['tracking_number'];
+            final data = trackData['data'];
+            final realResi = data['tracking_number'];
             if (realResi != null && realResi.toString().isNotEmpty) {
               enriched['tracking_number'] = realResi;
             }
+            enriched['scheduled_pickup'] ??= data['scheduled_pickup'];
+            enriched['pickup_time'] ??= data['pickup_time'];
+            enriched['pickup_scheduled_at'] ??= data['pickup_scheduled_at'];
+            enriched['vehicle'] ??= data['vehicle'];
+            enriched['payment_method'] ??= data['payment_method'];
           }
         }
       } catch (_) {}
@@ -200,8 +215,8 @@ class CourierOrderService {
           'order_id': orderId,
           'issue_reason': reason,
           'issue_notes': notes,
-          if (latitude != null) 'latitude': latitude,
-          if (longitude != null) 'longitude': longitude,
+          'latitude': ?latitude,
+          'longitude': ?longitude,
         }),
       );
 
