@@ -668,7 +668,7 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
 
       final provResult = await RajaOngkirService.getProvinces();
       if (provResult['success'] != true) {
-        throw 'Gagal memuat data provinsi dari RajaOngkir.';
+        throw 'Gagal memuat data provinsi.';
       }
 
       List<dynamic> provinces = provResult['data'];
@@ -678,7 +678,7 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
       );
 
       if (foundProv == null) {
-        throw 'Provinsi $searchProv tidak ditemukan di RajaOngkir.';
+        throw 'Provinsi $searchProv tidak ditemukan.';
       }
 
       String provId = foundProv['province_id'].toString();
@@ -686,7 +686,7 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
 
       final cityResult = await RajaOngkirService.getCities(int.parse(provId));
       if (cityResult['success'] != true) {
-        throw 'Gagal memuat data kota dari RajaOngkir.';
+        throw 'Gagal memuat data kota.';
       }
 
       List<dynamic> cities = cityResult['data'];
@@ -699,7 +699,7 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
       );
 
       if (foundCity == null) {
-        throw 'Kota $searchCity tidak ditemukan di RajaOngkir.';
+        throw 'Kota $searchCity tidak ditemukan.';
       }
 
       int cityId = int.parse(foundCity['city_id'].toString());

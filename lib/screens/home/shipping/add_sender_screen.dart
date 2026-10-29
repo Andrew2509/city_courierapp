@@ -421,7 +421,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Wilayah (RajaOngkir)',
+                'Wilayah',
                 style: TextStyle(
                   color: isDarkMode ? Colors.grey.shade300 : const Color(0xFF374151),
                   fontSize: 14,
@@ -610,7 +610,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Silakan pilih wilayah RajaOngkir terlebih dahulu (dari peta atau manual)',
+                'Silakan pilih wilayah terlebih dahulu (dari peta atau manual)',
               ),
             ),
           );
@@ -790,16 +790,6 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                 'postal_code': match['postal_code'],
                 'postal_code_verified': match['postal_code_verified'] == true,
               };
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '✓ Wilayah RajaOngkir cocok: ${match['full_label'] ?? match['district_name']}',
-                  ),
-                  backgroundColor: const Color(0xFFEC5B13),
-                  duration: const Duration(seconds: 3),
-                ),
-              );
             } else {
               _isAutoMatchedRegion = false;
               _showUnmatchedWarning = true;

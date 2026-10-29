@@ -984,7 +984,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                                         const SizedBox(width: 4),
                                         const Expanded(
                                           child: Text(
-                                            'Wilayah RajaOngkir dipilih di langkah berikutnya',
+                                            'Wilayah dipilih di langkah berikutnya',
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: Color(0xFF92400E),
