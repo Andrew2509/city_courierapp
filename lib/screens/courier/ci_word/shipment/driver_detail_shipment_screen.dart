@@ -889,58 +889,62 @@ class _DriverDetailShipmentScreenState
                         ),
                         const SizedBox(height: 18),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Row(
-                              children: const [
-                                Icon(
-                                  Icons.payments_outlined,
-                                  size: 16,
-                                  color: Color(0xFF64748B),
-                                ),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Harga',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
+                            const Icon(
+                              Icons.payments_outlined,
+                              size: 16,
+                              color: Color(0xFF64748B),
                             ),
-                            Row(
-                              children: [
-                                Text(
-                                  _formatCurrency(price),
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF22C55E),
-                                  ),
-                                ),
-                                if (isCOD) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Text(
-                                      'COD',
-                                      style: TextStyle(
-                                        fontSize: 9,
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Harga',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _formatCurrency(price),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w800,
-                                        color: Color(0xFF475569),
+                                        color: Color(0xFF22C55E),
                                       ),
                                     ),
                                   ),
+                                  if (isCOD) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'COD',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF475569),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ],
                         ),
@@ -1461,28 +1465,30 @@ class _DriverDetailShipmentScreenState
 
   Widget _buildMetaRow(IconData icon, String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: const Color(0xFF64748B)),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ],
-        ),
+        Icon(icon, size: 16, color: const Color(0xFF64748B)),
+        const SizedBox(width: 12),
         Text(
-          value,
+          label,
           style: const TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1A1A1A),
+            ),
           ),
         ),
       ],
