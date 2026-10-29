@@ -218,20 +218,24 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: badgeBg,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          estTime,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            color: badgeText,
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeBg,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            estTime,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: badgeText,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -346,53 +350,67 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Left: Status Badge & Estimated Arrival
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3.5),
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: badgeBorder),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6.5,
-                          height: 6.5,
-                          decoration: BoxDecoration(
-                            color: dotColor,
-                            shape: BoxShape.circle,
-                          ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3.5),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: badgeBorder),
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          status,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: badgeText,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: dotColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: badgeText,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    isDelivered ? estTime : 'Tiba $estTime',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF475569),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        isDelivered ? estTime : 'Tiba $estTime',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF475569),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
 
               // Right: Resi Code + Copy + Minimize / Dismiss icon
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   InkWell(
                     onTap: () {
@@ -406,42 +424,43 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                       );
                     },
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           orderId,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0F172A),
                             letterSpacing: -0.2,
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 3),
                         const Icon(
                           Icons.copy_rounded,
-                          size: 14,
+                          size: 13,
                           color: Color(0xFF94A3B8),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   InkWell(
                     onTap: () => setState(() => _isExpanded = false),
                     child: const Icon(
                       Icons.keyboard_arrow_down_rounded,
                       color: Color(0xFF94A3B8),
-                      size: 20,
+                      size: 18,
                     ),
                   ),
                   if (isDelivered) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                     InkWell(
                       onTap: () => ActiveOrderService.clearActiveOrder(),
                       child: const Icon(
                         Icons.close_rounded,
                         color: Color(0xFF94A3B8),
-                        size: 18,
+                        size: 16,
                       ),
                     ),
                   ],
@@ -656,13 +675,18 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
               },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    isDelivered ? 'Lihat Bukti Pengiriman' : 'Lihat Live Tracking',
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  Flexible(
+                    child: Text(
+                      isDelivered ? 'Lihat Bukti Pengiriman' : 'Lihat Live Tracking',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -724,31 +748,48 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Jemput Paket',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: step == 0 ? FontWeight.bold : FontWeight.w500,
-                color:
-                    step == 0 ? const Color(0xFFEA580C) : const Color(0xFF475569),
+            Flexible(
+              child: Text(
+                'Jemput Paket',
+                textAlign: TextAlign.start,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: step == 0 ? FontWeight.bold : FontWeight.w500,
+                  color:
+                      step == 0 ? const Color(0xFFEA580C) : const Color(0xFF475569),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Text(
-              'Dalam Perjalanan',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: step == 1 ? FontWeight.bold : FontWeight.w500,
-                color:
-                    step == 1 ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                'Dalam Perjalanan',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: step == 1 ? FontWeight.bold : FontWeight.w500,
+                  color:
+                      step == 1 ? const Color(0xFFEA580C) : const Color(0xFF64748B),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Text(
-              'Terkirim',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: (isDelivered || step >= 2) ? FontWeight.bold : FontWeight.w500,
-                color:
-                    (isDelivered || step >= 2) ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                'Terkirim',
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: (isDelivered || step >= 2) ? FontWeight.bold : FontWeight.w500,
+                  color:
+                      (isDelivered || step >= 2) ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

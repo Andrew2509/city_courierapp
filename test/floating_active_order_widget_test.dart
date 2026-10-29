@@ -170,6 +170,34 @@ void main() {
     ActiveOrderService.stopPolling();
   });
 
+  testWidgets('FloatingActiveOrderWidget does not overflow on narrow screens (w=318px and w=280px)', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(318, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              FloatingActiveOrderWidget(),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sedang Dikirim'), findsOneWidget);
+    expect(find.byType(FloatingActiveOrderWidget), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    ActiveOrderService.stopPolling();
+  });
+
   testWidgets('FloatingActiveOrderWidget disappears when order is not active', (WidgetTester tester) async {
     ActiveOrderService.clearActiveOrder();
 
