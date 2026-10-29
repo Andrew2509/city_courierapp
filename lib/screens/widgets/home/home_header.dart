@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:city_courierapp/core/utils/auth_guard.dart';
 
 class HomeHeader extends StatelessWidget {
   final Map<String, dynamic>? userData;
@@ -14,7 +13,6 @@ class HomeHeader extends StatelessWidget {
           colors: [
             Color.fromARGB(255, 255, 255, 255),
             Color(0xFFEC5B13),
-            // Color(0xFFEC5B13),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -57,44 +55,6 @@ class HomeHeader extends StatelessWidget {
                     'assets/images/Logo City Courie.png',
                     height: 80,
                     fit: BoxFit.contain,
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      AuthGuard.runWithAuth(context, onAuthenticated: () {});
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          const Icon(
-                            Icons.notifications_rounded,
-                            color: Colors.white,
-                          ),
-                          Positioned(
-                            top: 10,
-                            right: 10,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: const Color(0xFFEC5B13),
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ],
               ),
