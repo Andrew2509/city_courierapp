@@ -87,6 +87,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   // Benchmark / Patokan Kurir state
   String _benchmarkNote = 'Di depan Pos Satpam Gerbang Utama';
 
+  // Dynamic bottom sheet height tracking for floating button positioning
+  final GlobalKey _bottomSheetKey = GlobalKey();
+  double _measuredSheetHeight = 0;
+
   // Search state
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -870,6 +874,27 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       regionBadgeText = '${_currentAddress!.district}, ${_currentAddress!.city!.toUpperCase()}';
     }
 
+    // Measure dynamic sheet height to place floating action buttons safely above it
+    final double defaultSheetHeight = bottomInset + 315;
+    final double effectiveSheetHeight =
+        _measuredSheetHeight > 0 ? _measuredSheetHeight : defaultSheetHeight;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _bottomSheetKey.currentContext;
+      if (ctx != null) {
+        final renderBox = ctx.findRenderObject() as RenderBox?;
+        if (renderBox != null && renderBox.hasSize) {
+          final h = renderBox.size.height;
+          if (h > 0 && (_measuredSheetHeight - h).abs() > 2.0) {
+            setState(() {
+              _measuredSheetHeight = h;
+            });
+          }
+        }
+      }
+    });
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -1405,7 +1430,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
           // ── 5. Floating Navigation Buttons (Comfortably above bottom sheet) ──
           Positioned(
-            bottom: bottomInset + 268,
+            bottom: effectiveSheetHeight + 16,
             left: 16,
             right: 16,
             child: Row(
@@ -1433,6 +1458,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             left: 0,
             right: 0,
             child: Container(
+              key: _bottomSheetKey,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
