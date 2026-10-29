@@ -384,7 +384,7 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
     );
   }
 
-  // ── Field Wilayah RajaOngkir (No green color, matches screenshot) ──
+  // ── Field Wilayah (No green color, matches screenshot) ──
   Widget _buildRegionField({
     required BuildContext context,
     required bool isDarkMode,
@@ -393,18 +393,60 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
     String regionTitle = '';
     if (selectedCity != null) {
       final parts = <String>[];
-      final kel = selectedCity!['kelurahan_name'] ?? selectedCity!['subdistrict_name'];
-      final kec = selectedCity!['kecamatan_name'] ?? selectedCity!['district_name'];
-      final kab = selectedCity!['kabupaten_name'] ?? selectedCity!['city_name'];
+      final prov = selectedCity!['provinsi_name'] ?? selectedCity!['province_name'] ?? selectedAddressModel?.province;
+      final kab = selectedCity!['kabupaten_name'] ?? selectedCity!['city_name'] ?? selectedAddressModel?.city;
+      final kec = selectedCity!['kecamatan_name'] ?? selectedCity!['district_name'] ?? selectedAddressModel?.district;
+      final kel = selectedCity!['kelurahan_name'] ??
+                  (selectedCity!['subdistrict_name'] != selectedCity!['kecamatan_name'] &&
+                   selectedCity!['subdistrict_name'] != selectedCity!['district_name']
+                      ? selectedCity!['subdistrict_name']
+                      : null) ??
+                  selectedCity!['village'] ??
+                  selectedAddressModel?.village ??
+                  selectedAddressModel?.neighbourhood;
+      final zip = selectedCity!['postal_code'] ?? selectedCity!['zip_code'] ?? selectedAddressModel?.postalCode;
 
-      if (kel != null && kel.toString().trim().isNotEmpty) {
-        parts.add(kel.toString().trim());
+      // Membersihkan prefix administratif agar rapi
+      String cleanPart(dynamic val) {
+        if (val == null) return '';
+        String s = val.toString().trim();
+        s = s.replaceAll(
+          RegExp(r'^(provinsi|prov\.|kota\s+administrasi|kabupaten\s+administrasi|kabupaten|kab\.|kota|kecamatan|kec\.|kelurahan|kel\.|desa)\s+', caseSensitive: false),
+          '',
+        ).trim();
+        return s;
       }
-      if (kec != null && kec.toString().trim().isNotEmpty && !parts.contains(kec.toString().trim())) {
-        parts.add(kec.toString().trim());
+
+      // 1. Provinsi
+      final provClean = cleanPart(prov);
+      if (provClean.isNotEmpty) {
+        parts.add(provClean);
       }
-      if (kab != null && kab.toString().trim().isNotEmpty && !parts.contains(kab.toString().trim())) {
-        parts.add(kab.toString().trim());
+
+      // 2. Kota / Kabupaten
+      final kabClean = cleanPart(kab);
+      if (kabClean.isNotEmpty && !parts.any((p) => p.toLowerCase() == kabClean.toLowerCase())) {
+        parts.add(kabClean);
+      }
+
+      // 3. Kecamatan
+      final kecClean = cleanPart(kec);
+      if (kecClean.isNotEmpty && !parts.any((p) => p.toLowerCase() == kecClean.toLowerCase())) {
+        parts.add(kecClean);
+      }
+
+      // 4. Kelurahan / Desa
+      final kelClean = cleanPart(kel);
+      if (kelClean.isNotEmpty && !parts.any((p) => p.toLowerCase() == kelClean.toLowerCase())) {
+        parts.add(kelClean);
+      }
+
+      // 5. Kode Pos
+      if (zip != null && zip.toString().trim().isNotEmpty) {
+        final zipStr = zip.toString().trim();
+        if (!parts.contains(zipStr)) {
+          parts.add(zipStr);
+        }
       }
 
       regionTitle = parts.isNotEmpty
@@ -480,8 +522,9 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                               : const Color(0xFF9CA3AF),
                           fontSize: 13.5,
                           fontWeight: FontWeight.bold,
+                          height: 1.35,
                         ),
-                        maxLines: 2,
+                        maxLines: 4,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),
@@ -649,8 +692,10 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           'subdistrict_name': selectedCity?['subdistrict_name'] ?? selectedCity?['kecamatan_name'] ?? selectedCity?['kelurahan_name'],
           'latitude': resolvedAddress?.latitude,
           'longitude': resolvedAddress?.longitude,
-          'postal_code': selectedCity?['postal_code'],
-          'postal_code_verified': selectedCity?['postal_code_verified'] == true,
+          'postal_code': selectedCity?['postal_code'] ?? selectedCity?['zip_code'] ?? resolvedAddress?.postalCode,
+          'postal_code_verified': selectedCity?['postal_code_verified'] == true ||
+              (selectedCity?['zip_code']?.toString().trim().isNotEmpty ?? false) ||
+              (selectedCity?['postal_code']?.toString().trim().isNotEmpty ?? false),
           'is_favorite': false,
         };
 
@@ -776,19 +821,34 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
               final match = result.rajaOngkirMatch!;
               _isAutoMatchedRegion = true;
               _showUnmatchedWarning = false;
+
+              // Ambil kelurahan/desa: prioritaskan nama desa jika berbeda dari nama kecamatan
+              final villageCandidate = match['village'] ??
+                  (match['subdistrict_name'] != null && match['subdistrict_name'] != match['district_name']
+                      ? match['subdistrict_name']
+                      : null) ??
+                  result.village ??
+                  result.neighbourhood;
+
+              final districtCandidate = match['district_name'] ?? match['kecamatan_name'] ?? result.district;
+              final cityCandidate = match['city_name'] ?? match['kabupaten_name'] ?? result.city;
+              final provinceCandidate = match['province_name'] ?? match['provinsi_name'] ?? result.province;
+              final postalCodeCandidate = match['postal_code'] ?? result.postalCode ?? match['map_postal_code'];
+
               selectedCity = {
-                'kelurahan_name': match['subdistrict_name'] ?? match['village'],
-                'kecamatan_name': match['district_name'] ?? match['kecamatan_name'],
-                'kabupaten_name': match['city_name'] ?? match['kabupaten_name'],
-                'provinsi_name': match['province_name'] ?? match['provinsi_name'],
+                'kelurahan_name': villageCandidate,
+                'kecamatan_name': districtCandidate,
+                'kabupaten_name': cityCandidate,
+                'provinsi_name': provinceCandidate,
                 'subdistrict_id': match['rajaongkir_subdistrict_id'] ?? match['rajaongkir_region_id'],
                 'city_id': match['rajaongkir_city_id'] ?? match['city_id'],
                 'province_id': match['province_id'],
-                'subdistrict_name': match['subdistrict_name'] ?? match['district_name'],
-                'city_name': match['city_name'],
-                'province_name': match['province_name'],
-                'postal_code': match['postal_code'],
-                'postal_code_verified': match['postal_code_verified'] == true,
+                'subdistrict_name': villageCandidate ?? districtCandidate,
+                'district_name': districtCandidate,
+                'city_name': cityCandidate,
+                'province_name': provinceCandidate,
+                'postal_code': postalCodeCandidate,
+                'postal_code_verified': match['postal_code_verified'] == true || postalCodeCandidate != null,
               };
             } else {
               _isAutoMatchedRegion = false;
