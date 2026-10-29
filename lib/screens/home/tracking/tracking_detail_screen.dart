@@ -18,6 +18,7 @@ import 'package:city_courierapp/core/config/map_config.dart';
 import 'package:city_courierapp/core/utils/address_region.dart';
 import 'package:city_courierapp/services/maps/location_repository.dart';
 import 'package:city_courierapp/services/shipping/active_order_service.dart';
+import 'package:city_courierapp/services/shipping/shipment_service.dart';
 
 /// UI state untuk TrackingDetailScreen
 enum TrackingViewState { initial, loading, loaded, error, notFound }
@@ -47,6 +48,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
   TrackingViewState _viewState = TrackingViewState.initial;
   String? _errorMessage;
   bool _isLoadingRoute = false;
+  bool _isCancelling = false;
 
   shipping_route.RouteModel? _route;
   Timer? _pollingTimer;
@@ -76,7 +78,9 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
   Future<void> _initTracking() async {
     if (widget.trackingData != null) {
       try {
-        _tracking = TrackingModel.fromJson(widget.trackingData!);
+        var model = TrackingModel.fromJson(widget.trackingData!);
+        model = await TrackingService.enrichWithCourierDirectory(model);
+        _tracking = model;
         _viewState = TrackingViewState.loaded;
       } catch (e) {
         _viewState = TrackingViewState.error;
@@ -475,6 +479,290 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
         );
       }
     }
+  }
+
+  /// Memeriksa apakah pesanan masih bisa dibatalkan oleh pengguna (belum terkirim/selesai atau batal)
+  bool get _canCancelOrder {
+    if (_tracking == null) return false;
+    return !_tracking!.status.isTerminal;
+  }
+
+  /// Memproses pembatalan pesanan dan sinkronisasi ke backend website
+  Future<void> _handleCancelOrder() async {
+    final reason = await _showCancelConfirmationDialog();
+    if (reason == null) return;
+
+    setState(() => _isCancelling = true);
+
+    try {
+      final resi = _resi;
+      final result = await ShipmentService.cancelShipment(resi, reason: reason);
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        // Hapus active order floating widget pada layar utama
+        await ActiveOrderService.clearActiveOrder();
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Pesanan berhasil dibatalkan.'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        // Muat ulang data tracking agar tampilan berpindah ke status dibatalkan
+        await _fetchTracking();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Gagal membatalkan pesanan.'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCancelling = false);
+      }
+    }
+  }
+
+  /// Menampilkan dialog konfirmasi pembatalan pesanan lengkap dengan pilihan alasan
+  Future<String?> _showCancelConfirmationDialog() async {
+    String selectedReason = 'Ingin mengubah alamat pengiriman';
+    final TextEditingController customReasonController = TextEditingController();
+    bool isCustom = false;
+
+    final reasons = [
+      'Ingin mengubah alamat pengiriman',
+      'Salah memasukkan informasi paket',
+      'Waktu penjemputan terlalu lama',
+      'Ingin mengganti metode pembayaran',
+      'Lainnya',
+    ];
+
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Title Row with Warning Icon
+                  Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFEE2E2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFDC2626),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Batalkan Pengiriman?',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Pesanan yang dibatalkan tidak dapat dilanjutkan kembali.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Pilih alasan pembatalan:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  ...reasons.map((r) {
+                    final isSelected = isCustom ? (r == 'Lainnya') : (selectedReason == r);
+                    return InkWell(
+                      onTap: () {
+                        setModalState(() {
+                          if (r == 'Lainnya') {
+                            isCustom = true;
+                          } else {
+                            isCustom = false;
+                            selectedReason = r;
+                          }
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                              size: 18,
+                              color: isSelected ? const Color(0xFFEA580C) : const Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                r,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF475569),
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+
+                  if (isCustom) ...[
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: customReasonController,
+                      decoration: InputDecoration(
+                        hintText: 'Tuliskan alasan pembatalan...',
+                        hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  // Action Buttons: Kembali / Ya, Batalkan
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(sheetContext, null),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text(
+                            'Kembali',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final finalReason = isCustom
+                                ? (customReasonController.text.trim().isNotEmpty
+                                    ? customReasonController.text.trim()
+                                    : 'Lainnya')
+                                : selectedReason;
+                            Navigator.pop(sheetContext, finalReason);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFDC2626),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Ya, Batalkan',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   String _getSenderName() =>
@@ -925,18 +1213,48 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7ED),
+                            color: _tracking?.status == TrackingStatus.cancelled
+                                ? const Color(0xFFFEF2F2)
+                                : _tracking?.status == TrackingStatus.delivered
+                                    ? const Color(0xFFECFDF5)
+                                    : const Color(0xFFFFF7ED),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFFFED7AA)),
+                            border: Border.all(
+                              color: _tracking?.status == TrackingStatus.cancelled
+                                  ? const Color(0xFFFECACA)
+                                  : _tracking?.status == TrackingStatus.delivered
+                                      ? const Color(0xFFA7F3D0)
+                                      : const Color(0xFFFED7AA),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.access_time_rounded, size: 13, color: orangeAccent),
+                              Icon(
+                                _tracking?.status == TrackingStatus.cancelled
+                                    ? Icons.cancel_outlined
+                                    : _tracking?.status == TrackingStatus.delivered
+                                        ? Icons.check_circle_outline_rounded
+                                        : Icons.access_time_rounded,
+                                size: 13,
+                                color: _tracking?.status == TrackingStatus.cancelled
+                                    ? const Color(0xFFDC2626)
+                                    : _tracking?.status == TrackingStatus.delivered
+                                        ? const Color(0xFF059669)
+                                        : orangeAccent,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 _tracking?.statusLabel ?? 'Menunggu Kurir',
-                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: orangeAccent),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: _tracking?.status == TrackingStatus.cancelled
+                                      ? const Color(0xFFDC2626)
+                                      : _tracking?.status == TrackingStatus.delivered
+                                          ? const Color(0xFF059669)
+                                          : orangeAccent,
+                                ),
                               ),
                             ],
                           ),
@@ -945,35 +1263,53 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Notice Banner Kurir
+                    // Notice Banner Kurir / Status
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBEB),
+                        color: _tracking?.status == TrackingStatus.cancelled
+                            ? const Color(0xFFFEF2F2)
+                            : _tracking?.status == TrackingStatus.delivered
+                                ? const Color(0xFFECFDF5)
+                                : const Color(0xFFFFFBEB),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFFEF3C7)),
+                        border: Border.all(
+                          color: _tracking?.status == TrackingStatus.cancelled
+                              ? const Color(0xFFFECACA)
+                              : _tracking?.status == TrackingStatus.delivered
+                                  ? const Color(0xFFA7F3D0)
+                                  : const Color(0xFFFEF3C7),
+                        ),
                       ),
                       child: Row(
                         children: [
                           Container(
                             width: 30,
                             height: 30,
-                            decoration: const BoxDecoration(
-                              color: orangeAccent,
+                            decoration: BoxDecoration(
+                              color: _tracking?.status == TrackingStatus.cancelled
+                                  ? const Color(0xFFDC2626)
+                                  : _tracking?.status == TrackingStatus.delivered
+                                      ? const Color(0xFF10B981)
+                                      : orangeAccent,
                               shape: BoxShape.circle,
                             ),
                             clipBehavior: Clip.antiAlias,
                             alignment: Alignment.center,
-                            child: isCourierAssigned
-                                ? _buildCourierPhotoOrAsset(
-                                    _tracking?.courier?.photo,
-                                    _tracking?.courier?.name,
-                                  )
-                                : const Icon(
-                                    Icons.hourglass_top_rounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
+                            child: _tracking?.status == TrackingStatus.cancelled
+                                ? const Icon(Icons.close_rounded, size: 16, color: Colors.white)
+                                : _tracking?.status == TrackingStatus.delivered
+                                    ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                                    : (isCourierAssigned
+                                        ? _buildCourierPhotoOrAsset(
+                                            _tracking?.courier?.photo,
+                                            _tracking?.courier?.name,
+                                          )
+                                        : const Icon(
+                                            Icons.hourglass_top_rounded,
+                                            size: 16,
+                                            color: Colors.white,
+                                          )),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -981,19 +1317,38 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isCourierAssigned
-                                      ? 'Kurir Ditugaskan: ${_tracking?.courier?.name ?? "Kurir City Courier"}'
-                                      : 'Menunggu kurir menerima pesanan.',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: darkNavy),
+                                  _tracking?.status == TrackingStatus.cancelled
+                                      ? 'Pengiriman Dibatalkan'
+                                      : _tracking?.status == TrackingStatus.delivered
+                                          ? 'Paket Berhasil Diterima'
+                                          : (isCourierAssigned
+                                              ? 'Kurir Ditugaskan: ${_tracking?.courier?.name ?? "Kurir City Courier"}'
+                                              : 'Menunggu kurir menerima pesanan.'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _tracking?.status == TrackingStatus.cancelled
+                                        ? const Color(0xFF991B1B)
+                                        : darkNavy,
+                                  ),
                                 ),
                                 const SizedBox(height: 1),
                                 Text(
-                                  isCourierAssigned
-                                      ? (_tracking?.courier?.vehicleDescription.isNotEmpty == true
-                                          ? '${_tracking!.courier!.vehicleDescription} • Menuju lokasi'
-                                          : 'Kurir sedang dalam proses penjemputan/pengantaran paket Anda.')
-                                      : 'Lokasi kurir akan muncul secara live setelah kurir mengambil tugas ini.',
-                                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                  _tracking?.status == TrackingStatus.cancelled
+                                      ? 'Pesanan ini telah dibatalkan. Tidak ada kurir yang aktif.'
+                                      : _tracking?.status == TrackingStatus.delivered
+                                          ? 'Paket telah berhasil diserahkan kepada penerima.'
+                                          : (isCourierAssigned
+                                              ? (_tracking?.courier?.vehicleDescription.isNotEmpty == true
+                                                  ? '${_tracking!.courier!.vehicleDescription} • Menuju lokasi'
+                                                  : 'Kurir sedang dalam proses penjemputan/pengantaran paket Anda.')
+                                              : 'Lokasi kurir akan muncul secara live setelah kurir mengambil tugas ini.'),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _tracking?.status == TrackingStatus.cancelled
+                                        ? const Color(0xFFB91C1C)
+                                        : const Color(0xFF64748B),
+                                  ),
                                 ),
                               ],
                             ),
@@ -1365,6 +1720,73 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                               ),
                             ],
                           ),
+
+                          // Tombol Batalkan Pesanan (tersedia selama pengiriman belum terkirim / selesai atau batal)
+                          if (_canCancelOrder) ...[
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _isCancelling ? null : _handleCancelOrder,
+                                icon: _isCancelling
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Color(0xFFDC2626),
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.cancel_outlined,
+                                        size: 15,
+                                        color: Color(0xFFDC2626),
+                                      ),
+                                label: Text(
+                                  _isCancelling ? 'Membatalkan Pesanan...' : 'Batalkan Pesanan',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFDC2626),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFFFECACA)),
+                                  backgroundColor: const Color(0xFFFEF2F2),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ),
+                          ],
+
+                          if (_tracking?.status == TrackingStatus.cancelled) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFFECACA)),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFFDC2626)),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Pengiriman ini telah dibatalkan',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

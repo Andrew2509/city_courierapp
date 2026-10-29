@@ -220,4 +220,49 @@ class ShipmentService {
       return {'success': false, 'message': 'Gagal menghitung statistik: $e'};
     }
   }
+
+  /// Cancel an active shipment.
+  /// Calls POST /api/shipments/{identifier}/cancel directly on the website backend.
+  static Future<Map<String, dynamic>> cancelShipment(
+    String identifier, {
+    String? reason,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final uri = Uri.parse('$baseUrl/shipments/$identifier/cancel');
+      final response = await http
+          .post(
+            uri,
+            headers: headers,
+            body: json.encode({
+              if (reason != null && reason.trim().isNotEmpty)
+                'reason': reason.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final dynamic responseData = json.decode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          'success': true,
+          'message': responseData is Map && responseData['message'] != null
+              ? responseData['message'].toString()
+              : 'Pesanan berhasil dibatalkan.',
+          'data': responseData is Map ? responseData['data'] : null,
+        };
+      }
+
+      return {
+        'success': false,
+        'message': responseData is Map && responseData['message'] != null
+            ? responseData['message'].toString()
+            : 'Gagal membatalkan pesanan (HTTP ${response.statusCode})',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal membatalkan pesanan: $e',
+      };
+    }
+  }
 }

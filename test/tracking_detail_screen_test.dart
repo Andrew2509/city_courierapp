@@ -155,9 +155,84 @@ void main() {
       expect(find.text('QR Code Pesanan'), findsOneWidget);
       expect(find.text('Bantuan'), findsOneWidget);
       expect(find.text('Bagikan Resi'), findsOneWidget);
+      expect(find.text('Batalkan Pesanan'), findsOneWidget);
 
       // 7. Footer
       expect(find.text('© 2026 City Courier • Pengiriman Kilat Dalam Kota'), findsOneWidget);
+    });
+
+    testWidgets('Membuka bottom sheet alasan pembatalan saat tombol Batalkan Pesanan diklik', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockTrackingData = {
+        'tracking_number': 'CC2610284680',
+        'status': 'confirmed',
+        'status_label': 'Menunggu Kurir',
+        'timeline': [],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrackingDetailScreen(
+            trackingData: mockTrackingData,
+            trackingNumber: 'CC2610284680',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final cancelBtn = find.text('Batalkan Pesanan');
+      // Scroll bottom sheet agar tombol Batalkan Pesanan terlihat di layar
+      await tester.scrollUntilVisible(cancelBtn, 200);
+      await tester.pumpAndSettle();
+      expect(cancelBtn, findsOneWidget);
+
+      await tester.tap(cancelBtn);
+      await tester.pumpAndSettle();
+
+      // Dialog konfirmasi pembatalan muncul
+      expect(find.text('Batalkan Pengiriman?'), findsOneWidget);
+      expect(find.text('Pilih alasan pembatalan:'), findsOneWidget);
+      expect(find.text('Ingin mengubah alamat pengiriman'), findsOneWidget);
+      expect(find.text('Ya, Batalkan'), findsOneWidget);
+      expect(find.text('Kembali'), findsOneWidget);
+
+      // Tutup dialog
+      await tester.tap(find.text('Kembali'));
+      await tester.pumpAndSettle();
+      expect(find.text('Batalkan Pengiriman?'), findsNothing);
+    });
+
+    testWidgets('Menampilkan banner Pengiriman Dibatalkan saat status cancelled', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockTrackingData = {
+        'tracking_number': 'CC2610284680',
+        'status': 'cancelled',
+        'status_label': 'Dibatalkan',
+        'timeline': [],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrackingDetailScreen(
+            trackingData: mockTrackingData,
+            trackingNumber: 'CC2610284680',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tombol batal tidak muncul karena status terminal
+      expect(find.text('Batalkan Pesanan'), findsNothing);
+
+      // Banner cancelled muncul
+      expect(find.text('Pengiriman ini telah dibatalkan'), findsOneWidget);
+      expect(find.text('Pengiriman Dibatalkan'), findsOneWidget);
     });
   });
 }
