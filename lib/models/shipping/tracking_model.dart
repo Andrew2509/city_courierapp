@@ -64,6 +64,13 @@ enum TrackingStatus {
       this == TrackingStatus.delivered ||
       this == TrackingStatus.cancelled;
 
+  /// Status yang masih mengizinkan pelanggan membatalkan pesanan secara mandiri
+  /// (menunggu penugasan kurir atau sudah ditugaskan tetapi proses pickup belum dimulai).
+  bool get isCustomerCancellableStatus =>
+      this == TrackingStatus.pending ||
+      this == TrackingStatus.confirmed ||
+      this == TrackingStatus.assigned;
+
   static TrackingStatus fromString(String? value) {
     switch (value?.toLowerCase()) {
       case 'pending':
@@ -115,6 +122,17 @@ class TrackingModel {
   final String? paymentMethod;
   final int? totalCost;
   final String? scheduleText;
+  final bool? scheduledPickup;
+  final DateTime? pickupScheduledAt;
+  final String? pickupTime;
+  final bool? canCustomerCancel;
+  final String? cancellationBlockReason;
+  final String? cancellationBlockMessage;
+  final int? minutesUntilPickup;
+  final DateTime? cancelledAt;
+  final String? cancelledBy;
+  final String? cancelledByLabel;
+  final String? cancellationReason;
   final String? qrCodeUrl;
   final Map<String, dynamic>? rawJson;
 
@@ -142,6 +160,17 @@ class TrackingModel {
     this.paymentMethod,
     this.totalCost,
     this.scheduleText,
+    this.scheduledPickup,
+    this.pickupScheduledAt,
+    this.pickupTime,
+    this.canCustomerCancel,
+    this.cancellationBlockReason,
+    this.cancellationBlockMessage,
+    this.minutesUntilPickup,
+    this.cancelledAt,
+    this.cancelledBy,
+    this.cancelledByLabel,
+    this.cancellationReason,
     this.qrCodeUrl,
     this.rawJson,
   });
@@ -170,6 +199,17 @@ class TrackingModel {
     String? paymentMethod,
     int? totalCost,
     String? scheduleText,
+    bool? scheduledPickup,
+    DateTime? pickupScheduledAt,
+    String? pickupTime,
+    bool? canCustomerCancel,
+    String? cancellationBlockReason,
+    String? cancellationBlockMessage,
+    int? minutesUntilPickup,
+    DateTime? cancelledAt,
+    String? cancelledBy,
+    String? cancelledByLabel,
+    String? cancellationReason,
     String? qrCodeUrl,
     Map<String, dynamic>? rawJson,
   }) {
@@ -197,6 +237,17 @@ class TrackingModel {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       totalCost: totalCost ?? this.totalCost,
       scheduleText: scheduleText ?? this.scheduleText,
+      scheduledPickup: scheduledPickup ?? this.scheduledPickup,
+      pickupScheduledAt: pickupScheduledAt ?? this.pickupScheduledAt,
+      pickupTime: pickupTime ?? this.pickupTime,
+      canCustomerCancel: canCustomerCancel ?? this.canCustomerCancel,
+      cancellationBlockReason: cancellationBlockReason ?? this.cancellationBlockReason,
+      cancellationBlockMessage: cancellationBlockMessage ?? this.cancellationBlockMessage,
+      minutesUntilPickup: minutesUntilPickup ?? this.minutesUntilPickup,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+      cancelledByLabel: cancelledByLabel ?? this.cancelledByLabel,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
       qrCodeUrl: qrCodeUrl ?? this.qrCodeUrl,
       rawJson: rawJson ?? this.rawJson,
     );
@@ -212,7 +263,11 @@ class TrackingModel {
 
     DateTime? parseDate(dynamic v) {
       if (v == null) return null;
-      if (v is String) return DateTime.tryParse(v);
+      if (v is DateTime) return v.isUtc ? v.toLocal() : v;
+      if (v is String) {
+        final dt = DateTime.tryParse(v);
+        return dt != null && dt.isUtc ? dt.toLocal() : dt;
+      }
       return null;
     }
 
@@ -336,6 +391,24 @@ class TrackingModel {
         ? (json['total_cost'] as num).toInt()
         : int.tryParse(json['total_cost']?.toString() ?? '');
     final scheduleText = json['schedule_pickup_text']?.toString() ?? json['pickup_time']?.toString();
+    final scheduledPickup = json['scheduled_pickup'] == true ||
+        json['is_scheduled_pickup'] == true ||
+        json['scheduled_pickup'] == 1 ||
+        json['pickup_scheduled_at'] != null;
+    final pickupScheduledAt = parseDate(json['pickup_scheduled_at']);
+    final pickupTime = json['pickup_time']?.toString();
+    final bool? canCustomerCancel = json['can_customer_cancel'] is bool
+        ? json['can_customer_cancel'] as bool
+        : null;
+    final cancellationBlockReason = json['cancellation_block_reason']?.toString();
+    final cancellationBlockMessage = json['cancellation_block_message']?.toString();
+    final int? minutesUntilPickup = json['minutes_until_pickup'] is num
+        ? (json['minutes_until_pickup'] as num).toInt()
+        : int.tryParse(json['minutes_until_pickup']?.toString() ?? '');
+    final cancelledAt = parseDate(json['cancelled_at']);
+    final cancelledBy = json['cancelled_by']?.toString();
+    final cancelledByLabel = json['cancelled_by_label']?.toString();
+    final cancellationReason = json['cancellation_reason']?.toString();
     final qrCodeUrl = json['qr_code_url']?.toString();
 
     return TrackingModel(
@@ -362,6 +435,17 @@ class TrackingModel {
       paymentMethod: paymentMethod,
       totalCost: totalCost,
       scheduleText: scheduleText,
+      scheduledPickup: scheduledPickup,
+      pickupScheduledAt: pickupScheduledAt,
+      pickupTime: pickupTime,
+      canCustomerCancel: canCustomerCancel,
+      cancellationBlockReason: cancellationBlockReason,
+      cancellationBlockMessage: cancellationBlockMessage,
+      minutesUntilPickup: minutesUntilPickup,
+      cancelledAt: cancelledAt,
+      cancelledBy: cancelledBy,
+      cancelledByLabel: cancelledByLabel,
+      cancellationReason: cancellationReason,
       qrCodeUrl: qrCodeUrl,
       rawJson: json,
     );
@@ -550,7 +634,11 @@ class TrackingTimelineItem {
   factory TrackingTimelineItem.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic v) {
       if (v == null) return null;
-      if (v is String) return DateTime.tryParse(v);
+      if (v is DateTime) return v.isUtc ? v.toLocal() : v;
+      if (v is String) {
+        final dt = DateTime.tryParse(v);
+        return dt != null && dt.isUtc ? dt.toLocal() : dt;
+      }
       return null;
     }
 

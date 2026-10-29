@@ -31,6 +31,7 @@ class _DriverDetailShipmentScreenState
   bool _isMapReady = false;
   bool _isAccepting = false;
   bool _isLoadingLocation = true;
+  bool _isLocallyCancelled = false;
 
   @override
   void initState() {
@@ -160,9 +161,10 @@ class _DriverDetailShipmentScreenState
     final isPickedUp = status == 'picked_up';
     final isDelivering = status == 'delivering';
     final isDelivered = status == 'delivered';
-    final isCancelled = status == 'cancelled';
-
     final nestedShip = widget.shipment['shipment'] is Map ? widget.shipment['shipment'] as Map : null;
+    final isCancelled = _isLocallyCancelled ||
+        status == 'cancelled' ||
+        nestedShip?['status'] == 'cancelled';
     final vehicleType = (widget.shipment['vehicle'] ?? widget.shipment['vehicle_type'] ?? nestedShip?['vehicle'] ?? 'motor').toString().toLowerCase();
     final isCar = vehicleType == 'mobil';
     final vehicleName = isCar ? 'Mobil' : 'Motor';
@@ -1070,6 +1072,7 @@ class _DriverDetailShipmentScreenState
                       isPickedUp: isPickedUp,
                       isDelivering: isDelivering,
                       isDelivered: isDelivered,
+                      isCancelled: isCancelled,
                       canStartPickup: canStartPickup,
                       statusLabel: statusLabel,
                       pickupTimeStr: pickupTimeStr,
@@ -1091,10 +1094,37 @@ class _DriverDetailShipmentScreenState
     required bool isPickedUp,
     required bool isDelivering,
     required bool isDelivered,
+    required bool isCancelled,
     required bool canStartPickup,
     required String statusLabel,
     required String pickupTimeStr,
   }) {
+    if (isCancelled) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: null,
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.black, width: 1.5),
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.cancel_outlined, color: Colors.black, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Pesanan Telah Dibatalkan (Aksi Diblokir)',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (isPending) {
       return Row(
         children: [
@@ -1143,9 +1173,13 @@ class _DriverDetailShipmentScreenState
                           );
                           Navigator.pop(context, true);
                         } else {
+                          final msg = (acceptResult['message'] ?? 'Gagal menerima pesanan').toString();
+                          if (msg.toLowerCase().contains('dibatalkan')) {
+                            setState(() => _isLocallyCancelled = true);
+                          }
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
+                              content: Text(msg),
                               backgroundColor: const Color(0xFFFF5A00),
                             ),
                           );
@@ -1199,9 +1233,13 @@ class _DriverDetailShipmentScreenState
                       ),
                     );
                   } else {
+                    final msg = (res['message'] ?? 'Gagal memulai penjemputan').toString();
+                    if (msg.toLowerCase().contains('dibatalkan')) {
+                      setState(() => _isLocallyCancelled = true);
+                    }
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(res['message'] ?? 'Gagal memulai penjemputan'),
+                        content: Text(msg),
                         backgroundColor: const Color(0xFFFF5A00),
                       ),
                     );

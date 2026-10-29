@@ -417,6 +417,39 @@ class ScheduleTimeConfig {
   /// Toleransi waktu awal penjemputan (kurir diizinkan mulai maksimal 30 menit sebelum jadwal)
   static const int earlyPickupToleranceMinutes = 30;
 
+  /// Batas waktu minimal pembatalan mandiri oleh pelanggan sebelum jadwal pickup (120 menit = 2 jam)
+  /// Aturan: Waktu pickup - Waktu sekarang > 120 menit
+  static const int customerCancelCutoffMinutes = 120;
+
+  /// Pesan standar saat pembatalan mandiri ditolak karena waktu pickup <= 2 jam
+  static const String customerCancelWithinCutoffMessage =
+      'Pembatalan mandiri hanya dapat dilakukan lebih dari 2 jam sebelum jadwal pickup. '
+      'Karena jadwal pickup kamu sudah terlalu dekat, silakan hubungi admin City Courier untuk mendapatkan bantuan.';
+
+  /// Memeriksa apakah status pesanan masih mengizinkan pembatalan mandiri oleh pelanggan
+  /// Hanya diizinkan jika:
+  /// - Menunggu penugasan kurir (pending, confirmed), atau
+  /// - Sudah ditugaskan ke kurir (assigned) tetapi proses pickup belum dimulai.
+  static bool isStatusCancellableByCustomer(String? status) {
+    final s = (status ?? '').trim().toLowerCase();
+    return s == 'pending' || s == 'confirmed' || s == 'assigned';
+  }
+
+  /// Memeriksa apakah pelanggan masih boleh membatalkan pesanan terjadwal secara mandiri
+  /// Aturan: Waktu pickup - Waktu sekarang > 120 menit (> 7200 detik)
+  static bool canCustomerCancelScheduledPickup(
+    dynamic scheduledAtInput, {
+    DateTime? referenceNow,
+  }) {
+    if (scheduledAtInput == null) return true;
+    final scheduledAt = parseDateTimeSafe(scheduledAtInput);
+    if (scheduledAt == null) return true;
+
+    final now = referenceNow ?? DateTime.now();
+    final diffSeconds = scheduledAt.difference(now).inSeconds;
+    return diffSeconds > customerCancelCutoffMinutes * 60;
+  }
+
   /// Memeriksa apakah kurir sudah dapat menekan tombol "Mulai Pickup"
   /// Order instan (non-scheduled): selalu true
   /// Order terjadwal: true jika waktu sekarang >= (jadwal - 30 menit)

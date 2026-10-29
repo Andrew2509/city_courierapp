@@ -254,6 +254,9 @@ class ShipmentService {
 
       return {
         'success': false,
+        'status_code': response.statusCode,
+        'error_code': responseData is Map ? responseData['error_code']?.toString() : null,
+        'minutes_until_pickup': responseData is Map ? responseData['minutes_until_pickup'] : null,
         'message': responseData is Map && responseData['message'] != null
             ? responseData['message'].toString()
             : 'Gagal membatalkan pesanan (HTTP ${response.statusCode})',

@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/models/shipping/tracking_model.dart';
+import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/data/models/address_model.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart' as shipping_route;
 import 'package:city_courierapp/services/shipping/tracking_service.dart';
@@ -481,16 +482,251 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
     }
   }
 
-  /// Memeriksa apakah pesanan masih bisa dibatalkan oleh pengguna (belum terkirim/selesai atau batal)
+  /// Memeriksa apakah status pesanan masih memenuhi syarat untuk dibatalkan
+  /// (menunggu penugasan kurir: pending/confirmed, atau sudah ditugaskan: assigned tetapi proses pickup belum dimulai).
   bool get _canCancelOrder {
     if (_tracking == null) return false;
-    return !_tracking!.status.isTerminal;
+    return _tracking!.status.isCustomerCancellableStatus;
+  }
+
+  /// Mengambil DateTime jadwal pickup jika pesanan merupakan pickup terjadwal
+  DateTime? get _pickupScheduledAt {
+    return _tracking?.pickupScheduledAt ??
+        ScheduleTimeConfig.parseDateTimeSafe(
+          widget.shipmentData?['pickup_scheduled_at'] ??
+              widget.trackingData?['pickup_scheduled_at'],
+        );
+  }
+
+  /// Apakah pesanan menggunakan fitur jadwal pickup
+  bool get _isScheduledOrder {
+    return (_tracking?.scheduledPickup == true) ||
+        (widget.shipmentData?['scheduled_pickup'] == true) ||
+        (widget.trackingData?['scheduled_pickup'] == true) ||
+        _pickupScheduledAt != null;
+  }
+
+  /// Memeriksa apakah waktu sekarang masih > 2 jam (120 menit) sebelum jadwal pickup
+  bool get _canSelfCancelByTime {
+    if (!_canCancelOrder) return false;
+
+    final blockReason = _tracking?.cancellationBlockReason;
+    if (blockReason == 'within_2_hours' || blockReason == 'pickup_time_passed') {
+      return false;
+    }
+
+    final scheduledAt = _pickupScheduledAt;
+    if (scheduledAt != null) {
+      return ScheduleTimeConfig.canCustomerCancelScheduledPickup(scheduledAt);
+    }
+
+    if (_tracking?.canCustomerCancel == false) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Memeriksa apakah jadwal pickup sudah tiba atau terlewati namun belum di-pickup
+  bool get _isPickupScheduleOverdue {
+    if (!_canCancelOrder || !_isScheduledOrder) return false;
+    if (_tracking?.cancellationBlockReason == 'pickup_time_passed') return true;
+    final scheduledAt = _pickupScheduledAt;
+    if (scheduledAt == null) return false;
+    return !DateTime.now().isBefore(scheduledAt);
+  }
+
+  /// Format informasi jadwal pickup lengkap untuk ditampilkan pada dialog pembatalan
+  String _getFormattedPickupScheduleInfo() {
+    final scheduledAt = _pickupScheduledAt;
+    final rawTime = _tracking?.pickupTime ??
+        widget.shipmentData?['pickup_time']?.toString() ??
+        widget.trackingData?['pickup_time']?.toString();
+
+    if (scheduledAt != null) {
+      final dayLabel = ScheduleTimeConfig.formatDisplayDay(scheduledAt);
+      final timeLabel = ScheduleTimeConfig.extractTimeOnly(
+        rawTime,
+        scheduledAtFallback: scheduledAt,
+      );
+      return '$dayLabel • $timeLabel';
+    }
+
+    final schedText = _getScheduleText();
+    if (schedText.isNotEmpty) {
+      return schedText;
+    }
+    return 'Pickup Instan (Sekarang)';
+  }
+
+  /// Menampilkan dialog saat pesanan tidak dapat dibatalkan mandiri karena sisa waktu <= 2 jam
+  Future<void> _showCannotCancelDialog({String? customMessage}) async {
+    final message = (customMessage != null && customMessage.trim().isNotEmpty)
+        ? customMessage.trim()
+        : ScheduleTimeConfig.customerCancelWithinCutoffMessage;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          contentPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          title: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEF2F2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.access_time_filled_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Pesanan Tidak Dapat Dibatalkan',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF475569),
+                  height: 1.45,
+                ),
+              ),
+              if (_isScheduledOrder) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.event_available_rounded,
+                        size: 16,
+                        color: Color(0xFFEA580C),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Jadwal Pickup: ${_getFormattedPickupScheduleInfo()}',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF9A3412),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Tutup',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      _contactSupport();
+                    },
+                    icon: const Icon(
+                      Icons.support_agent_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'Hubungi Admin',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA580C),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
   }
 
   /// Memproses pembatalan pesanan dan sinkronisasi ke backend website
   Future<void> _handleCancelOrder() async {
+    // Jika waktu pickup tersisa <= 2 jam atau sudah lewat, tampilkan dialog pembatasan
+    if (!_canSelfCancelByTime) {
+      await _showCannotCancelDialog(
+        customMessage: _tracking?.cancellationBlockMessage,
+      );
+      return;
+    }
+
     final reason = await _showCancelConfirmationDialog();
     if (reason == null) return;
+
+    // Validasi ulang batas waktu tepat sebelum request dikirim
+    if (!_canSelfCancelByTime) {
+      await _showCannotCancelDialog();
+      return;
+    }
 
     setState(() => _isCancelling = true);
 
@@ -517,13 +753,23 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
         // Muat ulang data tracking agar tampilan berpindah ke status dibatalkan
         await _fetchTracking();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Gagal membatalkan pesanan.'),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        final errorCode = result['error_code']?.toString();
+        if (errorCode == 'within_2_hours' || errorCode == 'pickup_time_passed') {
+          await _fetchTracking();
+          if (!mounted) return;
+          await _showCannotCancelDialog(
+            customMessage: result['message']?.toString(),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Gagal membatalkan pesanan.'),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          await _fetchTracking();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -542,7 +788,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
     }
   }
 
-  /// Menampilkan dialog konfirmasi pembatalan pesanan lengkap dengan pilihan alasan
+  /// Menampilkan dialog konfirmasi pembatalan pesanan lengkap dengan jadwal pickup & pilihan alasan
   Future<String?> _showCancelConfirmationDialog() async {
     String selectedReason = 'Ingin mengubah alamat pengiriman';
     final TextEditingController customReasonController = TextEditingController();
@@ -551,10 +797,12 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
     final reasons = [
       'Ingin mengubah alamat pengiriman',
       'Salah memasukkan informasi paket',
-      'Waktu penjemputan terlalu lama',
+      'Ingin mengubah jadwal penjemputan',
       'Ingin mengganti metode pembayaran',
       'Lainnya',
     ];
+
+    final scheduleInfo = _getFormattedPickupScheduleInfo();
 
     return showModalBottomSheet<String>(
       context: context,
@@ -613,7 +861,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Batalkan Pengiriman?',
+                              'Batalkan Pesanan?',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -622,7 +870,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Pesanan yang dibatalkan tidak dapat dilanjutkan kembali.',
+                              'Apakah kamu yakin ingin membatalkan pesanan ini?',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF64748B),
@@ -633,7 +881,53 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+
+                  // Informasi Jadwal Pickup
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFED7AA)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 17,
+                          color: Color(0xFFEA580C),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Jadwal Pickup Pesanan',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF9A3412),
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                scheduleInfo,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
 
                   const Text(
                     'Pilih alasan pembatalan:',
@@ -706,7 +1000,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Action Buttons: Kembali / Ya, Batalkan
+                  // Action Buttons: Kembali / Ya, Batalkan Pesanan
                   Row(
                     children: [
                       Expanded(
@@ -745,9 +1039,9 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                             elevation: 0,
                           ),
                           child: const Text(
-                            'Ya, Batalkan',
+                            'Ya, Batalkan Pesanan',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
@@ -1729,8 +2023,58 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                             ],
                           ),
 
-                          // Tombol Batalkan Pesanan (tersedia selama pengiriman belum terkirim / selesai atau batal)
+                          // Tombol Batalkan Pesanan (hanya jika status menunggu penugasan kurir / belum mulai pickup)
                           if (_canCancelOrder) ...[
+                            if (!_canSelfCancelByTime) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFFBEB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.lock_clock_rounded,
+                                          size: 15,
+                                          color: Color(0xFFD97706),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            _isPickupScheduleOverdue
+                                                ? 'Jadwal Pickup Telah Tiba / Terlewati'
+                                                : 'Pembatalan Mandiri Terkunci (≤ 2 Jam)',
+                                            style: const TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF92400E),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      _isPickupScheduleOverdue
+                                          ? 'Jadwal pickup sudah tiba atau terlewati dan pesanan belum di-pickup. Silakan hubungi admin City Courier jika ingin membatalkan atau mengubah jadwal.'
+                                          : ScheduleTimeConfig.customerCancelWithinCutoffMessage,
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: Color(0xFF78350F),
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 8),
                             SizedBox(
                               width: double.infinity,
@@ -1745,22 +2089,36 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                           color: Color(0xFFDC2626),
                                         ),
                                       )
-                                    : const Icon(
-                                        Icons.cancel_outlined,
+                                    : Icon(
+                                        _canSelfCancelByTime
+                                            ? Icons.cancel_outlined
+                                            : Icons.lock_outline_rounded,
                                         size: 15,
-                                        color: Color(0xFFDC2626),
+                                        color: _canSelfCancelByTime
+                                            ? const Color(0xFFDC2626)
+                                            : const Color(0xFF64748B),
                                       ),
                                 label: Text(
-                                  _isCancelling ? 'Membatalkan Pesanan...' : 'Batalkan Pesanan',
-                                  style: const TextStyle(
+                                  _isCancelling
+                                      ? 'Membatalkan Pesanan...'
+                                      : 'Batalkan Pesanan',
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFFDC2626),
+                                    color: _canSelfCancelByTime
+                                        ? const Color(0xFFDC2626)
+                                        : const Color(0xFF64748B),
                                   ),
                                 ),
                                 style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Color(0xFFFECACA)),
-                                  backgroundColor: const Color(0xFFFEF2F2),
+                                  side: BorderSide(
+                                    color: _canSelfCancelByTime
+                                        ? const Color(0xFFFECACA)
+                                        : const Color(0xFFCBD5E1),
+                                  ),
+                                  backgroundColor: _canSelfCancelByTime
+                                      ? const Color(0xFFFEF2F2)
+                                      : const Color(0xFFF8FAFC),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
@@ -1772,25 +2130,42 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                             const SizedBox(height: 8),
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFEF2F2),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: const Color(0xFFFECACA)),
                               ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFFDC2626)),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Pengiriman ini telah dibatalkan',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFFDC2626),
-                                    ),
+                                  const Row(
+                                    children: [
+                                      Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFFDC2626)),
+                                      SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Pengiriman ini telah dibatalkan',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFFDC2626),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  if (_tracking?.cancellationReason != null &&
+                                      _tracking!.cancellationReason!.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Alasan: ${_tracking!.cancellationReason}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF991B1B),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
