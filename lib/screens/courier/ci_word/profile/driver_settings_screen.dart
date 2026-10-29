@@ -12,7 +12,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
   bool _locationSharing = true;
-  bool _darkMode = false;
   String _selectedLanguage = 'id';
 
   @override
@@ -57,7 +56,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 subtitle: 'Terima notifikasi saat ada pesanan baru',
                 value: _notificationsEnabled,
                 onChanged: (val) => setState(() => _notificationsEnabled = val),
-                isDarkMode: false,
                 isLast: false,
               ),
               _buildToggleItem(
@@ -67,7 +65,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 subtitle: 'Putar suara saat notifikasi masuk',
                 value: _soundEnabled,
                 onChanged: (val) => setState(() => _soundEnabled = val),
-                isDarkMode: false,
                 isLast: false,
               ),
               _buildToggleItem(
@@ -77,7 +74,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 subtitle: 'Getar saat notifikasi masuk',
                 value: _vibrationEnabled,
                 onChanged: (val) => setState(() => _vibrationEnabled = val),
-                isDarkMode: false,
                 isLast: true,
               ),
             ]),
@@ -94,7 +90,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 subtitle: 'Bagikan lokasi Anda ke admin saat bekerja',
                 value: _locationSharing,
                 onChanged: (val) => setState(() => _locationSharing = val),
-                isDarkMode: false,
                 isLast: false,
               ),
               _buildNavigationItem(
@@ -105,26 +100,15 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 onTap: () {
                   _showMapPickerDialog(primaryColor, textMain);
                 },
-                isDarkMode: false,
                 isLast: true,
               ),
             ]),
             const SizedBox(height: 20),
 
             // Tampilan Section
-            _buildSectionHeader('TAMPILAN', textMuted),
+            _buildSectionHeader('BAHASA', textMuted),
             const SizedBox(height: 12),
             _buildSettingsCard([
-              _buildToggleItem(
-                icon: Icons.dark_mode_outlined,
-                iconBg: Colors.indigo,
-                title: 'Mode Gelap',
-                subtitle: 'Aktifkan tema gelap untuk mata',
-                value: _darkMode,
-                onChanged: (val) => setState(() => _darkMode = val),
-                isDarkMode: false,
-                isLast: false,
-              ),
               _buildNavigationItem(
                 icon: Icons.language,
                 iconBg: Colors.orange,
@@ -133,7 +117,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 onTap: () {
                   _showLanguagePickerDialog(primaryColor, textMain);
                 },
-                isDarkMode: false,
                 isLast: true,
               ),
             ]),
@@ -149,7 +132,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 title: 'Versi Aplikasi',
                 subtitle: 'v1.0.0',
                 onTap: () {},
-                isDarkMode: false,
                 isLast: false,
                 showChevron: false,
               ),
@@ -159,7 +141,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 title: 'Syarat & Ketentuan',
                 subtitle: 'Baca syarat penggunaan',
                 onTap: () {},
-                isDarkMode: false,
                 isLast: false,
               ),
               _buildNavigationItem(
@@ -168,7 +149,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 title: 'Kebijakan Privasi',
                 subtitle: 'Bagaimana kami melindungi data Anda',
                 onTap: () {},
-                isDarkMode: false,
                 isLast: true,
               ),
             ]),
@@ -242,7 +222,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
-    required bool isDarkMode,
     required bool isLast,
   }) {
     return Container(
@@ -250,9 +229,9 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : Border(
+            : const Border(
                 bottom: BorderSide(
-                  color: isDarkMode ? Colors.white10 : const Color(0xFFF1F5F9),
+                  color: Color(0xFFF1F5F9),
                 ),
               ),
       ),
@@ -310,7 +289,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
-    required bool isDarkMode,
     required bool isLast,
     bool showChevron = true,
   }) {
@@ -321,9 +299,9 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
         decoration: BoxDecoration(
           border: isLast
               ? null
-              : Border(
+              : const Border(
                   bottom: BorderSide(
-                    color: isDarkMode ? Colors.white10 : const Color(0xFFF1F5F9),
+                    color: Color(0xFFF1F5F9),
                   ),
                 ),
         ),
@@ -462,7 +440,6 @@ class _DriverSettingsScreenState extends State<DriverSettingsScreen> {
                 _soundEnabled = true;
                 _vibrationEnabled = true;
                 _locationSharing = true;
-                _darkMode = false;
                 _selectedLanguage = 'id';
               });
               Navigator.pop(context);

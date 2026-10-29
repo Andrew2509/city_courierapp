@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
-import 'package:city_courierapp/screens/widgets/home/theme_toggle_fab.dart';
 import 'package:city_courierapp/services/courier/courier_status_service.dart';
 import 'package:city_courierapp/services/deep_link_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
@@ -67,35 +66,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (_, ThemeMode currentMode, child) {
-        return MaterialApp(
-          title: 'City Courier',
-          debugShowCheckedModeBanner: false,
-          themeMode: currentMode,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFFEC5B13),
-              brightness: Brightness.light,
-            ),
-            scaffoldBackgroundColor: const Color(0xFFF9FAFB),
-          ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.dark(
-              primary: const Color(0xFFEC5B13),
-              secondary: const Color(0xFFFF8A00),
-              surface: const Color(0xFF1E293B),
-            ),
-            scaffoldBackgroundColor: const Color(0xFF0F172A),
-          ),
-          navigatorObservers: [routeObserver],
-          navigatorKey: navigatorKey,
-          home: const HomeScreen(),
-        );
-      },
+    return MaterialApp(
+      title: 'City Courier',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.light,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFEC5B13),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF9FAFB),
+      ),
+      navigatorObservers: [routeObserver],
+      navigatorKey: navigatorKey,
+      home: const HomeScreen(),
     );
   }
 }
