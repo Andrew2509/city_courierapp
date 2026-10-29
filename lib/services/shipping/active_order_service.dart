@@ -7,6 +7,7 @@ import 'package:city_courierapp/models/shipping/tracking_model.dart';
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/services/shipping/shipment_service.dart';
 import 'package:city_courierapp/services/shipping/tracking_service.dart';
+import 'package:city_courierapp/services/courier/courier_directory_service.dart';
 
 /// Service to manage the real-time active delivery order displayed as a floating widget
 /// on the user's home screen, directly synced with the website backend API.
@@ -48,6 +49,8 @@ class ActiveOrderService {
         final decoded = json.decode(savedJson) as Map<String, dynamic>;
         if (decoded['is_active'] == true) {
           activeOrderNotifier.value = decoded;
+          // Perkaya data order dari direktori kurir jika foto atau plat nomor belum lengkap
+          unawaited(_enrichCachedOrderIfNeeded());
         }
       }
     } catch (_) {}
@@ -102,7 +105,19 @@ class ActiveOrderService {
             }
           }
 
-          final orderData = _buildOrderData(shipment: latest, tracking: tracking);
+          // Sinkronisasi info kurir dari direktori jika belum lengkap di respons tracking
+          final cName = tracking?.courier?.name ?? latest.courierName;
+          final cPhone = tracking?.courier?.phone ?? latest.courierPhone;
+          CourierDirectoryInfo? directoryCourier;
+          if (cName != null && cName.isNotEmpty && cName.toLowerCase() != 'menunggu kurir') {
+            directoryCourier = await CourierDirectoryService.findCourier(name: cName, phone: cPhone);
+          }
+
+          final orderData = _buildOrderData(
+            shipment: latest,
+            tracking: tracking,
+            directoryCourier: directoryCourier,
+          );
           await _applyOrderData(orderData);
           _startPollingIfNeeded();
           return;
@@ -174,6 +189,7 @@ class ActiveOrderService {
   static Map<String, dynamic> _buildOrderData({
     required ShipmentModel shipment,
     TrackingModel? tracking,
+    CourierDirectoryInfo? directoryCourier,
   }) {
     final trackingNum = (shipment.trackingNumber ?? shipment.orderNumber).trim();
     final statusRaw = (tracking?.status.name ?? shipment.status).toLowerCase();
@@ -252,9 +268,15 @@ class ActiveOrderService {
     String? courierPhoto;
 
     if (hasCourier) {
-      courierName = tracking?.courier?.name ?? shipment.courierName ?? 'Kurir City Courier';
-      courierPhone = tracking?.courier?.phone ?? shipment.courierPhone ?? '';
-      courierPhoto = tracking?.courier?.photo ?? shipment.courierPhoto;
+      courierName = tracking?.courier?.name ??
+          (shipment.courierName != null && shipment.courierName!.toLowerCase() != 'motor'
+              ? shipment.courierName!
+              : (directoryCourier?.name ?? 'Kurir City Courier'));
+      courierPhone = tracking?.courier?.phone ??
+          (shipment.courierPhone != null && shipment.courierPhone!.isNotEmpty
+              ? shipment.courierPhone!
+              : (directoryCourier?.phone ?? ''));
+      courierPhoto = tracking?.courier?.photo ?? shipment.courierPhoto ?? directoryCourier?.photo;
 
       // Extract real courier vehicle details (brand, model, license plate) from backend
       String detectedVehicle = '';
@@ -263,6 +285,8 @@ class ActiveOrderService {
         detectedVehicle = tracking!.courier!.vehicleDescription;
       } else if (shipment.courierVehicleDescription.isNotEmpty == true) {
         detectedVehicle = shipment.courierVehicleDescription;
+      } else if (directoryCourier?.vehicleDescription.isNotEmpty == true) {
+        detectedVehicle = directoryCourier!.vehicleDescription;
       } else if (tracking?.vehicle != null && tracking!.vehicle!.contains('•')) {
         detectedVehicle = tracking.vehicle!;
       }
@@ -271,7 +295,7 @@ class ActiveOrderService {
         courierVehicle = detectedVehicle;
       } else {
         // Fallback to vehicle type if specific brand/plate is not yet configured in backend
-        final vRaw = (tracking?.vehicle ?? shipment.vehicleType ?? 'motor').toLowerCase();
+        final vRaw = (tracking?.vehicle ?? shipment.vehicleType ?? directoryCourier?.vehicleType ?? 'motor').toLowerCase();
         courierVehicle = vRaw.contains('mobil') || vRaw.contains('car')
             ? 'Mobil • Mitra Kurir'
             : 'Sepeda Motor • Mitra Kurir';
@@ -394,21 +418,33 @@ class ActiveOrderService {
       tracking.destination?.address ?? current?['destination'] ?? 'Tujuan',
     );
 
+    CourierDirectoryInfo? directoryCourier;
+    if (hasCourier && (tracking.courier?.photo == null || tracking.courier?.vehiclePlate == null)) {
+      directoryCourier = await CourierDirectoryService.findCourier(
+        name: tracking.courier?.name,
+        phone: tracking.courier?.phone,
+      );
+    }
+
     final updated = {
       'order_id': tracking.trackingNumber,
       'status': statusTitle,
       'status_raw': statusRaw,
       'estimated_time': estimatedTime,
-      'courier_name': hasCourier ? (tracking.courier?.name ?? 'Pak Budi Santoso') : 'Menunggu Kurir',
+      'courier_name': hasCourier
+          ? (tracking.courier?.name ?? directoryCourier?.name ?? 'Kurir City Courier')
+          : 'Menunggu Kurir',
       'courier_vehicle': hasCourier
           ? (tracking.courier?.vehicleDescription.isNotEmpty == true
               ? tracking.courier!.vehicleDescription
-              : (tracking.vehicle?.isNotEmpty == true
-                  ? tracking.vehicle!
-                  : (current?['courier_vehicle'] ?? 'Sepeda Motor • Mitra Kurir')))
+              : (directoryCourier?.vehicleDescription.isNotEmpty == true
+                  ? directoryCourier!.vehicleDescription
+                  : (tracking.vehicle?.isNotEmpty == true
+                      ? tracking.vehicle!
+                      : (current?['courier_vehicle'] ?? 'Sepeda Motor • Mitra Kurir'))))
           : 'Mencari kurir terdekat...',
-      'courier_phone': tracking.courier?.phone ?? current?['courier_phone'] ?? '',
-      'courier_photo': tracking.courier?.photo ?? current?['courier_photo'],
+      'courier_phone': tracking.courier?.phone ?? directoryCourier?.phone ?? current?['courier_phone'] ?? '',
+      'courier_photo': tracking.courier?.photo ?? directoryCourier?.photo ?? current?['courier_photo'],
       'destination': destination,
       'status_message': statusRaw == 'delivered'
           ? 'Paket telah berhasil diterima oleh ${tracking.receiverName ?? 'penerima'}.'
@@ -425,6 +461,40 @@ class ActiveOrderService {
     await _applyOrderData(updated);
     if (statusRaw == 'delivered') {
       _stopPolling();
+    }
+  }
+
+  /// Asynchronously enrich cached active order if courier photo or vehicle description is incomplete
+  static Future<void> _enrichCachedOrderIfNeeded() async {
+    final current = activeOrderNotifier.value;
+    if (current == null || current['is_active'] != true || current['has_courier'] != true) {
+      return;
+    }
+
+    final cName = (current['courier_name'] ?? '').toString();
+    final cPhoto = current['courier_photo'];
+    final cVehicle = (current['courier_vehicle'] ?? '').toString();
+
+    // If photo is missing or vehicle is generic "Sepeda Motor • Mitra Kurir"
+    if (cPhoto == null || cVehicle.contains('Mitra Kurir') || !cVehicle.contains('•')) {
+      final info = await CourierDirectoryService.findCourier(
+        name: cName,
+        phone: (current['courier_phone'] ?? '').toString(),
+      );
+
+      if (info != null) {
+        final updated = Map<String, dynamic>.from(current);
+        if (info.photo != null && info.photo!.isNotEmpty) {
+          updated['courier_photo'] = info.photo;
+        }
+        if (info.vehicleDescription.isNotEmpty) {
+          updated['courier_vehicle'] = info.vehicleDescription;
+        }
+        if (cName.isEmpty || cName == 'Kurir City Courier' || cName == 'Motor') {
+          updated['courier_name'] = info.name;
+        }
+        await _applyOrderData(updated);
+      }
     }
   }
 

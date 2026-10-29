@@ -146,6 +146,62 @@ class TrackingModel {
     this.rawJson,
   });
 
+  TrackingModel copyWith({
+    String? trackingNumber,
+    TrackingStatus? status,
+    String? statusLabel,
+    TrackingLocation? origin,
+    TrackingLocation? destination,
+    LatLng? currentLocation,
+    TrackingCourier? courier,
+    DateTime? estimatedDelivery,
+    List<TrackingTimelineItem>? timeline,
+    String? courierService,
+    DateTime? orderDate,
+    DateTime? pickedUpAt,
+    DateTime? deliveredAt,
+    DateTime? createdAt,
+    String? senderName,
+    String? senderPhone,
+    String? receiverName,
+    String? receiverPhone,
+    String? vehicle,
+    double? packageWeight,
+    String? paymentMethod,
+    int? totalCost,
+    String? scheduleText,
+    String? qrCodeUrl,
+    Map<String, dynamic>? rawJson,
+  }) {
+    return TrackingModel(
+      trackingNumber: trackingNumber ?? this.trackingNumber,
+      status: status ?? this.status,
+      statusLabel: statusLabel ?? this.statusLabel,
+      origin: origin ?? this.origin,
+      destination: destination ?? this.destination,
+      currentLocation: currentLocation ?? this.currentLocation,
+      courier: courier ?? this.courier,
+      estimatedDelivery: estimatedDelivery ?? this.estimatedDelivery,
+      timeline: timeline ?? this.timeline,
+      courierService: courierService ?? this.courierService,
+      orderDate: orderDate ?? this.orderDate,
+      pickedUpAt: pickedUpAt ?? this.pickedUpAt,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      createdAt: createdAt ?? this.createdAt,
+      senderName: senderName ?? this.senderName,
+      senderPhone: senderPhone ?? this.senderPhone,
+      receiverName: receiverName ?? this.receiverName,
+      receiverPhone: receiverPhone ?? this.receiverPhone,
+      vehicle: vehicle ?? this.vehicle,
+      packageWeight: packageWeight ?? this.packageWeight,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      totalCost: totalCost ?? this.totalCost,
+      scheduleText: scheduleText ?? this.scheduleText,
+      qrCodeUrl: qrCodeUrl ?? this.qrCodeUrl,
+      rawJson: rawJson ?? this.rawJson,
+    );
+  }
+
   factory TrackingModel.fromJson(Map<String, dynamic> json) {
     double? parseDouble(dynamic v) {
       if (v == null) return null;
@@ -384,6 +440,26 @@ class TrackingCourier {
       return plate;
     }
     return '';
+  }
+
+  TrackingCourier copyWith({
+    String? name,
+    String? phone,
+    String? photo,
+    String? vehicleBrand,
+    String? vehicleModel,
+    String? vehiclePlate,
+    String? vehicleType,
+  }) {
+    return TrackingCourier(
+      name: name ?? this.name,
+      phone: phone ?? this.phone,
+      photo: photo ?? this.photo,
+      vehicleBrand: vehicleBrand ?? this.vehicleBrand,
+      vehicleModel: vehicleModel ?? this.vehicleModel,
+      vehiclePlate: vehiclePlate ?? this.vehiclePlate,
+      vehicleType: vehicleType ?? this.vehicleType,
+    );
   }
 
   factory TrackingCourier.fromJson(Map<String, dynamic> json) {
