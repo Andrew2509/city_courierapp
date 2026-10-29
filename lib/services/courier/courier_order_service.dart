@@ -235,12 +235,69 @@ class CourierOrderService {
     return updateOrderStatus(orderId: requestId, status: 'assigned');
   }
 
-  static Future<Map<String, dynamic>> rejectPickupRequest(String requestId) async {
-    return updateOrderStatus(
+  static Future<Map<String, dynamic>> cancelCourierAssignment({
+    required String orderId,
+    required String reason,
+    String? notes,
+    double? latitude,
+    double? longitude,
+    bool? requireAdminApproval,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/cancel-assignment'),
+        headers: await _getHeaders(),
+        body: json.encode({
+          'order_id': orderId,
+          'reason': reason,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+          'latitude': ?latitude,
+          'longitude': ?longitude,
+          'require_admin_approval': ?requireAdminApproval,
+        }),
+      );
+
+      final Map<String, dynamic> responseData = response.body.isNotEmpty
+          ? (json.decode(response.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+
+      final bool isSuccess = response.statusCode == 200 && responseData['success'] == true;
+      return {
+        'success': isSuccess,
+        'statusCode': response.statusCode,
+        'action_taken': responseData['action_taken'],
+        'priority': responseData['priority'],
+        'is_within_2_hours': responseData['is_within_2_hours'] == true,
+        'already_processed': responseData['already_processed'] == true,
+        'error_code': responseData['error_code'],
+        'title': responseData['title'] ??
+            (isSuccess
+                ? (responseData['action_taken'] == 'pending_approval'
+                    ? 'Permintaan Pembatalan Terkirim'
+                    : 'Penugasan Berhasil Dibatalkan')
+                : 'Pembatalan Tidak Dapat Diproses'),
+        'message': responseData['message'] ??
+            (isSuccess
+                ? (responseData['action_taken'] == 'pending_approval'
+                    ? 'Permintaan kamu sedang diperiksa oleh admin. Status penugasan akan diperbarui setelah keputusan diberikan.'
+                    : 'Penugasan pesanan ini sudah dilepas dari akun kamu.')
+                : 'Pembatalan penugasan tidak dapat diproses saat ini.'),
+        'data': responseData['data'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'title': 'Pembatalan Tidak Dapat Diproses',
+        'message': 'Gagal terhubung ke server: $e',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> rejectPickupRequest(String requestId, {String? reason, String? notes}) async {
+    return cancelCourierAssignment(
       orderId: requestId,
-      status: 'cancelled',
-      issueReason: 'courier_rejected',
-      issueNotes: 'Kurir menolak penugasan',
+      reason: reason ?? 'Tidak dapat menjemput pada jadwal yang ditentukan.',
+      notes: notes,
     );
   }
 }

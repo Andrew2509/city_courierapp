@@ -30,8 +30,16 @@ class _DriverDetailShipmentScreenState
 
   bool _isMapReady = false;
   bool _isAccepting = false;
+  bool _isCancellingAssignment = false;
   bool _isLoadingLocation = true;
   bool _isLocallyCancelled = false;
+  String? _localCourierCancelStatus;
+
+  bool get _isPendingAdminApproval {
+    final status = _localCourierCancelStatus ??
+        widget.shipment['courier_cancel_status']?.toString();
+    return status == 'pending_approval';
+  }
 
   @override
   void initState() {
@@ -1046,6 +1054,51 @@ class _DriverDetailShipmentScreenState
                               ),
                             ),
                           ],
+
+                          // 6. Banner Status Menunggu Persetujuan Admin (jika kurir sudah mengajukan pembatalan)
+                          if (_isPendingAdminApproval) ...[
+                            Container(
+                              margin: const EdgeInsets.only(top: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFF59E0B), width: 1.2),
+                              ),
+                              child: const Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.hourglass_top_rounded, size: 16, color: Color(0xFFD97706)),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Menunggu Persetujuan Admin',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF92400E),
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          'Permintaan kamu sedang diperiksa oleh admin. Status penugasan akan diperbarui setelah keputusan diberikan.',
+                                          style: TextStyle(
+                                            fontSize: 10.5,
+                                            color: Color(0xFF78350F),
+                                            height: 1.35,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1115,9 +1168,13 @@ class _DriverDetailShipmentScreenState
             children: [
               Icon(Icons.cancel_outlined, color: Colors.black, size: 18),
               SizedBox(width: 8),
-              Text(
-                'Pesanan Telah Dibatalkan (Aksi Diblokir)',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.black),
+              Flexible(
+                child: Text(
+                  'Pesanan Telah Dibatalkan (Aksi Diblokir)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black),
+                ),
               ),
             ],
           ),
@@ -1210,103 +1267,197 @@ class _DriverDetailShipmentScreenState
     }
 
     if (isAssigned) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: canStartPickup
-              ? () async {
-                  setState(() => _isAccepting = true);
-                  final orderId = widget.shipment['id']?.toString() ?? '';
-                  final res = await CourierOrderService.updateOrderStatus(
-                    orderId: orderId,
-                    status: 'picking_up',
-                  );
-                  if (!mounted) return;
-                  setState(() => _isAccepting = false);
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: canStartPickup
+                  ? () async {
+                      setState(() => _isAccepting = true);
+                      final orderId = widget.shipment['id']?.toString() ?? '';
+                      final res = await CourierOrderService.updateOrderStatus(
+                        orderId: orderId,
+                        status: 'picking_up',
+                      );
+                      if (!mounted) return;
+                      setState(() => _isAccepting = false);
 
-                  if (res['success'] == true) {
-                    final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DriverDeliveryFlowScreen(order: updated),
-                      ),
-                    );
-                  } else {
-                    final msg = (res['message'] ?? 'Gagal memulai penjemputan').toString();
-                    if (msg.toLowerCase().contains('dibatalkan')) {
-                      setState(() => _isLocallyCancelled = true);
+                      if (res['success'] == true) {
+                        final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DriverDeliveryFlowScreen(order: updated),
+                          ),
+                        );
+                      } else {
+                        final msg = (res['message'] ?? 'Gagal memulai penjemputan').toString();
+                        if (msg.toLowerCase().contains('dibatalkan')) {
+                          setState(() => _isLocallyCancelled = true);
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(msg),
+                            backgroundColor: const Color(0xFFFF5A00),
+                          ),
+                        );
+                      }
                     }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(msg),
-                        backgroundColor: const Color(0xFFFF5A00),
-                      ),
-                    );
-                  }
-                }
-              : () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal pickup ($pickupTimeStr).',
-                      ),
-                      backgroundColor: const Color(0xFFFF5A00),
-                      duration: const Duration(seconds: 4),
+                  : () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Penjemputan belum dapat dimulai ($statusLabel). Anda dapat mulai 30 menit sebelum jadwal pickup ($pickupTimeStr).',
+                          ),
+                          backgroundColor: const Color(0xFFFF5A00),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: canStartPickup ? const Color(0xFFFF5A00) : Colors.white,
+                foregroundColor: canStartPickup ? Colors.white : Colors.black,
+                side: canStartPickup ? BorderSide.none : const BorderSide(color: Colors.black, width: 1.2),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    canStartPickup ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
+                    size: 18,
+                    color: canStartPickup ? Colors.white : Colors.black,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    canStartPickup ? 'Mulai Pickup Sekarang' : 'Mulai Pickup (Terkunci)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: canStartPickup ? Colors.white : Colors.black,
                     ),
-                  );
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: canStartPickup ? const Color(0xFFFF5A00) : Colors.white,
-            foregroundColor: canStartPickup ? Colors.white : Colors.black,
-            side: canStartPickup ? BorderSide.none : const BorderSide(color: Colors.black, width: 1.2),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            elevation: 0,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                canStartPickup ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
-                size: 18,
-                color: canStartPickup ? Colors.white : Colors.black,
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                canStartPickup ? 'Mulai Pickup Sekarang' : 'Mulai Pickup (Terkunci)',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: canStartPickup ? Colors.white : Colors.black,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 8),
+          _buildCancelAssignmentButton(
+            onPressed: () => _onCancelOrderButtonPressed(isAlreadyPickedUp: false),
+          ),
+        ],
       );
     }
 
     if (isPickingUp) {
-      return Row(
+      return Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _showReportIssueDialog,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.black, width: 1.2),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _showReportIssueDialog,
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.black, width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text(
+                    'Kendala Pickup',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DriverDeliveryFlowScreen(order: widget.shipment),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF5A00),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Proses Pickup',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildCancelAssignmentButton(
+            onPressed: () => _onCancelOrderButtonPressed(isAlreadyPickedUp: false),
+          ),
+        ],
+      );
+    }
+
+    if (isPickedUp) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                final res = await CourierOrderService.updateOrderStatus(
+                  orderId: widget.shipment['id'].toString(),
+                  status: 'delivering',
+                );
+                if (!mounted) return;
+                if (res['success'] == true) {
+                  final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DriverDeliveryFlowScreen(order: updated),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5A00),
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
               ),
               child: const Text(
-                'Kendala Pickup',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black),
+                'Mulai Antar ke Penerima',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            flex: 2,
+          const SizedBox(height: 8),
+          _buildCancelAssignmentButton(
+            onPressed: () => _onCancelOrderButtonPressed(isAlreadyPickedUp: true),
+          ),
+        ],
+      );
+    }
+
+    if (isDelivering) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
                 Navigator.pushReplacement(
@@ -1324,74 +1475,16 @@ class _DriverDetailShipmentScreenState
                 elevation: 0,
               ),
               child: const Text(
-                'Proses Pickup',
+                'Lanjutkan Pengantaran',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          _buildCancelAssignmentButton(
+            onPressed: () => _onCancelOrderButtonPressed(isAlreadyPickedUp: true),
+          ),
         ],
-      );
-    }
-
-    if (isPickedUp) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () async {
-            final res = await CourierOrderService.updateOrderStatus(
-              orderId: widget.shipment['id'].toString(),
-              status: 'delivering',
-            );
-            if (!mounted) return;
-            if (res['success'] == true) {
-              final updated = (res['data'] as Map<String, dynamic>?) ?? widget.shipment;
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DriverDeliveryFlowScreen(order: updated),
-                ),
-              );
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5A00),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            elevation: 0,
-          ),
-          child: const Text(
-            'Mulai Antar ke Penerima',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-          ),
-        ),
-      );
-    }
-
-    if (isDelivering) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DriverDeliveryFlowScreen(order: widget.shipment),
-              ),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5A00),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            elevation: 0,
-          ),
-          child: const Text(
-            'Lanjutkan Pengantaran',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-          ),
-        ),
       );
     }
 
@@ -1421,6 +1514,456 @@ class _DriverDetailShipmentScreenState
     }
 
     return const SizedBox.shrink();
+  }
+
+  Widget _buildCancelAssignmentButton({required VoidCallback onPressed}) {
+    if (_isPendingAdminApproval) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: null,
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFFF59E0B), width: 1.2),
+            backgroundColor: const Color(0xFFFFFBEB),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.hourglass_top_rounded, size: 16, color: Color(0xFFD97706)),
+              SizedBox(width: 6),
+              Text(
+                'Menunggu Persetujuan Admin',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: (_isAccepting || _isCancellingAssignment) ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFFDC2626), width: 1.3),
+          foregroundColor: const Color(0xFFDC2626),
+          backgroundColor: const Color(0xFFFEF2F2),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: _isCancellingAssignment
+            ? const SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(
+                  color: Color(0xFFDC2626),
+                  strokeWidth: 2,
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+                  SizedBox(width: 6),
+                  Text(
+                    'Batalkan Pesanan',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  void _onCancelOrderButtonPressed({required bool isAlreadyPickedUp}) {
+    if (isAlreadyPickedUp) {
+      _showCannotCancelAfterPickupDialog();
+      return;
+    }
+    _showCourierCancelConfirmationDialog();
+  }
+
+  void _showCannotCancelAfterPickupDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Pembatalan Tidak Dapat Diproses',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Barang sudah diambil atau sedang dalam pengiriman. Kurir tidak diizinkan membatalkan pesanan secara langsung. Silakan laporkan kendala kepada admin City Courier.',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: Colors.black87,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Kembali',
+              style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black54),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showReportIssueDialog();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5A00),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text(
+              'Laporkan Kendala ke Admin',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCourierCancelConfirmationDialog() {
+    String? selectedReason;
+    final notesController = TextEditingController();
+    final List<String> cancelReasons = [
+      'Tidak dapat menjemput pada jadwal yang ditentukan.',
+      'Kendala kendaraan.',
+      'Lokasi pickup sulit dijangkau.',
+      'Kendala pribadi atau keadaan darurat.',
+      'Alasan lainnya.',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final bool isOtherSelected = selectedReason == 'Alasan lainnya.';
+            final bool canConfirm = selectedReason != null &&
+                (!isOtherSelected || notesController.text.trim().isNotEmpty);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'Batalkan Pesanan?',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.black),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Apakah kamu yakin ingin membatalkan penugasan pesanan ini? Pastikan kamu memilih alasan yang sesuai.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...cancelReasons.map(
+                      (reason) => RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          reason,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
+                          ),
+                        ),
+                        value: reason,
+                        groupValue: selectedReason,
+                        activeColor: const Color(0xFFDC2626),
+                        onChanged: (val) {
+                          setModalState(() {
+                            selectedReason = val;
+                          });
+                        },
+                      ),
+                    ),
+                    if (isOtherSelected) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: notesController,
+                        maxLines: 2,
+                        onChanged: (_) => setModalState(() {}),
+                        style: const TextStyle(fontSize: 12, color: Colors.black),
+                        decoration: InputDecoration(
+                          labelText: 'Keterangan tambahan (wajib diisi)',
+                          labelStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+                          hintText: 'Tuliskan alasan pembatalan penugasan secara jelas...',
+                          hintStyle: const TextStyle(fontSize: 12, color: Colors.black45),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.all(12),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.black26, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text(
+                              'Kembali',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: canConfirm
+                                ? () async {
+                                    final chosenReason = selectedReason!;
+                                    final extraNotes = notesController.text.trim();
+                                    Navigator.pop(ctx);
+                                    await _submitCourierCancelAssignment(
+                                      reason: chosenReason,
+                                      notes: extraNotes,
+                                    );
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFDC2626),
+                              disabledBackgroundColor: Colors.black12,
+                              foregroundColor: Colors.white,
+                              disabledForegroundColor: Colors.black38,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Konfirmasi Pembatalan',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _submitCourierCancelAssignment({
+    required String reason,
+    String? notes,
+  }) async {
+    final orderId = widget.shipment['id']?.toString() ?? '';
+    setState(() {
+      _isCancellingAssignment = true;
+    });
+
+    final result = await CourierOrderService.cancelCourierAssignment(
+      orderId: orderId,
+      reason: reason,
+      notes: notes,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isCancellingAssignment = false;
+      if (result['success'] == true && result['action_taken'] == 'pending_approval') {
+        _localCourierCancelStatus = 'pending_approval';
+      }
+    });
+
+    _showCourierCancelResultDialog(result);
+  }
+
+  void _showCourierCancelResultDialog(Map<String, dynamic> result) {
+    final bool isSuccess = result['success'] == true;
+    final String actionTaken = (result['action_taken'] ?? '').toString();
+    final bool isPendingApproval = isSuccess && actionTaken == 'pending_approval';
+    final bool isReleased = isSuccess && !isPendingApproval;
+
+    final String title = isReleased
+        ? 'Penugasan Berhasil Dibatalkan'
+        : (isPendingApproval
+            ? 'Permintaan Pembatalan Terkirim'
+            : 'Pembatalan Tidak Dapat Diproses');
+
+    final String message = isReleased
+        ? 'Penugasan pesanan ini sudah dilepas dari akun kamu.'
+        : (isPendingApproval
+            ? 'Permintaan kamu sedang diperiksa oleh admin. Status penugasan akan diperbarui setelah keputusan diberikan.'
+            : (result['message'] ?? 'Pembatalan penugasan tidak dapat diproses saat ini.').toString());
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              isReleased
+                  ? Icons.check_circle_outline_rounded
+                  : (isPendingApproval
+                      ? Icons.hourglass_top_rounded
+                      : Icons.error_outline_rounded),
+              color: isReleased
+                  ? const Color(0xFF22C55E)
+                  : (isPendingApproval
+                      ? const Color(0xFFD97706)
+                      : const Color(0xFFDC2626)),
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: Colors.black87,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          if (!isSuccess && result['error_code'] == 'item_already_picked_up')
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showReportIssueDialog();
+              },
+              child: const Text(
+                'Laporkan Kendala ke Admin',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFFF5A00),
+                ),
+              ),
+            ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (isReleased && mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isReleased
+                  ? const Color(0xFF22C55E)
+                  : (isPendingApproval
+                      ? const Color(0xFFFF5A00)
+                      : Colors.black),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: Text(
+              isReleased
+                  ? 'Selesai'
+                  : (isPendingApproval
+                      ? 'Mengerti'
+                      : 'Kembali ke Detail Pesanan'),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showReportIssueDialog() {
