@@ -8,6 +8,8 @@ import 'package:city_courierapp/screens/widgets/home/courier_banner.dart';
 import 'package:city_courierapp/screens/widgets/home/other_features_section.dart';
 import 'package:city_courierapp/screens/widgets/home/bottom_nav_bar.dart';
 import 'package:city_courierapp/screens/widgets/home/theme_toggle_fab.dart';
+import 'package:city_courierapp/screens/widgets/home/floating_active_order_widget.dart';
+import 'package:city_courierapp/services/shipping/active_order_service.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/screens/widgets/home/complete_profile_sheet.dart';
 
@@ -24,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
+    ActiveOrderService.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkProfileCompletion();
     });
@@ -46,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   @override
   void didPopNext() {
+    ActiveOrderService.init();
     _checkProfileCompletion();
   }
 
@@ -109,10 +113,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 const ServicesSection(),
                 CourierBanner(userData: _userData),
                 OtherFeaturesSection(userData: _userData),
-                const SizedBox(height: 100),
+                const SizedBox(height: 220), // Ensure content is scrollable above the floating card and nav bar
               ],
             ),
           ),
+          // Floating active order delivery card (Melayang di atas bottom navigation bar)
+          const FloatingActiveOrderWidget(),
           const BottomNavBar(activeIndex: 0),
           const ThemeToggleFab(),
         ],

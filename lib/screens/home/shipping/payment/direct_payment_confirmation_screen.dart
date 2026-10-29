@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_detail_screen.dart';
+import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
 class DirectPaymentConfirmationScreen extends StatelessWidget {
   final String orderId;
@@ -114,6 +115,23 @@ class DirectPaymentConfirmationScreen extends StatelessWidget {
     const Color orangeBg = Color(0xFFFFF7ED);
     const Color orangeBorder = Color(0xFFFED7AA);
     const Color waGreen = Color(0xFF00B761);
+
+    // Otomatis simpan pesanan aktif agar langsung melayang di Beranda pengguna
+    final destCity = receiverCity ?? shipmentData?['destination_name'] ?? 'Kebayoran Baru';
+    final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
+    final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Toyota Avanza • B 1234 ABC' : 'Honda Vario • B 4920 SDC';
+    ActiveOrderService.saveActiveOrder({
+      'order_id': orderId,
+      'status': 'Sedang Dikirim',
+      'estimated_time': '~25 mnt',
+      'courier_name': 'Pak Budi Santoso',
+      'courier_vehicle': veh,
+      'courier_phone': '081234567890',
+      'destination': destCity,
+      'status_message': 'Kurir sedang menuju alamat penerima di $destCity',
+      'step': 1,
+      'shipment_data': shipmentData,
+    });
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
