@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 
-/// DANA connection status from PRD §32
-enum DanaConnectionStatus {
+/// OVO connection status
+enum OvoConnectionStatus {
   notConnected,
   pending,
   connected,
@@ -14,62 +14,93 @@ enum DanaConnectionStatus {
   failed,
 }
 
-/// Wallet status from PRD §6
+// Backward compatibility alias
+typedef DanaConnectionStatus = OvoConnectionStatus;
+
+/// Wallet status
 enum WalletStatus {
   notActive,
   active,
   suspended,
 }
 
-/// DANA connection model
-class DanaConnection {
-  final DanaConnectionStatus status;
+/// OVO Connection Model
+class OvoConnection {
+  final OvoConnectionStatus status;
   final String? maskedPhone;
+  final String? accountName;
+  final String provider;
   final String? connectedAt;
 
-  DanaConnection({
+  OvoConnection({
     required this.status,
     this.maskedPhone,
+    this.accountName,
+    this.provider = 'OVO',
     this.connectedAt,
   });
 
-  factory DanaConnection.fromJson(Map<String, dynamic> json) {
-    return DanaConnection(
-      status: DanaConnectionStatus.values.firstWhere(
-        (e) => e.name == json['status']?.toString().toLowerCase(),
-        orElse: () => DanaConnectionStatus.notConnected,
+  factory OvoConnection.fromJson(Map<String, dynamic> json) {
+    final statusStr = json['status']?.toString().toLowerCase() ?? '';
+    return OvoConnection(
+      status: OvoConnectionStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == statusStr,
+        orElse: () => json['connected'] == true
+            ? OvoConnectionStatus.connected
+            : OvoConnectionStatus.notConnected,
       ),
-      maskedPhone: json['masked_account'] ?? json['masked_phone'],
-      connectedAt: json['connected_at'],
+      maskedPhone: json['masked_account'] ?? json['masked_phone'] ?? json['phone_number'],
+      accountName: json['account_name'],
+      provider: json['provider']?.toString() ?? 'OVO',
+      connectedAt: json['connected_at'] ?? json['bound_at'],
     );
   }
 
-  bool get isConnected => status == DanaConnectionStatus.connected;
+  bool get isConnected => status == OvoConnectionStatus.connected;
 }
+
+// Backward compatibility alias
+typedef DanaConnection = OvoConnection;
 
 /// Wallet balance model
 class WalletBalance {
   final double availableBalance;
   final double pendingBalance;
+  final double totalBalance;
+  final double todayEarnings;
+  final double totalEarnings;
   final String currency;
 
   WalletBalance({
     required this.availableBalance,
     required this.pendingBalance,
+    double? totalBalance,
+    this.todayEarnings = 0.0,
+    this.totalEarnings = 0.0,
     required this.currency,
-  });
+  }) : totalBalance = totalBalance ?? (availableBalance + pendingBalance);
 
   factory WalletBalance.fromJson(Map<String, dynamic> json) {
+    final avail = (json['available_balance'] ?? 0).toDouble();
+    final pend = (json['pending_balance'] ?? 0).toDouble();
+    final tot = json['total_balance'] != null
+        ? (json['total_balance'] as num).toDouble()
+        : (avail + pend);
+    final today = (json['today_earnings'] ?? 0).toDouble();
+    final totalEarn = (json['total_earnings'] ?? 0).toDouble();
+
     return WalletBalance(
-      availableBalance: (json['available_balance'] ?? 0).toDouble(),
-      pendingBalance: (json['pending_balance'] ?? 0).toDouble(),
+      availableBalance: avail,
+      pendingBalance: pend,
+      totalBalance: tot,
+      todayEarnings: today,
+      totalEarnings: totalEarn,
       currency: json['currency'] ?? 'IDR',
     );
   }
 }
 
 /// Withdrawal fee configuration from backend
-/// PRD §15: Fee from configuration, not hardcoded.
 class WithdrawalFeeConfig {
   final double adminFee;
   final double minimum;
@@ -93,7 +124,7 @@ class WithdrawalFeeConfig {
   }
 }
 
-/// Wallet Service - handles wallet state, DANA connection, and withdrawal API
+/// Wallet Service - handles wallet state, OVO connection, and withdrawal API
 class WalletService {
   static String get _baseUrl => ApiService.baseUrl;
 
@@ -127,11 +158,11 @@ class WalletService {
     }
   }
 
-  /// Get DANA connection status
-  static Future<Map<String, dynamic>> getDanaStatus() async {
+  /// Get OVO connection status
+  static Future<Map<String, dynamic>> getOvoStatus() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/courier/dana/status'),
+        Uri.parse('$_baseUrl/courier/ovo/status'),
         headers: await _getHeaders(),
       );
 
@@ -147,106 +178,69 @@ class WalletService {
     }
   }
 
-  /// Start DANA linking - creates binding session via backend.
-  /// PRD §8.1: POST /api/courier/dana/binding → { binding_url, expires_at }
-  static Future<Map<String, dynamic>> connectDana() async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/courier/dana/binding'),
-        headers: await _getHeaders(),
-      );
-
-      final data = json.decode(response.body);
-      return {
-        'success': response.statusCode == 200 && data['success'] == true,
-        'sessionId': data['data']?['session_id'],
-        'authorizationUrl': data['data']?['binding_url'] ??
-            data['data']?['authorization_url'] ??
-            data['data']?['redirect_url'],
-        'expiresAt': data['data']?['expires_at'],
-        'status': data['data']?['status'],
-        'errorCode': data['error_code'],
-        'message': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'message': e.toString(), 'errorCode': 'NETWORK_ERROR'};
-    }
-  }
-
-  /// Mode Demo: minta backend mencatat koneksi DANA simulasi.
-  /// Backend yang mengelola status (POST /courier/dana/mock-connect).
-  static Future<Map<String, dynamic>> mockConnectDana() async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/courier/dana/mock-connect'),
-        headers: await _getHeaders(),
-      );
-
-      final data = json.decode(response.body);
-      return {
-        'success': response.statusCode == 200 && data['success'] == true,
-        'data': data['data'],
-        'errorCode': data['error_code'],
-        'message': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'message': e.toString(), 'errorCode': 'NETWORK_ERROR'};
-    }
-  }
-
-  /// Verify DANA account via Account Inquiry with phone number.
-  /// PRD §8-10: Input phone → Account Inquiry → Valid/Invalid
-  static Future<Map<String, dynamic>> verifyDana({
+  /// Connect OVO account via Account Inquiry and Consent
+  static Future<Map<String, dynamic>> connectOvo({
     required String phoneNumber,
+    required String accountName,
+    required bool consent,
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/courier/dana/verify'),
+        Uri.parse('$_baseUrl/courier/ovo/connect'),
         headers: await _getHeaders(),
-        body: json.encode({'phone_number': phoneNumber}),
+        body: json.encode({
+          'phone_number': phoneNumber,
+          'account_name': accountName,
+          'consent': consent,
+        }),
       );
 
-      // If 404, the endpoint is not deployed yet — return clear signal
-      if (response.statusCode == 404) {
-        return {
-          'success': false,
-          'data': null,
-          'message': 'Route not found — endpoint not deployed',
-        };
-      }
-
-      // Try to parse JSON response
-      try {
-        final data = json.decode(response.body);
-        return {
-          'success': response.statusCode == 200 && data['success'] == true,
-          'data': data['data'],
-          'message': data['message'],
-        };
-      } catch (_) {
-        // Response is not JSON (Laravel returns HTML for 404s)
-        return {
-          'success': false,
-          'data': null,
-          'message': 'Route not found — endpoint not deployed',
-        };
-      }
-    } catch (e) {
-      // Network error
+      final data = json.decode(response.body);
       return {
-        'success': false,
-        'data': null,
-        'message': 'Route not found — endpoint not deployed',
+        'success': response.statusCode == 200 && data['success'] == true,
+        'data': data['data'],
+        'errorCode': data['error_code'],
+        'message': data['message'],
       };
+    } catch (e) {
+      return {'success': false, 'message': e.toString(), 'errorCode': 'NETWORK_ERROR'};
     }
   }
 
-  /// Disconnect DANA account.
-  /// PRD §27: POST /api/courier/dana/unbind
-  static Future<Map<String, dynamic>> disconnectDana() async {
+  /// Update OVO account details
+  static Future<Map<String, dynamic>> updateOvo({
+    required String phoneNumber,
+    required String accountName,
+    required bool consent,
+  }) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/courier/dana/unbind'),
+        Uri.parse('$_baseUrl/courier/ovo/update'),
+        headers: await _getHeaders(),
+        body: json.encode({
+          'phone_number': phoneNumber,
+          'account_name': accountName,
+          'consent': consent,
+        }),
+      );
+
+      final data = json.decode(response.body);
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'data': data['data'],
+        'errorCode': data['error_code'],
+        'message': data['message'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString(), 'errorCode': 'NETWORK_ERROR'};
+    }
+  }
+
+  /// Disconnect OVO account
+  static Future<Map<String, dynamic>> disconnectOvo() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/courier/ovo/unbind'),
         headers: await _getHeaders(),
       );
 
@@ -261,28 +255,14 @@ class WalletService {
     }
   }
 
-  /// Reconnect DANA account (replace with new DANA account).
-  /// PRD §28: POST /api/courier/dana/rebind
-  static Future<Map<String, dynamic>> reconnectDana() async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/courier/dana/rebind'),
-        headers: await _getHeaders(),
-      );
-
-      final data = json.decode(response.body);
-      return {
-        'success': response.statusCode == 200 && data['success'] == true,
-        'sessionId': data['data']?['session_id'],
-        'authorizationUrl': data['data']?['binding_url'] ??
-            data['data']?['authorization_url'] ??
-            data['data']?['redirect_url'],
-        'errorCode': data['error_code'],
-        'message': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'message': e.toString(), 'errorCode': 'NETWORK_ERROR'};
-    }
+  // Backward compatibility alias methods for DANA
+  static Future<Map<String, dynamic>> getDanaStatus() async => getOvoStatus();
+  static Future<Map<String, dynamic>> connectDana() async => getOvoStatus();
+  static Future<Map<String, dynamic>> disconnectDana() async => disconnectOvo();
+  static Future<Map<String, dynamic>> reconnectDana() async => getOvoStatus();
+  static Future<Map<String, dynamic>> mockConnectDana() async => getOvoStatus();
+  static Future<Map<String, dynamic>> verifyDana({required String phoneNumber}) async {
+    return connectOvo(phoneNumber: phoneNumber, accountName: 'Kurir', consent: true);
   }
 
   /// Get wallet transactions
@@ -305,7 +285,6 @@ class WalletService {
   }
 
   /// Get courier earnings summary (Hari/Minggu/Bulan + saldo + aktivitas terbaru)
-  /// GET /api/courier/earnings
   static Future<Map<String, dynamic>> getEarnings() async {
     try {
       final response = await http.get(
@@ -324,8 +303,7 @@ class WalletService {
     }
   }
 
-  /// Get withdrawal fee configuration from backend.
-  /// PRD §15: Fee from configuration, not hardcoded.
+  /// Get withdrawal fee configuration from backend
   static Future<Map<String, dynamic>> getFeeConfig() async {
     try {
       final response = await http.get(
@@ -344,14 +322,14 @@ class WalletService {
     }
   }
 
-  /// Create withdrawal request
+  /// Create withdrawal request (OVO)
   static Future<Map<String, dynamic>> createWithdrawal({
     required double amount,
     required String idempotencyKey,
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/courier/withdrawals'),
+        Uri.parse('$_baseUrl/courier/ovo/withdraw'),
         headers: await _getHeaders(),
         body: json.encode({
           'amount': amount,
@@ -361,7 +339,7 @@ class WalletService {
 
       final data = json.decode(response.body);
       return {
-        'success': response.statusCode == 200 &&
+        'success': response.statusCode >= 200 &&
             response.statusCode < 300 &&
             data['success'] == true,
         'data': data['data'],
@@ -372,12 +350,12 @@ class WalletService {
     }
   }
 
-  /// Get withdrawal status
+  /// Get withdrawal status / sync
   static Future<Map<String, dynamic>> getWithdrawalStatus(
       String withdrawalId) async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/courier/withdrawals/$withdrawalId'),
+        Uri.parse('$_baseUrl/courier/withdrawals/$withdrawalId/status'),
         headers: await _getHeaders(),
       );
 
@@ -412,14 +390,12 @@ class WalletService {
   }
 
   /// Generate idempotency key for withdrawal.
-  /// PRD §25: Unique idempotency key with timestamp and random component.
   static String generateIdempotencyKey() {
     final now = DateTime.now();
     final dateStr =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
     final timeStr =
         '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
-    // Use microseconds for uniqueness
     final microStr = now.microsecond.toString().padLeft(6, '0');
     return 'WD-$dateStr-$timeStr-$microStr';
   }

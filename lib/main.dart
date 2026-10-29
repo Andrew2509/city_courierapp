@@ -8,18 +8,18 @@ import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/screens/profile/daftar_kurir/daftar_kurir_data.dart';
 
-/// Global route observer – screens can subscribe to detect when they become
+/// Global route observer â€“ screens can subscribe to detect when they become
 /// visible again (e.g. after Navigator.pop from a child screen).
 final RouteObserver<ModalRoute> routeObserver = RouteObserver<ModalRoute>();
 
-/// Global navigator key – dipakai router global (cold-start deep link).
+/// Global navigator key â€“ dipakai router global (cold-start deep link).
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Siapkan deep link sebelum runApp agar cold-start tidak terlewat (PRD §32).
+  // Siapkan deep link sebelum runApp agar cold-start tidak terlewat (PRD Â§32).
   await DeepLinkService.instance.init();
   final initialLink = await DeepLinkService.instance.getInitialLink();
 
@@ -34,15 +34,16 @@ void main() async {
   );
 
   if (initialLink != null) {
-    _openColdStartDanaLink(initialLink);
+    _openColdStartWalletLink(initialLink);
   }
 }
 
 /// Cold start dari deep link citycourier://dana/binding/{success,failed}
-/// → arahkan langsung ke dompet kurir agar status koneksi terlihat.
-Future<void> _openColdStartDanaLink(Uri uri) async {
-  if (!DeepLinkService.instance.isDanaSuccess(uri) &&
-      !DeepLinkService.instance.isDanaFailed(uri)) {
+/// â†’ arahkan langsung ke dompet kurir agar status koneksi terlihat.
+Future<void> _openColdStartWalletLink(Uri uri) async {
+  final isOvo = DeepLinkService.instance.isOvoSuccess(uri) || DeepLinkService.instance.isOvoFailed(uri);
+  final isDana = DeepLinkService.instance.isDanaSuccess(uri) || DeepLinkService.instance.isDanaFailed(uri);
+  if (!isOvo && !isDana) {
     return;
   }
 
@@ -84,3 +85,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

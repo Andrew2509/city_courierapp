@@ -2,14 +2,16 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 
-/// Mendengarkan deep link CityCourier (PRD §13, §32).
+/// Mendengarkan deep link CityCourier.
 ///
-/// Setelah binding DANA selesai, backend me-redirect browser ke:
+/// Setelah binding OVO / DANA selesai, backend me-redirect browser ke:
+///   citycourier://ovo/binding/success
+///   citycourier://ovo/binding/failed
 ///   citycourier://dana/binding/success
 ///   citycourier://dana/binding/failed
 ///
-/// Per PRD §13, deep link HANYA dipakai sebagai sinyal "kembali ke app";
-/// status final harus selalu dikonfirmasi ke backend lewat GET /dana/status.
+/// Deep link HANYA dipakai sebagai sinyal "kembali ke app";
+/// status final harus selalu dikonfirmasi ke backend lewat GET /ovo/status atau /dana/status.
 class DeepLinkService {
   DeepLinkService._internal();
 
@@ -46,6 +48,16 @@ class DeepLinkService {
     }
     return _cachedInitial;
   }
+
+  bool isOvoSuccess(Uri uri) =>
+      uri.scheme == 'citycourier' &&
+      uri.host == 'ovo' &&
+      uri.path == '/binding/success';
+
+  bool isOvoFailed(Uri uri) =>
+      uri.scheme == 'citycourier' &&
+      uri.host == 'ovo' &&
+      uri.path == '/binding/failed';
 
   bool isDanaSuccess(Uri uri) =>
       uri.scheme == 'citycourier' &&

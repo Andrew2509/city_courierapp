@@ -6,7 +6,6 @@ import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dana_linking_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/tarik_dana_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/kelola_dana_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/riwayat_transaksi_screen.dart';
 import 'package:city_courierapp/services/courier/courier_profile_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
@@ -19,17 +18,14 @@ class DompetScreen extends StatefulWidget {
 }
 
 class _DompetScreenState extends State<DompetScreen> {
-  DanaConnection? _danaConnection;
+  OvoConnection? _ovoConnection;
   WalletBalance? _walletBalance;
   bool _isLoading = true;
   String? _error;
 
-  // Earnings data from backend (GET /api/courier/earnings)
   double _pendapatanHari = 0;
-  double _pendapatanMinggu = 0;
+  double _totalPendapatan = 0;
   List<Map<String, dynamic>> _recentActivity = [];
-
-  // ID kurir (CR-XXXX) dari profil — best effort, tidak menggagalkan layar.
   String _courierId = '';
 
   @override
@@ -39,7 +35,6 @@ class _DompetScreenState extends State<DompetScreen> {
     _loadCourierId();
   }
 
-  /// Ambil ID kurir tanpa memblokir muatan utama dompet.
   Future<void> _loadCourierId() async {
     try {
       final result = await CourierProfileService.getProfile();
@@ -47,9 +42,7 @@ class _DompetScreenState extends State<DompetScreen> {
       if (mounted && courierId != null) {
         setState(() => _courierId = courierId.toString());
       }
-    } catch (_) {
-      // Abaikan — ID kurir bersifat dekoratif pada kartu saldo.
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadWalletData() async {
@@ -59,28 +52,23 @@ class _DompetScreenState extends State<DompetScreen> {
     });
 
     try {
-      // Get DANA status
-      final danaResult = await WalletService.getDanaStatus();
-
-      // Get wallet balance
+      final ovoResult = await WalletService.getOvoStatus();
       final walletResult = await WalletService.getWallet();
-
-      // Get earnings summary (Hari/Minggu/Bulan + aktivitas terbaru)
       final earningsResult = await WalletService.getEarnings();
 
       if (mounted) {
         setState(() {
           _isLoading = false;
 
-          if (danaResult['success'] && danaResult['data'] != null) {
-            _danaConnection = DanaConnection.fromJson(danaResult['data']);
+          if (ovoResult['success'] == true && ovoResult['data'] != null) {
+            _ovoConnection = OvoConnection.fromJson(ovoResult['data']);
           } else {
-            _danaConnection = DanaConnection(
-              status: DanaConnectionStatus.notConnected,
+            _ovoConnection = OvoConnection(
+              status: OvoConnectionStatus.notConnected,
             );
           }
 
-          if (walletResult['success'] && walletResult['data'] != null) {
+          if (walletResult['success'] == true && walletResult['data'] != null) {
             _walletBalance = WalletBalance.fromJson(walletResult['data']);
           } else {
             _walletBalance = WalletBalance(
@@ -93,8 +81,8 @@ class _DompetScreenState extends State<DompetScreen> {
           final earningsData = earningsResult['success'] == true
               ? (earningsResult['data'] as Map<String, dynamic>?)
               : null;
-          _pendapatanHari = ((earningsData?['today'] ?? 0) as num).toDouble();
-          _pendapatanMinggu = ((earningsData?['week'] ?? 0) as num).toDouble();
+          _pendapatanHari = ((earningsData?['today'] ?? _walletBalance?.todayEarnings ?? 0) as num).toDouble();
+          _totalPendapatan = ((earningsData?['total'] ?? _walletBalance?.totalEarnings ?? 0) as num).toDouble();
           _recentActivity = (earningsData?['recent_activity'] as List<dynamic>? ?? [])
               .map((e) => (e as Map).cast<String, dynamic>())
               .toList();
@@ -105,24 +93,70 @@ class _DompetScreenState extends State<DompetScreen> {
         setState(() {
           _isLoading = false;
           _error = 'Gagal memuat data dompet';
-          _danaConnection = DanaConnection(
-            status: DanaConnectionStatus.notConnected,
-          );
-          _walletBalance = WalletBalance(
-            availableBalance: 0,
-            pendingBalance: 0,
-            currency: 'IDR',
-          );
-          _pendapatanHari = 0;
-          _pendapatanMinggu = 0;
+          _ovoConnection = OvoConnection(status: OvoConnectionStatus.notConnected);
+          _walletBalance = WalletBalance(availableBalance: 0, pendingBalance: 0, currency: 'IDR');
           _recentActivity = [];
         });
       }
     }
   }
 
-  bool get _isDanaConnected => _danaConnection?.isConnected ?? false;
-  bool get _isDanaPending => _danaConnection?.status == DanaConnectionStatus.pending;
+  bool get _isOvoConnected => _ovoConnection?.isConnected ?? false;
+
+  String _formatRupiah(double amount) {
+    final digits = amount.toStringAsFixed(0);
+    final grouped = digits.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+    return 'Rp $grouped';
+  }
+
+  void _showDisconnectDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Hapus Koneksi OVO?',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Akun OVO akan dilepas dari dompet kurir. Anda tidak dapat melakukan pencairan saldo sampai menghubungkan kembali nomor OVO.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final res = await WalletService.disconnectOvo();
+              if (mounted) {
+                if (res['success'] == true) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Koneksi OVO berhasil dihapus'),
+                      backgroundColor: Color(0xFF16A34A),
+                    ),
+                  );
+                }
+                _loadWalletData();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Hapus Koneksi'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +180,36 @@ class _DompetScreenState extends State<DompetScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const SizedBox(height: 12),
+                            if (_error != null)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFFECACA)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _error!,
+                                        style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            _buildTotalSaldoCard(),
                             const SizedBox(height: 16),
-                            _buildWalletContent(),
+                            _buildEarningsSummaryGrid(),
+                            const SizedBox(height: 16),
+                            _buildMetodePencairanCard(),
+                            const SizedBox(height: 20),
+                            _buildRecentActivitySection(),
                             const SizedBox(height: 100),
                           ],
                         ),
@@ -170,8 +232,6 @@ class _DompetScreenState extends State<DompetScreen> {
               context,
               MaterialPageRoute(builder: (context) => const DriverShipmentScreen()),
             );
-          } else if (index == 2) {
-            // Already on Pendapatan
           } else if (index == 3) {
             Navigator.pushReplacement(
               context,
@@ -185,8 +245,8 @@ class _DompetScreenState extends State<DompetScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-      color: AppColors.backgroundColor,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      color: Colors.white,
       child: Row(
         children: [
           GestureDetector(
@@ -195,11 +255,11 @@ class _DompetScreenState extends State<DompetScreen> {
           ),
           const Expanded(
             child: Text(
-              'Dompet',
+              'Dompet City Courier',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
                 color: Color(0xFF191B23),
               ),
             ),
@@ -210,253 +270,26 @@ class _DompetScreenState extends State<DompetScreen> {
     );
   }
 
-  Widget _buildWalletContent() {
-    if (_error != null) {
-      return _buildErrorState();
-    }
+  Widget _buildTotalSaldoCard() {
+    final total = _walletBalance?.totalBalance ?? 0;
+    final available = _walletBalance?.availableBalance ?? 0;
+    final pending = _walletBalance?.pendingBalance ?? 0;
 
-    // Show different content based on DANA connection status
-    if (_isDanaConnected) {
-      return _buildConnectedState();
-    } else if (_isDanaPending) {
-      return _buildPendingState();
-    } else {
-      return _buildNotConnectedState();
-    }
-  }
-
-  // ========== ERROR STATE ==========
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadWalletData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Coba Lagi'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ========== NOT CONNECTED STATE ==========
-  Widget _buildNotConnectedState() {
-    return Column(
-      children: [
-        // Activation card
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE8E8E8)),
-          ),
-          child: Column(
-            children: [
-              // Icon/Illustration Area — lingkaran lembut + ikon dompet
-              Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryOrange.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet,
-                  size: 48,
-                  color: AppColors.primaryOrange,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Aktifkan Dana',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF191B23),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Hubungkan akun DANA Anda untuk menerima pendapatan CityCourier.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF64748B),
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DanaLinkingScreen(),
-                      ),
-                    );
-                    _loadWalletData();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryOrange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Hubungkan DANA',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, size: 18, color: Colors.white),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  onPressed: () async {
-                    // Mode Demo: backend yang mencatat koneksi simulasi,
-                    // lalu Dompet membaca ulang status asli dari backend.
-                    await WalletService.mockConnectDana();
-                    if (!mounted) return;
-                    _loadWalletData();
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primaryTeal,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.science_outlined, size: 18),
-                  label: const Text(
-                    'Lihat Contoh Dompet (Demo)',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        
-        // Still show earnings even when not connected
-        _buildPendapatanSection(),
-      ],
-    );
-  }
-
-  // ========== PENDING STATE ==========
-  Widget _buildPendingState() {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE8E8E8)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(
-                width: 48,
-                height: 48,
-                child: CircularProgressIndicator(
-                  color: AppColors.primaryOrange,
-                  strokeWidth: 3,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Menghubungkan DANA',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF191B23),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Kami sedang memverifikasi akun DANA Anda.\nMohon tunggu...',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF64748B),
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ========== CONNECTED STATE ==========
-  Widget _buildConnectedState() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSaldoCard(),
-        const SizedBox(height: 16),
-        _buildDanaAccountCard(),
-        const SizedBox(height: 24),
-        _buildPendapatanSection(),
-        const SizedBox(height: 24),
-        _buildRecentActivity(),
-      ],
-    );
-  }
-
-  Widget _buildSaldoCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.primaryOrange,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B00), Color(0xFFFF8533)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryOrange.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFFFF6B00).withOpacity(0.25),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -467,190 +300,117 @@ class _DompetScreenState extends State<DompetScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'SALDO UTAMA',
+                'TOTAL SALDO',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
                   color: Colors.white70,
                 ),
               ),
-              const Icon(Icons.account_balance_wallet, color: Colors.white70, size: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _courierId.isEmpty ? 'CR-PARTNER' : 'CR-$_courierId',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            _formatRupiah(_walletBalance?.availableBalance ?? 0),
+            _formatRupiah(total),
             style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
               color: Colors.white,
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'ID Courier',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _courierId.isEmpty ? 'CR-????' : 'CR-$_courierId',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TarikDanaScreen(),
-                    ),
-                  );
-                  _loadWalletData();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primaryOrange,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  minimumSize: Size.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Tarik Dana',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDanaAccountCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
+          const SizedBox(height: 18),
           Container(
-            width: 40,
-            height: 40,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.account_balance,
-              color: AppColors.primaryBlue,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'DANA',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF191B23),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Dapat Ditarik',
+                        style: TextStyle(fontSize: 11, color: Colors.white70),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE6F4EA),
-                        border: Border.all(color: const Color(0xFFA5D6A7)),
-                        borderRadius: BorderRadius.circular(4),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatRupiah(available),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.check, color: AppColors.primaryGreen, size: 10),
-                          SizedBox(width: 2),
-                          Text(
-                            'Terhubung',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryGreen,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _danaConnection?.maskedPhone ?? '-',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF64748B),
-                    letterSpacing: 0.5,
+                Container(width: 1, height: 28, color: Colors.white24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Dalam Proses',
+                        style: TextStyle(fontSize: 11, color: Colors.white70),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatRupiah(pending),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const KelolaDanaScreen()),
-              );
-            },
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              minimumSize: Size.zero,
-            ),
-            child: const Text(
-              'Kelola DANA',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primaryOrange,
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TarikDanaScreen()),
+                );
+                _loadWalletData();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFFFF6B00),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.arrow_upward, size: 16),
+              label: const Text(
+                'Tarik Saldo',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -659,41 +419,98 @@ class _DompetScreenState extends State<DompetScreen> {
     );
   }
 
-  Widget _buildPendapatanSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildEarningsSummaryGrid() {
+    return Row(
       children: [
-        const Text(
-          'Ringkasan Pendapatan',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF191B23),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.today, size: 16, color: Color(0xFF64748B)),
+                    SizedBox(width: 6),
+                    Text(
+                      'Pendapatan Hari Ini',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatRupiah(_pendapatanHari),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: _buildPendapatanItem('Hari ini', _pendapatanHari, true, '+12.5%')),
-            const SizedBox(width: 12),
-            Expanded(child: _buildPendapatanItem('Minggu ini', _pendapatanMinggu, true, '+5.2%')),
-          ],
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.query_stats, size: 16, color: Color(0xFF64748B)),
+                    SizedBox(width: 6),
+                    Text(
+                      'Total Pendapatan',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatRupiah(_totalPendapatan),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPendapatanItem(String label, double amount, bool isUp, String trend) {
+  Widget _buildMetodePencairanCard() {
+    final isConnected = _isOvoConnected;
+    final maskedPhone = _ovoConnection?.maskedPhone ?? '-';
+    final accountName = _ovoConnection?.accountName ?? 'Kurir Mitra';
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isConnected ? const Color(0xFFDDD6FE) : const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -701,58 +518,186 @@ class _DompetScreenState extends State<DompetScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _formatRupiah(amount),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF191B23),
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                isUp ? Icons.trending_up : Icons.trending_down,
-                color: isUp ? AppColors.primaryTeal : const Color(0xFFEF4444),
-                size: 14,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                trend,
+              const Text(
+                'Metode Pencairan',
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: isUp ? AppColors.primaryTeal : const Color(0xFFEF4444),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isConnected ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isConnected ? Icons.check_circle : Icons.radio_button_unchecked,
+                      size: 12,
+                      color: isConnected ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isConnected ? 'Terhubung' : 'Belum Terhubung',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isConnected ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              // Logo OVO
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4C3494),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Text(
+                    'ovo',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'OVO',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Nomor OVO: $maskedPhone',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF475569),
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    Text(
+                      'Nama Pemilik: $accountName',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (!isConnected) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 40,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final linked = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const OvoLinkingScreen()),
+                  );
+                  if (linked == true) {
+                    _loadWalletData();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4C3494),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.link, size: 16),
+                label: const Text(
+                  'Hubungkan OVO',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      final updated = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => OvoLinkingScreen(
+                            isUpdate: true,
+                            initialName: _ovoConnection?.accountName,
+                          ),
+                        ),
+                      );
+                      if (updated == true) {
+                        _loadWalletData();
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF4C3494),
+                      side: const BorderSide(color: Color(0xFF4C3494)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    child: const Text(
+                      'Ubah Nomor OVO',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _showDisconnectDialog,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    child: const Text(
+                      'Hapus Koneksi',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  String _formatRupiah(num value) {
-    final digits = value.toStringAsFixed(0);
-    final grouped = digits.replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
-    );
-    return 'Rp $grouped';
-  }
-
-  Widget _buildRecentActivity() {
+  Widget _buildRecentActivitySection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -760,15 +705,15 @@ class _DompetScreenState extends State<DompetScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Aktivitas Terbaru',
+              'Riwayat Transaksi',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF191B23),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
               ),
             ),
-            GestureDetector(
-              onTap: () {
+            TextButton(
+              onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const RiwayatTransaksiScreen()),
@@ -785,120 +730,100 @@ class _DompetScreenState extends State<DompetScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE8E8E8)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              ...(_recentActivity.isEmpty 
-                  ? [_buildEmptyActivity()] 
-                  : _recentActivity.asMap().entries.map((entry) {
-                      final isLast = entry.key == _recentActivity.length - 1;
-                      return _buildActivityItem(entry.value, isLast);
-                    }).toList()),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyActivity() {
-    return const Padding(
-      padding: EdgeInsets.all(20),
-      child: Center(
-        child: Text(
-          'Belum ada aktivitas.',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF64748B),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityItem(Map<String, dynamic> activity, bool isLast) {
-    final amount = ((activity['amount'] ?? 0) as num).toDouble();
-    final isPositive = amount > 0;
-    
-    final title = activity['title']?.toString() ?? 'Aktivitas';
-    IconData iconData = isPositive ? Icons.local_shipping : Icons.arrow_outward;
-    Color iconColor = isPositive ? AppColors.primaryTeal : const Color(0xFF64748B);
-    Color iconBgColor = isPositive ? AppColors.primaryTeal.withOpacity(0.1) : const Color(0xFFF1F5F9);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-      ),
-      child: Row(
-        children: [
+        const SizedBox(height: 8),
+        if (_recentActivity.isEmpty) ...[
           Container(
-            width: 40,
-            height: 40,
+            width: double.infinity,
+            padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: iconBgColor,
-              shape: BoxShape.circle,
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Icon(
-              iconData,
-              color: iconColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: const Column(
               children: [
+                Icon(Icons.receipt_long, size: 36, color: Color(0xFFCBD5E1)),
+                SizedBox(height: 8),
                 Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF191B23),
-                  ),
+                  'Belum ada riwayat transaksi',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                 ),
-                if (activity['time'] != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    '${activity['time']}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            '${isPositive ? '+' : '-'}${_formatRupiah(amount.abs())}',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: isPositive ? AppColors.primaryTeal : const Color(0xFF191B23),
-            ),
+        ] else ...[
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _recentActivity.length > 5 ? 5 : _recentActivity.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final item = _recentActivity[index];
+              final amount = ((item['amount'] ?? 0) as num).toDouble();
+              final isPositive = amount > 0;
+              final title = item['title'] ?? (isPositive ? 'Pendapatan' : 'Penarikan');
+              final time = item['time'] ?? '-';
+
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        isPositive ? Icons.south_west : Icons.north_east,
+                        color: isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            time,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${isPositive ? '+' : ''}${_formatRupiah(amount)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
-      ),
+      ],
     );
   }
 }
