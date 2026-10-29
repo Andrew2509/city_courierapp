@@ -748,14 +748,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final isAssigned = status == 'assigned';
 
     final scheduledAt = order['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'] ?? order['pickup_date'];
-    final pickupTimeStr = (order['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final rawPickupTime = (order['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final pickupTimeStr = ScheduleTimeConfig.extractTimeOnly(
+      rawPickupTime,
+      scheduledAtFallback: scheduledAt,
+    );
     final bool isScheduled = order['scheduled_pickup'] == true ||
         order['scheduled_pickup'] == 1 ||
         order['scheduled_pickup'] == '1' ||
         nestedShip?['scheduled_pickup'] == true ||
         nestedShip?['scheduled_pickup'] == 1 ||
         (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
-        pickupTimeStr.isNotEmpty;
+        rawPickupTime.isNotEmpty;
 
     final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
     final displayDateStr = schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Hari Ini';
@@ -1088,14 +1092,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final String formattedPrice = _formatCurrency(task['price'] ?? task['amount'] ?? 0);
 
     final scheduledAt = task['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'] ?? task['pickup_date'];
-    final pickupTimeStr = (task['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final rawPickupTime = (task['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final pickupTimeStr = ScheduleTimeConfig.extractTimeOnly(
+      rawPickupTime,
+      scheduledAtFallback: scheduledAt,
+    );
     final bool isScheduled = task['scheduled_pickup'] == true ||
         task['scheduled_pickup'] == 1 ||
         task['scheduled_pickup'] == '1' ||
         nestedShip?['scheduled_pickup'] == true ||
         nestedShip?['scheduled_pickup'] == 1 ||
         (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
-        pickupTimeStr.isNotEmpty;
+        rawPickupTime.isNotEmpty;
 
     final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
     final displayDateStr = schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Terjadwal';

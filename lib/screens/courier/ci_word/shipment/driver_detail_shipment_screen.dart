@@ -168,14 +168,18 @@ class _DriverDetailShipmentScreenState
     final vehicleName = isCar ? 'Mobil' : 'Motor';
 
     final scheduledAt = widget.shipment['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'];
-    final pickupTimeStr = (widget.shipment['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final rawPickupTime = (widget.shipment['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final pickupTimeStr = ScheduleTimeConfig.extractTimeOnly(
+      rawPickupTime,
+      scheduledAtFallback: scheduledAt,
+    );
     final isScheduled = widget.shipment['scheduled_pickup'] == true ||
         widget.shipment['scheduled_pickup'] == 1 ||
         widget.shipment['scheduled_pickup'] == '1' ||
         nestedShip?['scheduled_pickup'] == true ||
         nestedShip?['scheduled_pickup'] == 1 ||
         (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
-        pickupTimeStr.isNotEmpty;
+        rawPickupTime.isNotEmpty;
     final canStartPickup = isScheduled ? ScheduleTimeConfig.canStartPickup(scheduledAt) : true;
     final isOverdue = isScheduled ? ScheduleTimeConfig.isPickupOverdue(scheduledAt) : false;
     final statusLabel = isScheduled ? ScheduleTimeConfig.getCourierPickupStatusLabel(scheduledAt) : 'Siap Pickup';
@@ -207,9 +211,10 @@ class _DriverDetailShipmentScreenState
     final isCOD = widget.shipment['payment_method'] == 'COD';
     final weight = widget.shipment['weight'] ?? '2.5';
     final itemType = widget.shipment['item_type'] ?? 'Elektronik';
-    final notes =
-        widget.shipment['notes'] ??
-        'Harap pastikan barang dalam kondisi baik. Terima kasih!';
+    final notes = ScheduleTimeConfig.cleanScheduleTagFromNotes(
+      widget.shipment['notes'] ??
+          'Harap pastikan barang dalam kondisi baik. Terima kasih!',
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),

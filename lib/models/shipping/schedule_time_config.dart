@@ -507,4 +507,29 @@ class ScheduleTimeConfig {
     }
     return null;
   }
+
+  /// Mengekstrak hanya jam pickup (e.g. "08:00 AM") dari string pickup_time
+  /// yang mungkin sudah berisi tanggal ("30 Oktober 2026, 08:00 AM") agar tanggal tidak tampil 2x.
+  static String extractTimeOnly(dynamic rawPickupTime, {dynamic scheduledAtFallback}) {
+    final raw = (rawPickupTime ?? '').toString().trim();
+    if (raw.isNotEmpty) {
+      if (raw.contains(',')) {
+        final parts = raw.split(',');
+        final lastPart = parts.last.trim();
+        if (lastPart.isNotEmpty) return lastPart;
+      }
+      return raw;
+    }
+    final dt = parseDateTimeSafe(scheduledAtFallback);
+    if (dt != null) {
+      return format12Hour(dt.hour, dt.minute);
+    }
+    return '';
+  }
+
+  /// Menghapus tag "[Jadwal Pickup: ...]" dari catatan agar tidak duplikat di UI
+  static String cleanScheduleTagFromNotes(dynamic rawNotes) {
+    final str = (rawNotes ?? '').toString();
+    return str.replaceAll(RegExp(r'\s*\[Jadwal Pickup:[^\]]*\]'), '').trim();
+  }
 }

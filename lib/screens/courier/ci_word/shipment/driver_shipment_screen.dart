@@ -74,7 +74,11 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
 
   String _getPickupTime(Map<String, dynamic> s) {
     final nested = s['shipment'] is Map ? s['shipment'] as Map : null;
-    return (s['pickup_time'] ?? nested?['pickup_time'] ?? '').toString().trim();
+    final raw = (s['pickup_time'] ?? nested?['pickup_time'] ?? '').toString().trim();
+    return ScheduleTimeConfig.extractTimeOnly(
+      raw,
+      scheduledAtFallback: _getScheduledAt(s),
+    );
   }
 
   Future<void> _fetchShipments() async {
