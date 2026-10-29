@@ -99,8 +99,9 @@ void main() {
 
     // Format waktu 12 jam & jadwal operasional besok
     test('Format waktu 12 jam dan slot operasional lengkap untuk Besok', () {
+      final now = DateTime(2026, 10, 28, 10, 0);
       final tomorrow = DateTime(2026, 10, 29);
-      final slotsTomorrow = ScheduleTimeConfig.getAvailableSlotsForDate(tomorrow);
+      final slotsTomorrow = ScheduleTimeConfig.getAvailableSlotsForDate(tomorrow, referenceNow: now);
       expect(slotsTomorrow.length, 5);
       expect(slotsTomorrow[0].timeOnly, '08:00 AM');
       expect(slotsTomorrow[1].timeOnly, '10:00 AM');

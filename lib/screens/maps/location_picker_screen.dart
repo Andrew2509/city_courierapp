@@ -908,6 +908,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 children: [
                   // Floating Tooltip Bubble
                   Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width - 48,
+                    ),
                     margin: const EdgeInsets.only(bottom: 2),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
@@ -934,12 +937,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          'Titik Jemput: $_pickupTooltipTitle',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
+                        Flexible(
+                          child: Text(
+                            'Titik Jemput: $_pickupTooltipTitle',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -1113,18 +1120,22 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFEF3C7),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      activeCategory,
-                                      style: const TextStyle(
-                                        color: Color(0xFF9A3412),
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.bold,
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEF3C7),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        activeCategory,
+                                        style: const TextStyle(
+                                          color: Color(0xFF9A3412),
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ),
@@ -1460,15 +1471,20 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        widget.title.isNotEmpty ? widget.title : 'Set lokasi penjemputan',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                          letterSpacing: -0.3,
+                      Expanded(
+                        child: Text(
+                          widget.title.isNotEmpty ? widget.title : 'Set lokasi penjemputan',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(

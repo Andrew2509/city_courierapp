@@ -53,34 +53,46 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
           right: 16,
           child: Material(
             color: Colors.transparent,
-            child: AnimatedCrossFade(
+            child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 280),
-              firstCurve: Curves.easeOutCubic,
-              secondCurve: Curves.easeInCubic,
-              crossFadeState: _isExpanded
-                  ? CrossFadeState.showFirst
-                  : CrossFadeState.showSecond,
-              firstChild: _buildExpandedCard(
-                context: context,
-                orderId: orderId,
-                status: status,
-                estTime: estTime,
-                courierName: courierName,
-                courierVehicle: courierVehicle,
-                courierPhone: courierPhone,
-                destination: destination,
-                statusMsg: statusMsg,
-                step: step,
-                shipmentData: shipmentData,
-              ),
-              secondChild: _buildCompactBar(
-                context: context,
-                orderId: orderId,
-                courierName: courierName,
-                estTime: estTime,
-                destination: destination,
-                shipmentData: shipmentData,
-              ),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: -1.0,
+                    child: child,
+                  ),
+                );
+              },
+              child: _isExpanded
+                  ? KeyedSubtree(
+                      key: const ValueKey('expanded_card'),
+                      child: _buildExpandedCard(
+                        context: context,
+                        orderId: orderId,
+                        status: status,
+                        estTime: estTime,
+                        courierName: courierName,
+                        courierVehicle: courierVehicle,
+                        courierPhone: courierPhone,
+                        destination: destination,
+                        statusMsg: statusMsg,
+                        step: step,
+                        shipmentData: shipmentData,
+                      ),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('compact_bar'),
+                      child: _buildCompactBar(
+                        context: context,
+                        orderId: orderId,
+                        courierName: courierName,
+                        estTime: estTime,
+                        destination: destination,
+                        shipmentData: shipmentData,
+                      ),
+                    ),
             ),
           ),
         );
@@ -741,3 +753,4 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     );
   }
 }
+
