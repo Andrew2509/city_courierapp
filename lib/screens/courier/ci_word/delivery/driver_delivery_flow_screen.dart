@@ -14,6 +14,7 @@ import 'package:city_courierapp/screens/courier/ci_word/earnings/driver_earnings
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
+import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_photo_capture_screen.dart';
@@ -52,43 +53,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
       _currentState = widget.initialState;
     }
     _initMapLocations();
-  }
-
-  Future<void> _updateStatus(String status, DeliveryFlowState nextState) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final result = await CourierOrderService.updateOrderStatus(
-        orderId: widget.order['id'].toString(),
-        status: status,
-      );
-
-      if (mounted) {
-        if (result['success'] == true) {
-          setState(() {
-            _currentState = nextState;
-          });
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] ?? 'Gagal memperbarui status')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   Future<void> _handleConfirmPickup() async {
@@ -389,27 +353,20 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                         children: [
                           _buildMapMockup(),
                           Padding(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                             child: Column(
                               children: [
-                                _buildOrderInfoCard(),
-                                const SizedBox(height: 16),
                                 _buildStatusCard(),
-                                const SizedBox(height: 16),
-                                if (_currentState == DeliveryFlowState.pickingUp) ...[
-                                  _buildContactCard(isSender: true),
-                                  const SizedBox(height: 16),
-                                  _buildContactCard(isSender: false),
-                                ] else if (_currentState == DeliveryFlowState.delivering) ...[
+                                const SizedBox(height: 12),
+                                _buildOrderInfoCard(),
+                                if (_currentState == DeliveryFlowState.delivering) ...[
+                                  const SizedBox(height: 12),
                                   _buildDeliveryInfoCard(),
-                                  const SizedBox(height: 16),
-                                  _buildInfoBanner(),
                                 ] else if (_currentState == DeliveryFlowState.arrived) ...[
-                                  _buildReceiverInfoCard(),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 12),
                                   _buildInfoBanner(),
                                 ],
-                                const SizedBox(height: 100),
+                                const SizedBox(height: 88),
                               ],
                             ),
                           ),
@@ -981,23 +938,100 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
   }
 
   Widget _buildOrderInfoCard() {
-    final String trackingNumber = widget.order['tracking_number'] ?? widget.order['order_number'] ?? widget.order['id']?.toString() ?? '-';
-    
+    final nestedShip = widget.order['shipment'] is Map ? widget.order['shipment'] as Map : null;
+    final String trackingNumber = (widget.order['tracking_number'] ??
+            widget.order['order_number'] ??
+            nestedShip?['tracking_number'] ??
+            widget.order['id']?.toString() ??
+            '-')
+        .toString();
+
     final pickup = widget.order['pickup_location'] ?? widget.order['sender'] ?? {};
     final dropoff = widget.order['dropoff_location'] ?? widget.order['receiver'] ?? {};
-    
-    final pickupName = pickup['name'] ?? widget.order['pickup_name'] ?? 'Lokasi Penjemputan';
-    final pickupAddress = widget.order['pickup_address'] ?? pickup['address'] ?? '-';
-    
-    final dropoffName = dropoff['name'] ?? widget.order['dropoff_name'] ?? 'Lokasi Tujuan';
-    final dropoffAddress = widget.order['dropoff_address'] ?? dropoff['address'] ?? '-';
+
+    final String pickupName = (pickup is Map ? pickup['name'] : null)?.toString() ??
+        widget.order['sender_name']?.toString() ??
+        widget.order['customer_name']?.toString() ??
+        widget.order['pickup_name']?.toString() ??
+        'Pengirim';
+    final String pickupAddress = (widget.order['pickup_address'] ??
+            (pickup is Map ? pickup['address'] : null) ??
+            '-')
+        .toString();
+    final String senderPhone = (widget.order['sender_phone'] ??
+            widget.order['customer_phone'] ??
+            '081234567890')
+        .toString();
+
+    final String dropoffName = (dropoff is Map ? dropoff['name'] : null)?.toString() ??
+        widget.order['receiver_name']?.toString() ??
+        widget.order['dropoff_name']?.toString() ??
+        'Penerima';
+    final String dropoffAddress = (widget.order['dropoff_address'] ??
+            widget.order['delivery_address'] ??
+            (dropoff is Map ? dropoff['address'] : null) ??
+            '-')
+        .toString();
+    final String receiverPhone = (widget.order['receiver_phone'] ?? '081234567890').toString();
+
+    final scheduledAt = widget.order['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'];
+    final rawPickupTime = (widget.order['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
+    final pickupTimeStr = ScheduleTimeConfig.extractTimeOnly(
+      rawPickupTime,
+      scheduledAtFallback: scheduledAt,
+    );
+    final bool isScheduled = widget.order['scheduled_pickup'] == true ||
+        widget.order['scheduled_pickup'] == 1 ||
+        widget.order['scheduled_pickup'] == '1' ||
+        nestedShip?['scheduled_pickup'] == true ||
+        nestedShip?['scheduled_pickup'] == 1 ||
+        (scheduledAt != null && scheduledAt.toString().isNotEmpty) ||
+        rawPickupTime.isNotEmpty;
+    final schedDt = ScheduleTimeConfig.parseDateTimeSafe(scheduledAt);
+    final displayDateStr = schedDt != null ? ScheduleTimeConfig.formatDisplayDay(schedDt) : 'Hari Ini';
+
+    final String vehicleRaw = (widget.order['vehicle'] ??
+            widget.order['vehicle_type'] ??
+            nestedShip?['vehicle'] ??
+            'motor')
+        .toString()
+        .toLowerCase();
+    final bool isCar = vehicleRaw == 'mobil';
+    final String vehicleLabel = isCar ? 'Mobil' : 'Motor';
+
+    final String itemType = (widget.order['package_description'] ??
+            widget.order['item_type'] ??
+            nestedShip?['package_description'] ??
+            'Paket')
+        .toString();
+    final String weight = (widget.order['package_weight'] ??
+            widget.order['weight'] ??
+            nestedShip?['package_weight'] ??
+            '1')
+        .toString();
+    final String paymentMethod = (widget.order['payment_method'] ??
+            nestedShip?['payment_method'] ??
+            'COD')
+        .toString()
+        .toUpperCase();
+    final String rawPrice = (widget.order['price'] ??
+            widget.order['total_amount'] ??
+            nestedShip?['total_cost'] ??
+            '25000')
+        .toString();
+    final double parsedPrice = double.tryParse(rawPrice) ?? 25000;
+    final String formattedPrice =
+        'Rp ${parsedPrice.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
+    final String notes = ScheduleTimeConfig.cleanScheduleTagFromNotes(
+      (widget.order['notes'] ?? nestedShip?['notes'] ?? '').toString(),
+    );
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
@@ -1009,19 +1043,61 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Order ID: #$trackingNumber',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.primaryOrange,
-            ),
+          // Baris Header: Order ID & Ringkasan Barang/Kendaraan
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  'Order ID: #$trackingNumber',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isCar ? Icons.directions_car : Icons.two_wheeler,
+                      size: 13,
+                      color: AppColors.primaryOrange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$vehicleLabel • $itemType ($weight kg)',
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 14),
+          // Baris Utama: Lokasi (Kiri) & Jadwal/Estimasi + Harga (Kanan)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Locations
+              // Locations (Pickup & Dropoff)
               Expanded(
+                flex: 3,
                 child: Column(
                   children: [
                     // Pickup
@@ -1037,12 +1113,15 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                                 color: AppColors.primaryOrange,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.inventory_2_outlined, color: Colors.white, size: 10),
+                              child: const Icon(
+                                Icons.inventory_2_outlined,
+                                color: Colors.white,
+                                size: 10,
+                              ),
                             ),
-                            // Create a dotted line effect using a column of small containers
                             Column(
                               children: List.generate(
-                                8,
+                                6,
                                 (index) => Container(
                                   width: 1.5,
                                   height: 3,
@@ -1053,25 +1132,30 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 pickupName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: AppTypography.bodySmall.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: const Color(0xFF1A1A1A),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 pickupAddress,
-                                style: TextStyle(
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF64748B),
+                                  color: Color(0xFF1A1A1A),
+                                  height: 1.35,
                                 ),
                               ),
                             ],
@@ -1079,6 +1163,7 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
                     // Dropoff
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1092,25 +1177,30 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                           ),
                           child: const Icon(Icons.location_on, color: Colors.white, size: 12),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 dropoffName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: AppTypography.bodySmall.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: const Color(0xFF1A1A1A),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 dropoffAddress,
-                                style: TextStyle(
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF64748B),
+                                  color: Color(0xFF1A1A1A),
+                                  height: 1.35,
                                 ),
                               ),
                             ],
@@ -1121,36 +1211,178 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                   ],
                 ),
               ),
-              // Meta (Right side)
+              // Vertical Divider
               Container(
                 width: 1,
-                height: 80,
+                height: 88,
                 color: const Color(0xFFE2E8F0),
-                margin: const EdgeInsets.symmetric(horizontal: 16),
+                margin: const EdgeInsets.symmetric(horizontal: 12),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Estimasi', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
-                  const SizedBox(height: 4),
-                  Text('20 - 30 menit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF1A1A1A))),
-                  const SizedBox(height: 16),
-                  Text('Harga', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
-                  const SizedBox(height: 4),
-                  Text('Rp ${widget.order['price'] ?? widget.order['total_amount'] ?? '25.000'}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF22C55E))),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
+              // Meta (Right side)
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isScheduled ? 'Jadwal Pickup' : 'Estimasi',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
+                    const SizedBox(height: 3),
+                    if (isScheduled) ...[
+                      Text(
+                        displayDateStr,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      if (pickupTimeStr.isNotEmpty)
+                        Text(
+                          pickupTimeStr,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                    ] else
+                      const Text(
+                        '20 - 30 mnt',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Harga',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      formattedPrice,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF22C55E),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: Text(
+                        paymentMethod,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Catatan Pengirim (jika ada)
+          if (notes.isNotEmpty && notes != '-') ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primaryOrange.withOpacity(0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.notes_rounded, size: 14, color: AppColors.primaryOrange),
+                  const SizedBox(width: 6),
+                  Expanded(
                     child: Text(
-                      'COD',
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: const Color(0xFF475569)),
+                      'Catatan: $notes',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 12),
+          // Tombol Kontak Terpadu (Pengirim & Penerima dalam 1 baris tanpa mengulang kartu alamat)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _callContact(senderPhone),
+                  icon: const Icon(Icons.phone_rounded, size: 15, color: AppColors.primaryOrange),
+                  label: const Text(
+                    'Hubungi Pengirim',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.primaryOrange, width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _callContact(receiverPhone),
+                  icon: const Icon(Icons.phone_rounded, size: 15, color: Color(0xFF22C55E)),
+                  label: const Text(
+                    'Hubungi Penerima',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF22C55E), width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1161,11 +1393,11 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
 
   Widget _buildStatusCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
@@ -1174,51 +1406,51 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Status Pengiriman',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1A1A),
+          _buildStepItem(
+            label: 'Menjemput Paket',
+            isActive: _currentState == DeliveryFlowState.pickingUp,
+            isDone: _currentState == DeliveryFlowState.pickedUp ||
+                _currentState == DeliveryFlowState.delivering ||
+                _currentState == DeliveryFlowState.arrived,
+            iconData: Icons.inventory_2_outlined,
+            doneIconData: Icons.check,
+            subLabel: (_currentState == DeliveryFlowState.pickedUp ||
+                    _currentState == DeliveryFlowState.delivering ||
+                    _currentState == DeliveryFlowState.arrived)
+                ? 'Selesai'
+                : 'Menuju Lokasi',
+          ),
+          Expanded(
+            child: _buildStepLine(
+              _currentState == DeliveryFlowState.pickedUp ||
+                  _currentState == DeliveryFlowState.delivering ||
+                  _currentState == DeliveryFlowState.arrived,
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStepItem(
-                label: 'Menjemput\nPaket',
-                isActive: _currentState == DeliveryFlowState.pickingUp,
-                isDone: _currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived,
-                iconData: Icons.inventory_2_outlined,
-                doneIconData: Icons.check,
-                subLabel: (_currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived)
-                    ? 'Selesai'
-                    : 'Menuju Lokasi',
-              ),
-              Expanded(child: _buildStepLine(_currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering || _currentState == DeliveryFlowState.arrived)),
-              _buildStepItem(
-                label: 'Paket\nDiperjalanan',
-                isActive: _currentState == DeliveryFlowState.pickedUp || _currentState == DeliveryFlowState.delivering,
-                isDone: _currentState == DeliveryFlowState.arrived,
-                iconData: Icons.local_shipping_outlined,
-                doneIconData: Icons.check,
-                subLabel: _currentState == DeliveryFlowState.pickedUp
-                    ? 'Siap Antar'
-                    : (_currentState == DeliveryFlowState.delivering ? 'Sedang Antar' : (_currentState == DeliveryFlowState.arrived ? 'Selesai' : null)),
-              ),
-              Expanded(child: _buildStepLine(_currentState == DeliveryFlowState.arrived)),
-              _buildStepItem(
-                label: 'Sampai di\nLokasi Penerima',
-                isActive: _currentState == DeliveryFlowState.arrived,
-                isDone: false,
-                iconData: Icons.location_on_outlined,
-                subLabel: _currentState == DeliveryFlowState.arrived ? 'Saat Ini' : 'Tujuan Akhir',
-              ),
-            ],
+          _buildStepItem(
+            label: 'Diperjalanan',
+            isActive: _currentState == DeliveryFlowState.pickedUp ||
+                _currentState == DeliveryFlowState.delivering,
+            isDone: _currentState == DeliveryFlowState.arrived,
+            iconData: Icons.local_shipping_outlined,
+            doneIconData: Icons.check,
+            subLabel: _currentState == DeliveryFlowState.pickedUp
+                ? 'Siap Antar'
+                : (_currentState == DeliveryFlowState.delivering
+                    ? 'Sedang Antar'
+                    : (_currentState == DeliveryFlowState.arrived ? 'Selesai' : 'Tahap 2')),
+          ),
+          Expanded(child: _buildStepLine(_currentState == DeliveryFlowState.arrived)),
+          _buildStepItem(
+            label: 'Sampai Tujuan',
+            isActive: _currentState == DeliveryFlowState.arrived,
+            isDone: false,
+            iconData: Icons.location_on_outlined,
+            subLabel: _currentState == DeliveryFlowState.arrived ? 'Saat Ini' : 'Tahap 3',
           ),
         ],
       ),
@@ -1235,10 +1467,10 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
   }) {
     Color iconColor;
     Color borderColor;
-    Color bgColor = Colors.white;
+    const Color bgColor = Colors.white;
 
     if (isDone) {
-      iconColor = const Color(0xFF22C55E); // Green
+      iconColor = const Color(0xFF22C55E);
       borderColor = const Color(0xFF22C55E);
     } else if (isActive) {
       iconColor = AppColors.primaryOrange;
@@ -1246,14 +1478,14 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
     } else {
       iconColor = const Color(0xFF94A3B8);
       borderColor = const Color(0xFFE2E8F0);
-      bgColor = Colors.white;
     }
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: bgColor,
             shape: BoxShape.circle,
@@ -1262,33 +1494,35 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
           child: Icon(
             isDone && doneIconData != null ? doneIconData : iconData,
             color: iconColor,
-            size: 20,
+            size: 17,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         Text(
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: (isActive && _currentState == DeliveryFlowState.pickingUp) || (isActive && _currentState == DeliveryFlowState.arrived) ? AppColors.primaryOrange : const Color(0xFF64748B),
-            height: 1.4,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: isActive || isDone ? const Color(0xFF1A1A1A) : const Color(0xFF64748B),
+            height: 1.2,
           ),
         ),
         if (subLabel != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             subLabel,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w800,
-              color: isDone ? const Color(0xFF22C55E) : (isActive ? AppColors.primaryOrange : const Color(0xFF94A3B8)),
+              color: isDone
+                  ? const Color(0xFF22C55E)
+                  : (isActive ? AppColors.primaryOrange : const Color(0xFF94A3B8)),
               height: 1.2,
             ),
           ),
-        ]
+        ],
       ],
     );
   }
@@ -1296,8 +1530,8 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
   Widget _buildStepLine(bool isDone) {
     return Container(
       height: 2,
-      margin: const EdgeInsets.only(top: 20, left: 4, right: 4),
-      color: isDone ? AppColors.primaryOrange : const Color(0xFFE2E8F0),
+      margin: const EdgeInsets.only(top: 17, left: 6, right: 6),
+      color: isDone ? const Color(0xFF22C55E) : const Color(0xFFE2E8F0),
     );
   }
 
@@ -1420,211 +1654,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReceiverInfoCard() {
-    final locationData = widget.order['dropoff_location'] ?? {};
-    final contactName = locationData['name'] ?? widget.order['receiver_name'] ?? 'Budi Santoso';
-    final contactPhone = widget.order['receiver_phone'] ?? '0812 3456 7890';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Informasi Penerima',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1A1A),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF1F5F9),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person,
-                  color: Color(0xFF94A3B8),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      contactName,
-                      style: AppTypography.bodySmall.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.phone, size: 12, color: Color(0xFF94A3B8)),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            contactPhone,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => _callContact(contactPhone),
-                icon: const Icon(Icons.headset_mic, size: 16, color: AppColors.primaryOrange),
-                label: const Text(
-                  'Hubungi Penerima',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryOrange,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.primaryOrange),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContactCard({required bool isSender}) {
-    final contactTypeStr = isSender ? 'Pengirim' : 'Penerima';
-    final locationData = isSender ? widget.order['pickup_location'] ?? {} : widget.order['dropoff_location'] ?? {};
-    final contactName = locationData['name'] ?? widget.order[isSender ? 'sender_name' : 'receiver_name'] ?? (isSender ? 'Toko Elektronik Surabaya' : 'Budi Santoso');
-    final contactAddress = locationData['address'] ?? widget.order[isSender ? 'pickup_address' : 'dropoff_address'] ?? (isSender ? 'Jl. Raya Darmo No. 123, Surabaya' : 'Jl. Kutisari Indah No. 45, Surabaya');
-    final contactPhone = widget.order[isSender ? 'sender_phone' : 'receiver_phone'] ?? '081234567890';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Lokasi $contactTypeStr',
-            style: AppTypography.bodySmall.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1A1A),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isSender ? const Color(0xFFF1F5F9) : const Color(0xFFDCFCE7),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.location_on,
-                  color: isSender ? const Color(0xFF64748B) : const Color(0xFF22C55E),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      contactName,
-                      style: AppTypography.bodySmall.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      contactAddress,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _callContact(contactPhone),
-              icon: const Icon(Icons.phone, size: 16, color: AppColors.primaryOrange),
-              label: Text(
-                'Hubungi $contactTypeStr',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryOrange,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.primaryOrange),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
             ),
           ),
         ],
