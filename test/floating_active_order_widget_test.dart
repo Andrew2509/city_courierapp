@@ -92,8 +92,8 @@ void main() {
     ActiveOrderService.stopPolling();
   });
 
-  testWidgets('FloatingActiveOrderWidget renders delivered state accurately', (WidgetTester tester) async {
-    ActiveOrderService.saveActiveOrder({
+  testWidgets('FloatingActiveOrderWidget otomatis hilang saat pesanan selesai / diterima penerima', (WidgetTester tester) async {
+    await ActiveOrderService.saveActiveOrder({
       'order_id': 'CC2610288888',
       'status': 'Paket Diterima',
       'status_raw': 'delivered',
@@ -122,16 +122,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Paket Diterima'), findsOneWidget);
-    expect(find.text('Selesai'), findsOneWidget);
-    expect(find.text('Lihat Bukti Pengiriman'), findsOneWidget);
-    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
-
-    // Tap close icon dismisses active order
-    await tester.tap(find.byIcon(Icons.close_rounded));
-    await tester.pumpAndSettle();
-
+    // Karena status sudah delivered, widget melayang langsung hilang secara otomatis
     expect(find.text('Paket Diterima'), findsNothing);
+    expect(find.text('Selesai'), findsNothing);
+    expect(ActiveOrderService.activeOrderNotifier.value, isNull);
 
     ActiveOrderService.stopPolling();
   });

@@ -34,7 +34,14 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     return ValueListenableBuilder<Map<String, dynamic>?>(
       valueListenable: ActiveOrderService.activeOrderNotifier,
       builder: (context, order, _) {
-        if (order == null || order['is_active'] != true) {
+        final bool isFinished = order == null ||
+            order['is_active'] != true ||
+            order['is_delivered'] == true ||
+            order['status_raw'] == 'delivered' ||
+            order['status'] == 'Paket Diterima' ||
+            order['status_raw'] == 'cancelled';
+
+        if (isFinished) {
           return const SizedBox.shrink();
         }
 

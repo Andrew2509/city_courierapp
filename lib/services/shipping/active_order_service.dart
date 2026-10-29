@@ -47,10 +47,19 @@ class ActiveOrderService {
       final savedJson = prefs.getString(_prefKey);
       if (savedJson != null && savedJson.trim().isNotEmpty) {
         final decoded = json.decode(savedJson) as Map<String, dynamic>;
-        if (decoded['is_active'] == true) {
+        final bool isFinished = decoded['is_delivered'] == true ||
+            decoded['status_raw'] == 'delivered' ||
+            decoded['status'] == 'Paket Diterima' ||
+            decoded['status_raw'] == 'cancelled';
+
+        if (decoded['is_active'] == true && !isFinished) {
           activeOrderNotifier.value = decoded;
           // Perkaya data order dari direktori kurir jika foto atau plat nomor belum lengkap
           unawaited(_enrichCachedOrderIfNeeded());
+        } else {
+          // Jika statusnya sudah selesai diterima atau dibatalkan, jangan tampilkan lagi
+          await prefs.remove(_prefKey);
+          activeOrderNotifier.value = null;
         }
       }
     } catch (_) {}
@@ -113,6 +122,16 @@ class ActiveOrderService {
             directoryCourier = await CourierDirectoryService.findCourier(name: cName, phone: cPhone);
           }
 
+          // Jika pesanan terbaru ternyata sudah berstatus delivered/cancelled, langsung bersihkan
+          if (latest.status.toLowerCase() == 'delivered' ||
+              latest.status.toLowerCase() == 'cancelled' ||
+              tracking?.status.isTerminal == true ||
+              tracking?.status == TrackingStatus.delivered ||
+              tracking?.status == TrackingStatus.cancelled) {
+            await clearActiveOrder();
+            return;
+          }
+
           final orderData = _buildOrderData(
             shipment: latest,
             tracking: tracking,
@@ -124,37 +143,10 @@ class ActiveOrderService {
         }
       }
 
-      // If no active shipments are found, check if a previously active order is now delivered
+      // Jika tidak ada pesanan aktif di backend (semua sudah selesai diterima atau batal),
+      // otomatis bersihkan active order agar widget melayang langsung hilang dari layar
       final currentOrder = activeOrderNotifier.value;
-      if (currentOrder != null && currentOrder['is_active'] == true) {
-        final trackingNum = (currentOrder['order_id'] ?? '').toString();
-        if (trackingNum.isNotEmpty) {
-          final trackResult = await TrackingService.trackPackage(trackingNum);
-          if (trackResult.type == TrackingResultType.success &&
-              trackResult.model != null) {
-            final model = trackResult.model!;
-            if (model.status == TrackingStatus.delivered) {
-              final deliveredData = Map<String, dynamic>.from(currentOrder);
-              deliveredData['status'] = 'Paket Diterima';
-              deliveredData['status_raw'] = 'delivered';
-              deliveredData['step'] = 2;
-              deliveredData['estimated_time'] = 'Selesai';
-              deliveredData['status_message'] =
-                  'Paket telah berhasil diterima oleh ${model.receiverName ?? 'penerima'}.';
-              deliveredData['is_delivered'] = true;
-              await _applyOrderData(deliveredData);
-              _stopPolling();
-              return;
-            } else if (model.status == TrackingStatus.cancelled) {
-              await clearActiveOrder();
-              return;
-            }
-          }
-        }
-      }
-
-      // If no active orders exist on the server and current order was not just delivered, clear
-      if (currentOrder != null && currentOrder['is_delivered'] != true) {
+      if (currentOrder != null) {
         await clearActiveOrder();
       }
     } catch (e) {
@@ -355,6 +347,17 @@ class ActiveOrderService {
   /// Save or update an active order manually (e.g. after direct payment submission)
   static Future<void> saveActiveOrder(Map<String, dynamic> order) async {
     final orderData = Map<String, dynamic>.from(order);
+
+    final bool isFinished = orderData['is_delivered'] == true ||
+        orderData['status_raw'] == 'delivered' ||
+        orderData['status'] == 'Paket Diterima' ||
+        orderData['status_raw'] == 'cancelled';
+
+    if (isFinished) {
+      await clearActiveOrder();
+      return;
+    }
+
     orderData['is_active'] = true;
     orderData['step'] ??= 1;
     orderData['status'] ??= 'Sedang Dikirim';
@@ -379,8 +382,20 @@ class ActiveOrderService {
 
   /// Update active order directly from TrackingModel (e.g. when tracking screen receives update)
   static Future<void> updateFromTrackingModel(TrackingModel tracking) async {
-    final current = activeOrderNotifier.value;
     final statusRaw = tracking.status.name.toLowerCase();
+
+    // Jika pesanan sudah selesai diterima (delivered) atau dibatalkan (cancelled),
+    // otomatis bersihkan pesanan aktif agar tidak muncul lagi pada layar utama
+    if (tracking.status.isTerminal ||
+        statusRaw == 'delivered' ||
+        statusRaw == 'cancelled' ||
+        tracking.status == TrackingStatus.delivered ||
+        tracking.status == TrackingStatus.cancelled) {
+      await clearActiveOrder();
+      return;
+    }
+
+    final current = activeOrderNotifier.value;
 
     int step = 0;
     String statusTitle = 'Sedang Dikirim';
