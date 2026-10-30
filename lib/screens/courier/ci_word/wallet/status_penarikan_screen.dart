@@ -4,7 +4,10 @@ import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
-/// Withdrawal Status Screen (OVO).
+/// Withdrawal Status Screen.
+/// PRD §50: UI Success state.
+/// PRD §51: UI Processing state.
+/// PRD §22: Status lifecycle - PENDING, PROCESSING, SUCCESS, FAILED.
 class StatusPenarikanScreen extends StatefulWidget {
   final String transactionId;
   final double amount;
@@ -16,7 +19,7 @@ class StatusPenarikanScreen extends StatefulWidget {
     super.key,
     required this.transactionId,
     required this.amount,
-    this.bankName = 'OVO',
+    required this.bankName,
     required this.maskedAccount,
     required this.time,
   });
@@ -26,11 +29,11 @@ class StatusPenarikanScreen extends StatefulWidget {
 }
 
 class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
-  String _status = 'processing';
+  String _status = 'processing'; // Start as processing
   String? _providerReference;
   Timer? _pollTimer;
   int _pollAttempts = 0;
-  static const int _maxPollAttempts = 12;
+  static const int _maxPollAttempts = 10;
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
     super.dispose();
   }
 
+  /// PRD §23: Inquiry Status - poll backend for status updates.
   void _startPolling() {
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _pollStatus();
@@ -71,6 +75,7 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
         _providerReference = data['provider_reference'];
       });
 
+      // Stop polling when terminal state reached
       if (newStatus == 'success' || newStatus == 'failed' || newStatus == 'cancelled') {
         _pollTimer?.cancel();
       }
@@ -84,30 +89,6 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
       (m) => '${m[1]}.',
     );
     return grouped;
-  }
-
-  String _formatDateTime(DateTime dt) {
-    final months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des'
-    ];
-    final day = dt.day.toString().padLeft(2, '0');
-    final month = months[dt.month];
-    final year = dt.year;
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    return '$day $month $year, $hour:$minute WIB';
   }
 
   @override
@@ -124,7 +105,7 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
               Expanded(
                 child: isProcessing
                     ? _buildProcessingState()
@@ -141,6 +122,7 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
     );
   }
 
+  /// PRD §51: Processing state UI.
   Widget _buildProcessingState() {
     return Center(
       child: Container(
@@ -158,35 +140,36 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
               width: 56,
               height: 56,
               child: CircularProgressIndicator(
-                color: Color(0xFF4C3494),
-                strokeWidth: 3.5,
+                color: AppColors.primaryOrange,
+                strokeWidth: 3,
               ),
             ),
             const SizedBox(height: 24),
             const Text(
-              'Penarikan Sedang Diproses',
+              'Penarikan Diproses',
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
                 color: Color(0xFF191B23),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Rp ${_formatRupiah(widget.amount)}',
+              'Rp${_formatRupiah(widget.amount)}',
               style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF4C3494),
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFEC5B13),
                 letterSpacing: -0.5,
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Dana sedang diproses dan ditransfer ke akun ${widget.bankName} Anda.',
+            const Text(
+              'Dana sedang diproses ke\nakun DANA Anda.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
                 color: Color(0xFF64748B),
                 height: 1.5,
               ),
@@ -195,15 +178,15 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: const Color(0xFFFEF3C7),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                'Tujuan: ${widget.bankName} (${widget.maskedAccount})',
-                style: const TextStyle(
+              child: const Text(
+                'Status: Memproses',
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF475569),
+                  color: Color(0xFFD97706),
                 ),
               ),
             ),
@@ -213,6 +196,7 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
     );
   }
 
+  /// PRD §50: Success state UI.
   Widget _buildSuccessState() {
     return Container(
       width: double.infinity,
@@ -224,64 +208,80 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
       ),
       child: Column(
         children: [
+          // Success icon
           Container(
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
+              color: const Color(0xFFECFDF5),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x3310B981),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
             ),
             child: const Icon(
               Icons.check_circle,
-              color: Color(0xFF16A34A),
-              size: 40,
+              color: Color(0xFF10B981),
+              size: 36,
             ),
           ),
           const SizedBox(height: 20),
           const Text(
-            'Penarikan Berhasil',
+            '✓ Penarikan Berhasil',
             style: TextStyle(
               fontSize: 22,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: Color(0xFF191B23),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Rp ${_formatRupiah(widget.amount)}',
+            'Rp${_formatRupiah(widget.amount)}',
             style: const TextStyle(
               fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF16A34A),
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF004AC6),
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Telah berhasil ditransfer ke\n${widget.bankName} ${widget.maskedAccount}',
+            'Telah dikirim ke\nDANA ${widget.maskedAccount}',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 14,
+              fontWeight: FontWeight.w400,
               color: Color(0xFF64748B),
-              height: 1.45,
+              height: 1.5,
             ),
           ),
           const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 16),
+
+          // Transaction details
+          SizedBox(
+            height: 1,
+            width: double.infinity,
+            child: CustomPaint(painter: DashPainter()),
+          ),
+          const SizedBox(height: 24),
           _buildDetailRow('ID Transaksi', widget.transactionId),
           if (_providerReference != null) ...[
-            const SizedBox(height: 12),
-            _buildDetailRow('No. Referensi ${widget.bankName}', _providerReference!),
+            const SizedBox(height: 16),
+            _buildDetailRow('Reference DANA', _providerReference!),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildDetailRow('Tanggal', _formatDateTime(widget.time)),
         ],
       ),
     );
   }
 
+  /// Failed state UI.
   Widget _buildFailedState() {
     return Center(
       child: Container(
@@ -298,43 +298,44 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
             Container(
               width: 64,
               height: 64,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFEE2E2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.error_outline,
-                color: Color(0xFFDC2626),
-                size: 38,
+                color: Color(0xFFEF4444),
+                size: 36,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             const Text(
               'Penarikan Gagal',
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
                 color: Color(0xFF191B23),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
-              'Rp ${_formatRupiah(widget.amount)} belum berhasil dikirim ke akun ${widget.bankName}.',
+              'Rp${_formatRupiah(widget.amount)} belum berhasil\ndikirim ke DANA.',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
                 color: Color(0xFF64748B),
-                height: 1.4,
+                height: 1.5,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             const Text(
-              'Dana yang tertahan telah otomatis dikembalikan ke saldo aktif dompet Anda.',
+              'Dana akan dikembalikan ke saldo Anda.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF16A34A),
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF94A3B8),
               ),
             ),
           ],
@@ -349,15 +350,21 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-        ),
-        Text(
-          value,
           style: const TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF0F172A),
-            fontFamily: 'monospace',
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF191B23),
+            ),
           ),
         ),
       ],
@@ -367,26 +374,69 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
   Widget _buildBackButton() {
     return SizedBox(
       width: double.infinity,
-      height: 48,
-      child: ElevatedButton(
+      child: ElevatedButton.icon(
         onPressed: () {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const DompetScreen()),
-            (route) => route.isFirst,
+            (route) => false,
           );
         },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4C3494),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 0,
+        icon: const Icon(Icons.account_balance_wallet, size: 18),
+        label: const Text(
+          'KEMBALI KE DOMPET',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
         ),
-        child: const Text(
-          'Kembali ke Dompet',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryOrange,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
         ),
       ),
     );
   }
+
+  String _formatDateTime(DateTime dateTime) {
+    final months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    return '${dateTime.day} ${months[dateTime.month]} ${dateTime.year}';
+  }
+}
+
+/// Custom painter for dashed line
+class DashPainter extends CustomPainter {
+  const DashPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFE8E8E8)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    const dashWidth = 6.0;
+    const dashSpace = 4.0;
+    double startX = 0;
+
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, 0),
+        Offset(startX + dashWidth, 0),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

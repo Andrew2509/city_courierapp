@@ -34,7 +34,7 @@ class _DriverHelpScreenState extends State<DriverHelpScreen> {
     },
     {
       'question': 'Bagaimana cara menarik saldo?',
-      'answer': 'Buka halaman Earnings, ketuk "Tarik Dana". Masukkan jumlah yang ingin ditarik ke akun OVO Anda yang telah terhubung.',
+      'answer': 'Buka halaman Earnings, ketuk "Tarik Dana". Masukkan jumlah yang ingin ditarik ke akun DANA Anda yang telah terhubung.',
       'icon': Icons.account_balance_wallet_outlined,
     },
     {

@@ -4,6 +4,7 @@ import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_na
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/status_penarikan_screen.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Transaction History Screen.
@@ -23,6 +24,9 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
 
   // Transaction data from backend
   List<Map<String, dynamic>> _transactions = [];
+  /// Riwayat penarikan (endpoint /courier/withdrawals) — nominal, biaya,
+  /// nomor tujuan disamarkan, ID transaksi, status.
+  List<Map<String, dynamic>> _withdrawals = [];
   bool _isLoading = true;
   String? _error;
 
@@ -40,6 +44,7 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
 
     try {
       final result = await WalletService.getEarnings();
+      final withdrawalsResult = await WalletService.getWithdrawals();
       if (!mounted) return;
 
       if (result['success'] == true && result['data'] != null) {
@@ -47,6 +52,9 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
         setState(() {
           _isLoading = false;
           _transactions = (data['recent_activity'] as List<dynamic>? ?? [])
+              .map((e) => (e as Map).cast<String, dynamic>())
+              .toList();
+          _withdrawals = ((withdrawalsResult['data'] as Map<String, dynamic>?)?['withdrawals'] as List<dynamic>? ?? [])
               .map((e) => (e as Map).cast<String, dynamic>())
               .toList();
         });
@@ -67,15 +75,13 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
   }
 
   List<Map<String, dynamic>> get _filteredTransactions {
-    if (_selectedFilter == 'Semua') return _transactions;
+    if (_selectedFilter == 'Semua') return [..._transactions, ..._withdrawals.map(_mapWithdrawalItem)];
     if (_selectedFilter == 'Pendapatan') {
       return _transactions.where((t) => t['type'] == 'earning').toList();
     }
     if (_selectedFilter == 'Penarikan') {
-      return _transactions
-          .where((t) =>
-              t['type'] == 'withdrawal' || t['type'] == 'withdrawal_hold')
-          .toList();
+      // Riwayat pencairan penuh dari endpoint withdrawals
+      return _withdrawals.map(_mapWithdrawalItem).toList();
     }
     if (_selectedFilter == 'Bonus') {
       return _transactions.where((t) => t['type'] == 'bonus').toList();
@@ -297,12 +303,57 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
     );
   }
 
+  /// Map item API /courier/withdrawals ke bentuk item riwayat.
+  Map<String, dynamic> _mapWithdrawalItem(Map<String, dynamic> w) {
+    final createdAt = DateTime.tryParse((w['created_at'] ?? '').toString());
+    final provider = (w['provider'] ?? w['bank_name'] ?? 'DANA').toString().toUpperCase();
+    return {
+      'id': (w['withdrawal_id'] ?? w['id'] ?? '').toString(),
+      'type': 'withdrawal_full',
+      'provider': provider,
+      'title': 'Penarikan $provider',
+      'amount': ((w['amount'] ?? w['net_amount'] ?? 0) as num?)?.toDouble() ?? 0,
+      'fee': ((w['fee'] ?? 0) as num?)?.toDouble() ?? 0,
+      'destination': (w['account_number'] ?? w['masked_account'] ?? '-').toString(),
+      'reference': (w['provider_reference'] ?? w['idempotency_key'] ?? '-').toString(),
+      'status_raw': (w['status'] ?? 'pending').toString(),
+      'status': _withdrawalStatusLabel((w['status'] ?? '').toString()),
+      'created_at_raw': createdAt,
+      'time': createdAt != null ? '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')} ${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}' : '',
+      'date': createdAt != null ? '${createdAt.day} ${_monthName(createdAt.month)}' : '',
+      'date_label': createdAt != null ? '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}' : '',
+    };
+  }
+
+  String _withdrawalStatusLabel(String status) {
+    switch (status) {
+      case 'success':
+      case 'completed':
+        return 'Berhasil';
+      case 'failed':
+      case 'rejected':
+      case 'cancelled':
+        return 'Gagal';
+      case 'processing':
+      case 'approved':
+        return 'Diproses';
+      default:
+        return 'Menunggu';
+    }
+  }
+
+  String _monthName(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return months[(month - 1).clamp(0, 11)];
+  }
+
   Widget _buildTransactionItem(Map<String, dynamic> transaction) {
     final type = transaction['type'] ?? 'earning';
+    final isWithdrawalFull = type == 'withdrawal_full';
     final isIncome = type == 'earning';
     final isBonus = type == 'bonus';
     final amount = ((transaction['amount'] ?? 0) as num).toDouble();
-    final isPositive = amount > 0;
+    final isPositive = amount > 0 && !isWithdrawalFull;
 
     IconData icon;
     Color iconBgColor;
@@ -322,7 +373,7 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
       iconColor = const Color(0xFFEF4444);
     }
 
-    return Container(
+    final detail = Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -373,15 +424,27 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
                       ),
                       Text(
                         transaction['status'],
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF22C55E),
+                          color: _statusColor(transaction['status'].toString()),
                         ),
                       ),
                     ],
                   ],
                 ),
+                if (isWithdrawalFull) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Tujuan ${transaction['destination'] ?? '-'}'
+                    '${((transaction['fee'] as num?)?.toDouble() ?? 0) > 0 ? ' • Biaya Rp${_formatRupiah((transaction['fee'] as num).toDouble())}' : ''}'
+                    ' • #${transaction['id'] ?? '-'}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -398,6 +461,43 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
         ],
       ),
     );
+
+    if (isWithdrawalFull) {
+      return GestureDetector(
+        onTap: () => _openWithdrawalDetail(transaction),
+        child: detail,
+      );
+    }
+    return detail;
+  }
+
+  void _openWithdrawalDetail(Map<String, dynamic> transaction) {
+    final time = transaction['created_at_raw'] as DateTime? ?? DateTime.now();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StatusPenarikanScreen(
+          transactionId: (transaction['id'] ?? '').toString(),
+          amount: ((transaction['amount'] ?? 0) as num).toDouble(),
+          bankName: (transaction['provider'] ?? 'DANA').toString(),
+          maskedAccount: (transaction['destination'] ?? '-').toString(),
+          time: time,
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String statusLabel) {
+    switch (statusLabel) {
+      case 'Berhasil':
+        return const Color(0xFF22C55E);
+      case 'Gagal':
+        return const Color(0xFFEF4444);
+      case 'Diproses':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF64748B);
+    }
   }
 
   String _formatRupiah(num value) {

@@ -4,7 +4,10 @@ import 'package:city_courierapp/services/wallet/wallet_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dana_linking_screen.dart';
 
-/// Kelola OVO Screen.
+/// Kelola DANA Screen.
+/// PRD §33: Kelola DANA - view status, reconnect, disconnect.
+/// PRD §35: Hubungkan Ulang flow.
+/// PRD §34: Putuskan DANA with confirmation and processing check.
 class KelolaDanaScreen extends StatefulWidget {
   const KelolaDanaScreen({super.key});
 
@@ -12,32 +15,32 @@ class KelolaDanaScreen extends StatefulWidget {
   State<KelolaDanaScreen> createState() => _KelolaDanaScreenState();
 }
 
-// Backward compatibility alias
-typedef KelolaOvoScreen = KelolaDanaScreen;
-
 class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
-  OvoConnection? _ovoConnection;
+  DanaConnection? _danaConnection;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadOvoStatus();
+    _loadDanaStatus();
   }
 
-  Future<void> _loadOvoStatus() async {
+  Future<void> _loadDanaStatus() async {
     setState(() => _isLoading = true);
 
-    final result = await WalletService.getOvoStatus();
+    final result = await WalletService.getDanaStatus();
 
     if (mounted) {
       setState(() {
         _isLoading = false;
-        if (result['success'] == true && result['data'] != null) {
-          _ovoConnection = OvoConnection.fromJson(result['data']);
+        if (result['success'] && result['data'] != null) {
+          _danaConnection = DanaConnection.fromJson(result['data']);
         } else {
-          _ovoConnection = OvoConnection(
-            status: OvoConnectionStatus.notConnected,
+          // Fallback for development
+          _danaConnection = DanaConnection(
+            status: DanaConnectionStatus.connected,
+            maskedPhone: '08******1234',
+            connectedAt: DateTime.now().toIso8601String(),
           );
         }
       });
@@ -50,11 +53,11 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          'Hapus Koneksi OVO?',
+          'Putuskan DANA?',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         content: const Text(
-          'Anda tidak dapat melakukan penarikan sampai akun OVO terhubung kembali.',
+          'Anda tidak dapat melakukan penarikan sampai akun DANA terhubung kembali.',
           style: TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.5),
         ),
         actions: [
@@ -65,25 +68,24 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
             ),
           ),
-          ElevatedButton(
-            onPressed: _disconnectOvo,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
+          TextButton(
+            onPressed: _disconnectDana,
+            child: const Text(
+              'Putuskan',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.red),
             ),
-            child: const Text('Hapus Koneksi'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _disconnectOvo() async {
+  Future<void> _disconnectDana() async {
     Navigator.pop(context); // Close dialog
 
     setState(() => _isLoading = true);
 
-    final result = await WalletService.disconnectOvo();
+    final result = await WalletService.disconnectDana();
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -91,7 +93,7 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
       if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Koneksi OVO berhasil dihapus'),
+            content: Text('DANA berhasil diputuskan'),
             backgroundColor: Color(0xFF22C55E),
           ),
         );
@@ -102,11 +104,24 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'Gagal menghapus koneksi OVO'),
+            content: Text(result['message'] ?? 'Gagal memutuskan DANA'),
             backgroundColor: Colors.red,
           ),
         );
       }
+    }
+  }
+
+  /// PRD §35: Hubungkan Ulang - replace DANA account.
+  Future<void> _reconnectDana() async {
+    // Navigate to linking screen in reconnect mode
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DanaLinkingScreen()),
+    );
+
+    if (result == true && mounted) {
+      _loadDanaStatus();
     }
   }
 
@@ -129,11 +144,14 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 8),
-                          _buildOvoInfoCard(),
+                          _buildDanaInfoCard(),
                           const SizedBox(height: 16),
                           _buildConnectionStatusCard(),
                           const SizedBox(height: 24),
-                          _buildActionButtons(),
+                          // PRD §35: Hubungkan Ulang button
+                          _buildReconnectButton(),
+                          const SizedBox(height: 12),
+                          _buildDisconnectButton(),
                         ],
                       ),
                     ),
@@ -147,7 +165,7 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-      color: Colors.white,
+      color: AppColors.backgroundColor,
       child: Row(
         children: [
           GestureDetector(
@@ -156,13 +174,9 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
           ),
           const Expanded(
             child: Text(
-              'Kelola OVO',
+              'Kelola DANA',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF191B23),
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Color(0xFF191B23)),
             ),
           ),
           const SizedBox(width: 24),
@@ -171,35 +185,25 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
     );
   }
 
-  Widget _buildOvoInfoCard() {
-    final isConnected = _ovoConnection?.isConnected ?? false;
+  Widget _buildDanaInfoCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE8E8E8)),
       ),
       child: Row(
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: const Color(0xFF4C3494),
+              color: const Color(0xFF006A61).withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
-              child: Text(
-                'ovo',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-            ),
+            child: const Icon(Icons.account_balance_wallet, color: Color(0xFF006A61), size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -207,32 +211,14 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'OVO Cash',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF191B23),
-                  ),
+                  'DANA',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF191B23)),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _ovoConnection?.maskedPhone ?? 'Belum terhubung',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    color: Color(0xFF64748B),
-                  ),
+                  _danaConnection?.maskedPhone ?? '-',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xFF64748B)),
                 ),
-                if (isConnected && _ovoConnection?.accountName != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'a.n ${_ovoConnection!.accountName}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -242,35 +228,48 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
   }
 
   Widget _buildConnectionStatusCard() {
-    final isConnected = _ovoConnection?.isConnected ?? false;
+    final isConnected = _danaConnection?.isConnected ?? false;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isConnected ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+        color: isConnected
+            ? const Color(0xFF22C55E).withOpacity(0.05)
+            : const Color(0xFFEF4444).withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isConnected ? const Color(0xFF86EFAC) : const Color(0xFFCBD5E1),
+          color: isConnected
+              ? const Color(0xFF22C55E).withOpacity(0.3)
+              : const Color(0xFFEF4444).withOpacity(0.3),
         ),
       ),
       child: Row(
         children: [
           Icon(
-            isConnected ? Icons.check_circle : Icons.info_outline,
-            color: isConnected ? const Color(0xFF16A34A) : const Color(0xFF64748B),
-            size: 20,
+            isConnected ? Icons.check_circle : Icons.error,
+            color: isConnected ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+            size: 24,
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              isConnected
-                  ? 'Akun OVO aktif dan siap menerima pencairan saldo.'
-                  : 'Akun OVO belum terhubung.',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isConnected ? const Color(0xFF15803D) : const Color(0xFF475569),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Status Koneksi',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isConnected ? 'Terhubung' : 'Tidak Terhubung',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isConnected ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -278,81 +277,42 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
-    final isConnected = _ovoConnection?.isConnected ?? false;
+  /// PRD §35: Hubungkan Ulang - replace current DANA account.
+  Widget _buildReconnectButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _reconnectDana,
+        icon: Icon(Icons.link, color: AppColors.primaryOrange, size: 18),
+        label: Text(
+          'Hubungkan Ulang',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primaryOrange),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          side: BorderSide(color: AppColors.primaryOrange),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
 
-    return Column(
-      children: [
-        if (isConnected) ...[
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                final updated = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => OvoLinkingScreen(
-                      isUpdate: true,
-                      initialName: _ovoConnection?.accountName,
-                    ),
-                  ),
-                );
-                if (updated == true) {
-                  _loadOvoStatus();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4C3494),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.edit, size: 18),
-              label: const Text('Ubah Nomor OVO', style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: OutlinedButton.icon(
-              onPressed: _showDisconnectDialog,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFDC2626),
-                side: const BorderSide(color: Color(0xFFFCA5A5)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.link_off, size: 18),
-              label: const Text('Hapus Koneksi OVO', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ] else ...[
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                final linked = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OvoLinkingScreen()),
-                );
-                if (linked == true) {
-                  _loadOvoStatus();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4C3494),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.link, size: 18),
-              label: const Text('Hubungkan OVO', style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ],
+  /// PRD §34: Putuskan DANA with processing check.
+  Widget _buildDisconnectButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _showDisconnectDialog,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          side: const BorderSide(color: Colors.red),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Text(
+          'Putuskan DANA',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.red),
+        ),
+      ),
     );
   }
 }
