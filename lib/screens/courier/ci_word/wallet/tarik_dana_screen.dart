@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -73,6 +75,18 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
   double? _pendingAmount;
   String? _pendingPhone;
 
+  /// Preview nama pemilik DANA tujuan — diambil backend (penyedia payout)
+  /// dengan debounce setelah nomor selesai diketik. Fitur ini jujur menampilkan
+  /// "belum dapat diperiksa" selama layanan inquiry belum tersedia.
+  Timer? _nameDebounce;
+  bool _isCheckingName = false;
+  String? _fetchedName;
+  /// true = inquiry sukses; false = tersedia tapi inquiry tidak bisa
+  /// memberikan nama (endpoint belum ada / payout nonaktif / nomor salah);
+  /// null = jaringan error (coba lagi nanti).
+  bool? _nameAvailable;
+  String? _lastInquiryPhone;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +100,7 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
     _phoneController.dispose();
     _nameController.dispose();
     _phoneFocus.dispose();
+    _nameDebounce?.cancel();
     super.dispose();
   }
 
@@ -201,6 +216,57 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
   void _onDestinationChanged(String value) {
     setState(() {
       _resetPendingKeyIfIdentityChanged();
+    });
+    _scheduleNameLookup();
+  }
+
+  /// Preview nama pemilik: debounce 700ms setelah ketikan berhenti, lalu
+  /// tanya backend (yang meneruskan ke penyedia payout). Hasil tidak pernah
+  /// menghalangi submission — hanya membantu kurir cek ulang nomor.
+  void _scheduleNameLookup() {
+    _nameDebounce?.cancel();
+
+    final phone = _normalizedPhone;
+    if (phone == null) {
+      // Belum lengkap/invalid → kosongkan preview.
+      if (_fetchedName != null || _nameAvailable != null || _isCheckingName) {
+        setState(() {
+          _isCheckingName = false;
+          _fetchedName = null;
+          _nameAvailable = null;
+          _lastInquiryPhone = null;
+        });
+      }
+      return;
+    }
+
+    if (phone == _lastInquiryPhone && (_fetchedName != null || _nameAvailable != null)) {
+      return; // Nomor sama, hasil masih valid.
+    }
+
+    setState(() => _isCheckingName = true);
+    _nameDebounce = Timer(const Duration(milliseconds: 700), () async {
+      final result = await WalletService.fetchDestinationName(phone);
+      if (!mounted || _normalizedPhone != phone) return; // nomor sudah diganti lagi
+
+      setState(() {
+        _isCheckingName = false;
+        _lastInquiryPhone = phone;
+        if (result == null) {
+          _nameAvailable = null;
+          _fetchedName = null;
+        } else if (result['available'] == true && result['accountName'] != null) {
+          _nameAvailable = true;
+          _fetchedName = result['accountName'];
+          // Isi kolom nama manual bila kosong agar ikut muncul di konfirmasi.
+          if (_nameController.text.trim().isEmpty) {
+            _nameController.text = _fetchedName!;
+          }
+        } else {
+          _nameAvailable = false;
+          _fetchedName = null;
+        }
+      });
     });
   }
 
@@ -659,6 +725,7 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
             style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
           ),
         ],
+        _buildNamePreview(),
         const SizedBox(height: 10),
         // Nama pemilik (opsional) supaya kurir bisa cek ulang identitas tujuan.
         TextField(
@@ -687,6 +754,96 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Chip preview nama pemilik DANA tujuan (dari inquiry penyedia payout).
+  /// Muncul hanya bila nomor valid; perilakunya jujur — kalau layanan
+  /// inquiry belum tersedia, yang tampil hint netral, bukan error.
+  Widget _buildNamePreview() {
+    final phone = _normalizedPhone;
+    if (phone == null || _phoneError != null) return const SizedBox.shrink();
+
+    Widget child;
+    if (_isCheckingName) {
+      child = const Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Memeriksa nama pemilik…',
+              style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+            ),
+          ),
+        ],
+      );
+    } else if (_nameAvailable == true && _fetchedName != null) {
+      child = Row(
+        children: [
+          const Icon(Icons.verified_user_outlined, size: 14, color: Color(0xFF059669)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'DANA atas nama $_fetchedName',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF059669),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else if (_nameAvailable == false) {
+      // Inquiry tersedia tapi tidak bisa memberi nama (endpoint belum ada,
+      // payout nonaktif, atau nomor tidak terdaftar) → netral, bukan error.
+      child = const Row(
+        children: [
+          Icon(Icons.info_outline, size: 14, color: Color(0xFF94A3B8)),
+          SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Nama pemilik belum dapat diperiksa — pastikan nomor & nama sudah benar.',
+              style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Jaringan error / inquiry gagal — minta coba lagi dengan mengetik ulang.
+      child = const Row(
+        children: [
+          Icon(Icons.wifi_off, size: 14, color: Color(0xFF94A3B8)),
+          SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Tidak dapat memeriksa nama pemilik — pengecekan otomatis diulang saat nomor berubah.',
+              style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: _nameAvailable == true ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _nameAvailable == true ? const Color(0xFFA7F3D0) : const Color(0xFFE8E8E8),
+          ),
+        ),
+        child: child,
+      ),
     );
   }
 

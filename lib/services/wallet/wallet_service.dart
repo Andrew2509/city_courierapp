@@ -588,6 +588,43 @@ class WalletService {
     return '$cc${subscriber.substring(0, keep)}****${subscriber.substring(subscriber.length - 4)}';
   }
 
+  /// Preview nama pemilik akun DANA tujuan.
+  ///
+  /// GET /api/courier/withdrawals/destination-inquiry?phone=…
+  /// Sumber kebenaran = penyedia payout (iPaymu). Selama layanan payout
+  /// belum aktif / spec inquiry belum tersedia, backend membalas
+  /// { available: false, status: … } — service mengembalikan available
+  /// false TANPA menganggapnya gagal. 404 (server lama) = unavailable.
+  /// Mengembalikan null hanya saat jaringan error (kirim ulang nanti ok).
+  static Future<Map<String, dynamic>?> fetchDestinationName(String phone) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/courier/withdrawals/destination-inquiry')
+          .replace(queryParameters: {'phone': phone});
+      final response = await http
+          .get(uri, headers: await _getHeaders())
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 422) return {'available': false, 'status': 'invalid_phone'};
+      if (response.statusCode == 404) return {'available': false, 'status': 'endpoint_missing'};
+
+      final data = json.decode(response.body);
+      if (response.statusCode != 200 || data['success'] != true) {
+        return {'available': false, 'status': 'unavailable'};
+      }
+
+      final payload = (data['data'] as Map?)?.cast<String, dynamic>() ?? {};
+      return {
+        'available': payload['available'] == true,
+        'accountName': payload['account_name']?.toString(),
+        'status': payload['status']?.toString() ?? 'unknown',
+      };
+    } catch (_) {
+      // Timeout/socket: jangan blokir user — hanya tampil "tidak dapat
+      // memeriksa" lalu coba lagi pada perubahan nomor berikutnya.
+      return null;
+    }
+  }
+
   /// Create withdrawal request.
   ///
   /// `destinationPhone`: nomor DANA tujuan yang diketik kurir saat penarikan
