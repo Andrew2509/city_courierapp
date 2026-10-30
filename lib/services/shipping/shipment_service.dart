@@ -239,7 +239,9 @@ class ShipmentService {
                 'reason': reason.trim(),
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          // Pembatalan menanyakan status ke iPaymu lebih dulu, jadi butuh waktu
+          // lebih dari sekadar update database.
+          .timeout(const Duration(seconds: 30));
 
       final dynamic responseData = json.decode(response.body);
       if (response.statusCode >= 200 && response.statusCode < 300) {

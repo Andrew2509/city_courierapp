@@ -1,5 +1,10 @@
 class PaymentResult {
   final String paymentId;
+
+  /// Pesanan pemilik transaksi. Dipakai tombol "Batalkan Pesanan" agar
+  /// pembatalan lewat satu pintu `/shipments/{id}/cancel`, sehingga status
+  /// pesanan ikut berubah dan hilang dari daftar tagihan.
+  final String? shipmentId;
   final String method;
   final int amount;
   final String status;
@@ -20,6 +25,7 @@ class PaymentResult {
 
   PaymentResult({
     required this.paymentId,
+    this.shipmentId,
     required this.method,
     required this.amount,
     required this.status,
@@ -45,6 +51,7 @@ class PaymentResult {
   factory PaymentResult.fromJson(Map<String, dynamic> json) {
     return PaymentResult(
       paymentId: json['payment_id'] ?? '',
+      shipmentId: json['shipment_id']?.toString(),
       method: json['method'] ?? '',
       amount: json['amount'] ?? 0,
       status: json['status'] ?? 'pending',

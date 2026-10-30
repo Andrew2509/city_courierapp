@@ -794,6 +794,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 amount: widget.totalAmount,
                 method: selectedMethod!,
                 result: result,
+                shipmentId: widget.shipmentId,
               ),
             ),
           );
@@ -817,6 +818,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 method: selectedMethod!, 
                 iconUrl: iconUrl,
                 result: result,
+                shipmentId: widget.shipmentId,
               ),
             ),
           );
@@ -840,6 +842,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 method: selectedMethod!,
                 iconUrl: iconUrl,
                 result: result,
+                shipmentId: widget.shipmentId,
               ),
             ),
           );

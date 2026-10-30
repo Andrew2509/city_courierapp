@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/services/shipping/shipment_service.dart';
 import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
 /// Layar pembayaran Virtual Account dengan tampilan ringkas ala aplikasi bank:
@@ -16,12 +17,18 @@ class VirtualAccountConfirmationScreen extends StatefulWidget {
   final String? iconUrl;
   final PaymentResult result;
 
+  /// Pesanan pemilik transaksi. Bila ada, "Batalkan Pesanan" membatalkan
+  /// pesanan lewat `/shipments/{id}/cancel` agar status pesanan ikut berubah
+  /// dan pesanan hilang dari daftar tagihan.
+  final String? shipmentId;
+
   const VirtualAccountConfirmationScreen({
     super.key,
     required this.amount,
     required this.method,
     this.iconUrl,
     required this.result,
+    this.shipmentId,
   });
 
   @override
@@ -234,9 +241,10 @@ class _VirtualAccountConfirmationScreenState
 
   void _cancelPayment() async {
     final paymentId = widget.result.paymentId;
-    debugPrint('VA: batalkan pembayaran paymentId=$paymentId');
+    final shipmentId = widget.shipmentId ?? widget.result.shipmentId ?? '';
+    debugPrint('VA: batalkan pesanan shipmentId=$shipmentId paymentId=$paymentId');
 
-    if (paymentId.isEmpty) {
+    if (shipmentId.isEmpty && paymentId.isEmpty) {
       await _infoDialog(
         'Data Pembayaran Tidak Lengkap',
         'ID transaksi pembayaran tidak ditemukan pada layar ini. Tutup layar ini '
@@ -283,7 +291,11 @@ class _VirtualAccountConfirmationScreenState
       builder: (_) => const Center(child: CircularProgressIndicator(color: _primary)),
     );
 
-    final result = await PaymentService.cancelPayment(paymentId);
+    // Satu pintu: batalkan PESANAN-nya, bukan hanya transaksi pembayaran.
+    // Backend menutup transaksi iPaymu lalu mengubah status pesanan sekaligus.
+    final result = shipmentId.isNotEmpty
+        ? await ShipmentService.cancelShipment(shipmentId)
+        : await PaymentService.cancelPayment(paymentId);
     if (!mounted) return;
     Navigator.pop(context);
 

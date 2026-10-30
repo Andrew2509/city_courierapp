@@ -490,6 +490,7 @@ class _UnpaidListScreenState extends State<UnpaidListScreen> {
               amount: shipment.paymentInfo!.amount.toInt(),
               method: shipment.paymentInfo!.bankName ?? 'Bank Transfer',
               result: result,
+              shipmentId: shipment.id.toString(),
             ),
           ),
         ).then((_) => _fetchUnpaidShipments());
@@ -503,6 +504,7 @@ class _UnpaidListScreenState extends State<UnpaidListScreen> {
               amount: shipment.paymentInfo!.amount.toInt(),
               method: shipment.paymentInfo!.bankName ?? 'E-Wallet',
               result: result,
+              shipmentId: shipment.id.toString(),
             ),
           ),
         ).then((_) => _fetchUnpaidShipments());

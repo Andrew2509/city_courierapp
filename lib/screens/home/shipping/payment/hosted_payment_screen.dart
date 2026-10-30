@@ -9,6 +9,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/services/shipping/shipment_service.dart';
 
 /// Pembayaran lewat halaman iPaymu (Redirect Payment), dibuka DI DALAM aplikasi.
 ///
@@ -25,11 +26,16 @@ class HostedPaymentScreen extends StatefulWidget {
   final String method;
   final PaymentResult result;
 
+  /// Pesanan pemilik transaksi. Bila ada, "Batalkan Pesanan" membatalkan
+  /// pesanan lewat `/shipments/{id}/cancel` agar status pesanan ikut berubah.
+  final String? shipmentId;
+
   const HostedPaymentScreen({
     super.key,
     required this.amount,
     required this.method,
     required this.result,
+    this.shipmentId,
   });
 
   @override
@@ -264,9 +270,10 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
 
   Future<void> _cancelPayment() async {
     final paymentId = widget.result.paymentId;
-    debugPrint('Hosted: batalkan pembayaran paymentId=$paymentId');
+    final shipmentId = widget.shipmentId ?? widget.result.shipmentId ?? '';
+    debugPrint('Hosted: batalkan pesanan shipmentId=$shipmentId paymentId=$paymentId');
 
-    if (paymentId.isEmpty) {
+    if (shipmentId.isEmpty && paymentId.isEmpty) {
       _snack('ID pembayaran tidak ditemukan. Batalkan pesanan dari halaman pelacakan.');
       return;
     }
@@ -309,7 +316,11 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator(color: _primary)),
     );
 
-    final result = await PaymentService.cancelPayment(paymentId);
+    // Satu pintu: batalkan PESANAN-nya, bukan hanya transaksi pembayaran.
+    // Backend menutup transaksi iPaymu lalu mengubah status pesanan sekaligus.
+    final result = shipmentId.isNotEmpty
+        ? await ShipmentService.cancelShipment(shipmentId)
+        : await PaymentService.cancelPayment(paymentId);
     if (!mounted) return;
     Navigator.pop(context);
 
