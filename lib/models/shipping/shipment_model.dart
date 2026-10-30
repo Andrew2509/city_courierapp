@@ -249,24 +249,31 @@ class ShipmentModel {
 }
 
 class PaymentInfo {
+  /// ID transaksi iPaymu. Dipakai layar pembayaran untuk "Cek Status" dan
+  /// "Batalkan Pesanan" saat pesanan dibuka ulang dari daftar belum dibayar.
+  final String? paymentId;
   final String? vaNumber;
   final String? bankName;
   final double amount;
   final DateTime? expiredAt;
   final String? paymentUrl;
   final String? qrString;
+  final String? status;
 
   PaymentInfo({
+    this.paymentId,
     this.vaNumber,
     this.bankName,
     required this.amount,
     this.expiredAt,
     this.paymentUrl,
     this.qrString,
+    this.status,
   });
 
   factory PaymentInfo.fromJson(Map<String, dynamic> json) {
     return PaymentInfo(
+      paymentId: json['payment_id']?.toString(),
       vaNumber: json['va_number'],
       bankName: json['bank_name'],
       amount: (json['amount'] ?? 0).toDouble(),
@@ -275,17 +282,20 @@ class PaymentInfo {
           : null,
       paymentUrl: json['payment_url'],
       qrString: json['qr_string'],
+      status: json['status']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'payment_id': paymentId,
       'va_number': vaNumber,
       'bank_name': bankName,
       'amount': amount,
       'expired_at': expiredAt?.toIso8601String(),
       'payment_url': paymentUrl,
       'qr_string': qrString,
+      'status': status,
     };
   }
 }

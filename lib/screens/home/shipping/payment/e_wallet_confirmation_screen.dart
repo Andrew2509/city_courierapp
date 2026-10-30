@@ -207,6 +207,7 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
     }
 
     if (latest.status == 'paid') {
+      _timer?.cancel();
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -232,6 +233,21 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
         ),
       );
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    if (latest.status == 'expired' ||
+        latest.status == 'canceled' ||
+        latest.status == 'failed') {
+      _timer?.cancel();
+      final label = latest.status == 'expired' ? 'kedaluwarsa' : 'dibatalkan';
+      await _infoDialog(
+        'Pembayaran Tidak Berhasil',
+        'Transaksi QRIS/e-wallet ini sudah $label di iPaymu. Pesanan belum '
+            'terbayar — buat pembayaran baru dari halaman checkout atau '
+            'batalkan pesanan.',
+        icon: Icons.cancel_rounded,
+      );
       return;
     }
 

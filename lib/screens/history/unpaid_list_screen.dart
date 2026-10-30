@@ -469,11 +469,13 @@ class _UnpaidListScreenState extends State<UnpaidListScreen> {
   void _navigateToPayment(ShipmentModel shipment) {
     // If we have payment info (VA or QR), go directly to confirmation screen
     if (shipment.paymentInfo != null) {
+      // `payment_id` harus ikut agar tombol Cek Status & Batalkan Pesanan di
+      // layar pembayaran punya transaksi yang bisa ditanyakan ke backend.
       final result = PaymentResult(
-        paymentId: '', // ID not critical for display
+        paymentId: shipment.paymentInfo!.paymentId ?? '',
         method: shipment.paymentInfo!.bankName ?? 'Pembayaran',
         amount: shipment.paymentInfo!.amount.toInt(),
-        status: 'pending',
+        status: shipment.paymentInfo!.status ?? 'pending',
         vaNumber: shipment.paymentInfo!.vaNumber,
         qrString: shipment.paymentInfo!.qrString,
         checkoutUrl: shipment.paymentInfo!.paymentUrl,
