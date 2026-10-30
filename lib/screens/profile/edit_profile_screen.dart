@@ -361,7 +361,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     // Handle relative URLs for existing photos
     if (photoUrl.isNotEmpty && !photoUrl.startsWith('http')) {
       final String cleanPath = photoUrl.startsWith('/') ? photoUrl : '/$photoUrl';
-      photoUrl = 'https://citycourier.pabm.space/storage$cleanPath';
+      photoUrl = 'https://www.neonflux.my.id/storage$cleanPath';
     }
 
     return Center(
@@ -397,7 +397,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ? Image.network(
                               photoUrl.startsWith('http')
                                   ? photoUrl
-                                  : 'https://citycourier.pabm.space/storage/$photoUrl', 
+                                  : 'https://www.neonflux.my.id/storage/$photoUrl', 
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) => Container(
                                 color: bgLight,

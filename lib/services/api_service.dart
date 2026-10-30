@@ -6,7 +6,7 @@ import 'package:city_courierapp/services/auth_service.dart';
 
 class ApiService {
   // Gunakan 10.0.2.2 untuk Android Emulator, 127.0.0.1 untuk iOS Simulator / Web
-  static const String baseUrl = 'https://citycourier.pabm.space/api';
+  static const String baseUrl = 'https://www.neonflux.my.id/api';
 
   static Future<Map<String, dynamic>?> requestOtp(String phone) async {
     try {

@@ -66,7 +66,7 @@ class ProfileSettingsList extends StatelessWidget {
             borderColor,
             false,
             onTap: () async {
-              final Uri url = Uri.parse('https://citycourier.pabm.space');
+              final Uri url = Uri.parse('https://www.neonflux.my.id');
               if (!await launchUrl(
                 url,
                 mode: LaunchMode.externalApplication,

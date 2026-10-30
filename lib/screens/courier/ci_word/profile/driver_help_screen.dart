@@ -212,8 +212,8 @@ class _DriverHelpScreenState extends State<DriverHelpScreen> {
             _buildContactCard(
               icon: Icons.email_outlined,
               title: 'Email',
-              subtitle: 'support@citycourier.pabm.space',
-              onTap: () => _launchUrl('mailto:support@citycourier.pabm.space'),
+              subtitle: 'support@www.neonflux.my.id',
+              onTap: () => _launchUrl('mailto:support@www.neonflux.my.id'),
               primaryColor: primaryColor,
               borderColor: borderColor,
             ),

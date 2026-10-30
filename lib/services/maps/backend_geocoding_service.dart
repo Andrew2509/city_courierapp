@@ -10,7 +10,7 @@ import 'geocoding_service.dart';
 /// Flutter just calls the API and receives pre-processed results.
 ///
 /// Architecture:
-///   Flutter → Backend API (citycourier.pabm.space/api/geocoding/*)
+///   Flutter → Backend API (www.neonflux.my.id/api/geocoding/*)
 ///            → Nominatim → Photon → merged results
 class BackendGeocodingService implements GeocodingService {
   final http.Client client;

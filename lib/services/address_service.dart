@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:city_courierapp/services/token_store.dart';
 
 class AddressService {
-  static const String _baseUrl = 'https://citycourier.pabm.space/api';
+  static const String _baseUrl = 'https://www.neonflux.my.id/api';
 
   static Future<Map<String, String>> _authHeaders() async {
     final token = await TokenStore.read();

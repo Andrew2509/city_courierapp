@@ -960,7 +960,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     if (path.startsWith('http://') || path.startsWith('https://')) {
       return path;
     }
-    const baseHost = 'https://citycourier.pabm.space';
+    const baseHost = 'https://www.neonflux.my.id';
     if (path.startsWith('/storage/')) {
       return '$baseHost$path';
     } else if (path.startsWith('storage/')) {

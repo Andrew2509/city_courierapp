@@ -436,7 +436,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
     final rName = _getReceiverName();
     final veh = _getVehicleName();
     final status = _tracking?.statusLabel ?? 'Menunggu Kurir';
-    final trackUrl = 'https://citycourier.pabm.space/track/$trackNum';
+    final trackUrl = 'https://www.neonflux.my.id/track/$trackNum';
 
     final text = '📦 *Live Tracking City Courier*\n\n'
         'Nomor Resi: $trackNum\n'
@@ -2357,7 +2357,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
     if (photo != null && photo.isNotEmpty) {
       String fullUrl = photo;
       if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-        const baseHost = 'https://citycourier.pabm.space';
+        const baseHost = 'https://www.neonflux.my.id';
         if (fullUrl.startsWith('/storage/')) {
           fullUrl = '$baseHost$fullUrl';
         } else if (fullUrl.startsWith('storage/')) {

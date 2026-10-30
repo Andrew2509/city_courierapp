@@ -398,7 +398,7 @@ class _DriverAccountInfoScreenState extends State<DriverAccountInfoScreen> {
     String photoUrl = user?['photo'] ?? '';
 
     if (photoUrl.isNotEmpty && !photoUrl.startsWith('http')) {
-      photoUrl = 'https://citycourier.pabm.space/storage/$photoUrl';
+      photoUrl = 'https://www.neonflux.my.id/storage/$photoUrl';
     }
 
     final bool isVerified = courier?['is_verified'] ?? false;

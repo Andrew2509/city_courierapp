@@ -234,7 +234,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                                   .toString()
                                   .startsWith('http')
                           ? (user?['photo_url'] ?? user?['photo'])
-                          : 'https://citycourier.pabm.space/storage/${user?['photo_url'] ?? user?['photo']}',
+                          : 'https://www.neonflux.my.id/storage/${user?['photo_url'] ?? user?['photo']}',
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) =>
                           Container(

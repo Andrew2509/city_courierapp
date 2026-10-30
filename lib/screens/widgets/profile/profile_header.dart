@@ -43,7 +43,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
       // Prepend base domain and storage path if it's a relative path
       // Ensure there's a leading slash if not present
       final String cleanPath = photoUrl.startsWith('/') ? photoUrl : '/$photoUrl';
-      photoUrl = 'https://citycourier.pabm.space/storage$cleanPath';
+      photoUrl = 'https://www.neonflux.my.id/storage$cleanPath';
     }
 
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -183,7 +183,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                                       image: NetworkImage(
                                         photoUrl.startsWith('http')
                                             ? photoUrl
-                                            : 'https://citycourier.pabm.space/storage/$photoUrl',
+                                            : 'https://www.neonflux.my.id/storage/$photoUrl',
                                       ),
                                       fit: BoxFit.cover,
                                     )

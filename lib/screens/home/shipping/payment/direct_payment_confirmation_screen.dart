@@ -94,8 +94,8 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
     final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
     final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor';
     
-    final trackUrl = trackingUrl ?? 'https://citycourier.pabm.space/track/$orderId';
-    final qrUrl = barcodeUrl ?? 'https://citycourier.pabm.space/track/$orderId/qrcode.png';
+    final trackUrl = trackingUrl ?? 'https://www.neonflux.my.id/track/$orderId';
+    final qrUrl = barcodeUrl ?? 'https://www.neonflux.my.id/track/$orderId/qrcode.png';
 
     final text = '📦 *Pesanan City Courier*\n\n'
         'Nomor Resi:\n$orderId\n\n'
