@@ -12,6 +12,12 @@ class PaymentResult {
   /// 'direct' (VA/QRIS dibuat server) atau 'redirect' (halaman iPaymu).
   final String paymentMode;
 
+  /// URL yang dipanggil iPaymu saat pelanggan selesai / membatalkan
+  /// pembayaran. Dikirim backend agar aplikasi bisa mengenali kapan sesi
+  /// berakhir tanpa menebak dari pola URL.
+  final String? returnUrl;
+  final String? cancelUrl;
+
   PaymentResult({
     required this.paymentId,
     required this.method,
@@ -23,6 +29,8 @@ class PaymentResult {
     this.instructions,
     this.expiryTime,
     this.paymentMode = 'direct',
+    this.returnUrl,
+    this.cancelUrl,
   });
 
   /// Pembayaran lewat halaman iPaymu: tidak ada nomor VA / QR dari server,
@@ -44,6 +52,8 @@ class PaymentResult {
       vaNumber: json['va_number'],
       checkoutUrl: json['checkout_url'] ?? json['payment_url'],
       paymentMode: json['payment_mode'] ?? 'direct',
+      returnUrl: json['return_url'],
+      cancelUrl: json['cancel_url'],
       instructions: json['instructions'] is List 
           ? (json['instructions'] as List).join('\n') 
           : json['instructions'],
