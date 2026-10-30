@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
@@ -29,15 +30,20 @@ class StatusPenarikanScreen extends StatefulWidget {
 }
 
 class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
-  String _status = 'processing'; // Start as processing
+  String _status = 'processing'; // Dikonfirmasi ulang dari backend
   String? _providerReference;
+  String? _failureReason;
   Timer? _pollTimer;
   int _pollAttempts = 0;
   static const int _maxPollAttempts = 10;
+  bool _isChecking = false;
 
   @override
   void initState() {
     super.initState();
+    // Periksa sekali sekarang juga supaya status yang sudah final (mis.
+    // langsung berhasil/gagal saat dibuat) tidak tertunda 3 detik.
+    _pollStatus();
     _startPolling();
   }
 
@@ -54,48 +60,80 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
     });
   }
 
-  Future<void> _pollStatus() async {
-    if (_pollAttempts >= _maxPollAttempts) {
+  /// Panggilan pertama meminta backend menyinkronkan status ke provider;
+  /// poll berikutnya hanya membaca detail tersimpan agar tidak membanjiri
+  /// API DANA.
+  Future<void> _pollStatus({bool forceSync = false}) async {
+    if (_pollAttempts >= _maxPollAttempts && !forceSync) {
       _pollTimer?.cancel();
       return;
     }
 
     _pollAttempts++;
 
-    final result = await WalletService.getWithdrawalStatus(widget.transactionId);
+    final shouldSync = forceSync || _pollAttempts == 1;
+    final result = shouldSync
+        ? await WalletService.getWithdrawalStatus(widget.transactionId)
+        : await WalletService.getWithdrawalDetail(widget.transactionId);
 
     if (!mounted) return;
 
     if (result['success'] == true && result['data'] != null) {
-      final data = result['data'];
-      final newStatus = data['status'] ?? 'processing';
+      final data = result['data'] as Map<String, dynamic>;
+      final newStatus = _normalizeStatus(data['status']?.toString());
 
       setState(() {
         _status = newStatus;
         _providerReference = data['provider_reference'];
+        _failureReason = data['failure_reason']?.toString();
       });
 
       // Stop polling when terminal state reached
-      if (newStatus == 'success' || newStatus == 'failed' || newStatus == 'cancelled') {
+      if (const ['success', 'failed', 'cancelled'].contains(newStatus)) {
         _pollTimer?.cancel();
       }
     }
   }
 
+  /// Status provider → status tampilan.
+  String _normalizeStatus(String? raw) {
+    switch (raw) {
+      case 'success':
+      case 'completed':
+        return 'success';
+      case 'failed':
+      case 'rejected':
+        return 'failed';
+      case 'cancelled':
+        return 'cancelled';
+      case 'pending':
+      case 'reserved':
+        return 'pending';
+      default:
+        return 'processing';
+    }
+  }
+
+  Future<void> _manualSync() async {
+    if (_isChecking) return;
+    setState(() => _isChecking = true);
+    _pollAttempts = 0;
+    await _pollStatus(forceSync: true);
+    if (!mounted) return;
+    setState(() => _isChecking = false);
+
+    if (!const ['success', 'failed', 'cancelled'].contains(_status)) {
+      _startPolling();
+    }
+  }
+
   String _formatRupiah(double amount) {
-    final digits = amount.toStringAsFixed(0);
-    final grouped = digits.replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
-    );
-    return grouped;
+    return formatRupiah(amount, withPrefix: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isProcessing = _status == 'pending' ||
-        _status == 'reserved' ||
-        _status == 'processing';
+    final isProcessing = _status == 'pending' || _status == 'processing';
     final isFailed = _status == 'failed' || _status == 'cancelled';
 
     return Scaffold(
@@ -187,6 +225,30 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFFD97706),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isChecking ? null : _manualSync,
+                icon: _isChecking
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync, size: 16),
+                label: Text(
+                  _isChecking ? 'Memeriksa...' : 'Perbarui Status',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryOrange,
+                  side: const BorderSide(color: Color(0xFFE8E8E8)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ),
@@ -329,13 +391,16 @@ class _StatusPenarikanScreenState extends State<StatusPenarikanScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Dana akan dikembalikan ke saldo Anda.',
+            Text(
+              (_failureReason ?? '').isNotEmpty
+                  ? 'Alasan: $_failureReason\nDana dikembalikan ke saldo Anda.'
+                  : 'Dana dikembalikan ke saldo Anda.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 color: Color(0xFF94A3B8),
+                height: 1.4,
               ),
             ),
           ],

@@ -1,92 +1,173 @@
 import 'package:flutter/material.dart';
+
 import 'package:city_courierapp/core/config/app_colors.dart';
-import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/status_penarikan_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/transaction_detail_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_history_tile.dart';
+import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
-/// Transaction History Screen.
-/// Uses real backend data from GET /api/courier/earnings.
-/// PRD §52: Riwayat Transaksi UI.
+/// Riwayat Transaksi Dompet.
+///
+/// Sumber data: GET /api/courier/wallet/history — sudah dinormalisasi backend
+/// (pendapatan, bonus, penarikan, pengembalian saldo) dan mendukung filter
+/// jenis transaksi serta status.
 class RiwayatTransaksiScreen extends StatefulWidget {
-  const RiwayatTransaksiScreen({super.key});
+  final String initialFilter;
+
+  const RiwayatTransaksiScreen({super.key, this.initialFilter = 'all'});
 
   @override
   State<RiwayatTransaksiScreen> createState() => _RiwayatTransaksiScreenState();
 }
 
 class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
-  String _selectedFilter = 'Semua';
+  static const _typeFilters = <String, String>{
+    'all': 'Semua',
+    'earning': 'Pendapatan',
+    'withdrawal': 'Penarikan',
+  };
 
-  final List<String> _filters = ['Semua', 'Pendapatan', 'Penarikan', 'Bonus'];
+  static const _statusFilters = <String?, String>{
+    null: 'Semua status',
+    'success': 'Berhasil',
+    'processing': 'Diproses',
+    'pending': 'Menunggu',
+    'failed': 'Gagal',
+    'cancelled': 'Dibatalkan',
+  };
 
-  // Transaction data from backend
-  List<Map<String, dynamic>> _transactions = [];
-  /// Riwayat penarikan (endpoint /courier/withdrawals) — nominal, biaya,
-  /// nomor tujuan disamarkan, ID transaksi, status.
-  List<Map<String, dynamic>> _withdrawals = [];
+  late String _filter;
+  String? _status;
+
+  final List<WalletHistoryItem> _items = [];
+  int _page = 1;
+  bool _hasMore = false;
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadTransactions();
+    _filter = widget.initialFilter;
+    _load();
   }
 
-  Future<void> _loadTransactions() async {
+  Future<void> _load() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
-    try {
-      final result = await WalletService.getEarnings();
-      final withdrawalsResult = await WalletService.getWithdrawals();
-      if (!mounted) return;
+    final result = await WalletService.getHistory(
+      page: 1,
+      filter: _filter,
+      status: _status,
+    );
 
-      if (result['success'] == true && result['data'] != null) {
-        final data = result['data'] as Map<String, dynamic>;
-        setState(() {
-          _isLoading = false;
-          _transactions = (data['recent_activity'] as List<dynamic>? ?? [])
-              .map((e) => (e as Map).cast<String, dynamic>())
-              .toList();
-          _withdrawals = ((withdrawalsResult['data'] as Map<String, dynamic>?)?['withdrawals'] as List<dynamic>? ?? [])
-              .map((e) => (e as Map).cast<String, dynamic>())
-              .toList();
-        });
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+
+      if (result['success'] == true) {
+        _items
+          ..clear()
+          ..addAll(result['items'] as List<WalletHistoryItem>);
+        _page = 1;
+        _hasMore = result['hasMore'] == true;
       } else {
-        setState(() {
-          _isLoading = false;
-          _error = result['message'] ?? 'Gagal memuat riwayat transaksi';
-        });
+        _items.clear();
+        _hasMore = false;
+        _error = result['message']?.toString() ?? 'Gagal memuat riwayat transaksi';
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _error = 'Gagal memuat riwayat transaksi';
-        });
-      }
-    }
+    });
   }
 
-  List<Map<String, dynamic>> get _filteredTransactions {
-    if (_selectedFilter == 'Semua') return [..._transactions, ..._withdrawals.map(_mapWithdrawalItem)];
-    if (_selectedFilter == 'Pendapatan') {
-      return _transactions.where((t) => t['type'] == 'earning').toList();
-    }
-    if (_selectedFilter == 'Penarikan') {
-      // Riwayat pencairan penuh dari endpoint withdrawals
-      return _withdrawals.map(_mapWithdrawalItem).toList();
-    }
-    if (_selectedFilter == 'Bonus') {
-      return _transactions.where((t) => t['type'] == 'bonus').toList();
-    }
-    return _transactions;
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() => _isLoadingMore = true);
+
+    final nextPage = _page + 1;
+    final result = await WalletService.getHistory(
+      page: nextPage,
+      filter: _filter,
+      status: _status,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingMore = false;
+
+      if (result['success'] == true) {
+        _items.addAll(result['items'] as List<WalletHistoryItem>);
+        _page = nextPage;
+        _hasMore = result['hasMore'] == true;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']?.toString() ?? 'Gagal memuat transaksi berikutnya'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _pickStatus() async {
+    final selected = await showModalBottomSheet<String?>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Filter status',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF191B23),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final entry in _statusFilters.entries)
+              ListTile(
+                dense: true,
+                title: Text(
+                  entry.value,
+                  style: const TextStyle(fontSize: 13.5, color: Color(0xFF191B23)),
+                ),
+                trailing: entry.key == _status
+                    ? const Icon(Icons.check, size: 18, color: AppColors.primaryOrange)
+                    : null,
+                onTap: () => Navigator.pop(context, entry.key ?? '__all__'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (selected == null) return;
+
+    setState(() {
+      _status = selected == '__all__' ? null : selected;
+    });
+    await _load();
   }
 
   @override
@@ -98,19 +179,8 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            _buildFilterTabs(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                          color: AppColors.primaryOrange),
-                    )
-                  : _error != null
-                      ? _buildErrorState()
-                      : _filteredTransactions.isEmpty
-                          ? _buildEmptyState()
-                          : _buildTransactionList(),
-            ),
+            _buildFilterBar(),
+            Expanded(child: _buildBody()),
           ],
         ),
       ),
@@ -125,16 +195,12 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
           } else if (index == 1) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                  builder: (context) => const DriverShipmentScreen()),
+              MaterialPageRoute(builder: (context) => const DriverShipmentScreen()),
             );
-          } else if (index == 2) {
-            // Already on Pendapatan
           } else if (index == 3) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                  builder: (context) => const DriverProfileScreen()),
+              MaterialPageRoute(builder: (context) => const DriverProfileScreen()),
             );
           }
         },
@@ -142,160 +208,182 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadTransactions,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Coba Lagi'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.receipt_long_outlined,
-              color: Color(0xFF94A3B8), size: 48),
-          SizedBox(height: 12),
-          Text(
-            'Belum ada transaksi',
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF191B23)),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Transaksi pendapatan dan penarikan Anda akan muncul di sini.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-      color: AppColors.backgroundColor,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back, color: Color(0xFF191B23)),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF191B23)),
           ),
           const Expanded(
             child: Text(
               'Riwayat Transaksi',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF191B23)),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF191B23),
+              ),
             ),
           ),
-          const SizedBox(width: 24),
+          IconButton(
+            onPressed: _isLoading ? null : _load,
+            icon: const Icon(Icons.refresh, color: Color(0xFF334155)),
+            tooltip: 'Muat ulang',
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterTabs() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: _filters.map((filter) {
-            final isSelected = _selectedFilter == filter;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(
-                  filter,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color:
-                        isSelected ? Colors.white : const Color(0xFF64748B),
-                  ),
-                ),
-                selected: isSelected,
-                selectedColor: AppColors.primaryOrange,
-                backgroundColor: Colors.white,
-                side: BorderSide(
-                  color: isSelected
-                      ? AppColors.primaryOrange
-                      : const Color(0xFFE8E8E8),
-                ),
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedFilter = filter;
-                  });
-                },
-              ),
-            );
-          }).toList(),
+  Widget _buildFilterBar() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              for (final entry in _typeFilters.entries) ...[
+                _buildTypeChip(entry.key, entry.value),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _pickStatus,
+                icon: const Icon(Icons.filter_list, size: 16),
+                label: Text(
+                  _statusFilters[_status] ?? 'Semua status',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _status == null ? const Color(0xFF64748B) : AppColors.primaryOrange,
+                  side: BorderSide(
+                    color: _status == null ? const Color(0xFFE8E8E8) : AppColors.primaryOrange,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+              ),
+              const Spacer(),
+              if (!_isLoading)
+                Text(
+                  '${_items.length} transaksi dimuat',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
-  Widget _buildTransactionList() {
-    String? lastDate;
+  Widget _buildTypeChip(String value, String label) {
+    final selected = _filter == value;
+
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: selected ? Colors.white : const Color(0xFF64748B),
+        ),
+      ),
+      selected: selected,
+      selectedColor: AppColors.primaryOrange,
+      backgroundColor: Colors.white,
+      showCheckmark: false,
+      side: BorderSide(
+        color: selected ? AppColors.primaryOrange : const Color(0xFFE8E8E8),
+      ),
+      onSelected: (_) {
+        if (_filter == value) return;
+        setState(() => _filter = value);
+        _load();
+      },
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primaryOrange));
+    }
+
+    if (_error != null) {
+      return _buildErrorState();
+    }
+
+    if (_items.isEmpty) {
+      return _buildEmptyState();
+    }
 
     return RefreshIndicator(
-      onRefresh: _loadTransactions,
+      color: AppColors.primaryOrange,
+      onRefresh: _load,
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _filteredTransactions.length,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        itemCount: _items.length + 1,
         itemBuilder: (context, index) {
-          final transaction = _filteredTransactions[index];
-          final showDateHeader = transaction['date_label'] != lastDate;
-          lastDate = transaction['date_label'];
+          if (index == _items.length) {
+            return _buildFooter();
+          }
+
+          final item = _items[index];
+          final previous = index > 0 ? _items[index - 1] : null;
+          final showHeader = previous?.createdAt == null ||
+              item.createdAt == null ||
+              !_sameDay(previous!.createdAt!, item.createdAt!);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (showDateHeader) ...[
-                const SizedBox(height: 16),
+              if (showHeader) ...[
+                const SizedBox(height: 14),
                 Text(
-                  transaction['date'] ?? '',
+                  _dateHeader(item.createdAt),
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF94A3B8),
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.3,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
               ],
-              _buildTransactionItem(transaction),
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE8E8E8)),
+                ),
+                child: WalletHistoryTile(
+                  item: item,
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TransactionDetailScreen(item: item),
+                      ),
+                    );
+                    if (mounted) await _load();
+                  },
+                ),
+              ),
             ],
           );
         },
@@ -303,208 +391,124 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
     );
   }
 
-  /// Map item API /courier/withdrawals ke bentuk item riwayat.
-  Map<String, dynamic> _mapWithdrawalItem(Map<String, dynamic> w) {
-    final createdAt = DateTime.tryParse((w['created_at'] ?? '').toString());
-    final provider = (w['provider'] ?? w['bank_name'] ?? 'DANA').toString().toUpperCase();
-    return {
-      'id': (w['withdrawal_id'] ?? w['id'] ?? '').toString(),
-      'type': 'withdrawal_full',
-      'provider': provider,
-      'title': 'Penarikan $provider',
-      'amount': ((w['amount'] ?? w['net_amount'] ?? 0) as num?)?.toDouble() ?? 0,
-      'fee': ((w['fee'] ?? 0) as num?)?.toDouble() ?? 0,
-      'destination': (w['account_number'] ?? w['masked_account'] ?? '-').toString(),
-      'reference': (w['provider_reference'] ?? w['idempotency_key'] ?? '-').toString(),
-      'status_raw': (w['status'] ?? 'pending').toString(),
-      'status': _withdrawalStatusLabel((w['status'] ?? '').toString()),
-      'created_at_raw': createdAt,
-      'time': createdAt != null ? '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')} ${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}' : '',
-      'date': createdAt != null ? '${createdAt.day} ${_monthName(createdAt.month)}' : '',
-      'date_label': createdAt != null ? '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}' : '',
-    };
-  }
-
-  String _withdrawalStatusLabel(String status) {
-    switch (status) {
-      case 'success':
-      case 'completed':
-        return 'Berhasil';
-      case 'failed':
-      case 'rejected':
-      case 'cancelled':
-        return 'Gagal';
-      case 'processing':
-      case 'approved':
-        return 'Diproses';
-      default:
-        return 'Menunggu';
-    }
-  }
-
-  String _monthName(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    return months[(month - 1).clamp(0, 11)];
-  }
-
-  Widget _buildTransactionItem(Map<String, dynamic> transaction) {
-    final type = transaction['type'] ?? 'earning';
-    final isWithdrawalFull = type == 'withdrawal_full';
-    final isIncome = type == 'earning';
-    final isBonus = type == 'bonus';
-    final amount = ((transaction['amount'] ?? 0) as num).toDouble();
-    final isPositive = amount > 0 && !isWithdrawalFull;
-
-    IconData icon;
-    Color iconBgColor;
-    Color iconColor;
-
-    if (isIncome) {
-      icon = Icons.arrow_upward;
-      iconBgColor = const Color(0xFFDCFCE7);
-      iconColor = const Color(0xFF22C55E);
-    } else if (isBonus) {
-      icon = Icons.card_giftcard;
-      iconBgColor = const Color(0xFFDBEAFE);
-      iconColor = AppColors.primaryOrange;
-    } else {
-      icon = Icons.arrow_downward;
-      iconBgColor = const Color(0xFFFEE2E2);
-      iconColor = const Color(0xFFEF4444);
-    }
-
-    final detail = Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
+  Widget _buildFooter() {
+    if (_isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryOrange),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  transaction['title'] ?? 'Transaksi',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF191B23),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      transaction['time'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                    if (transaction['status'] != null) ...[
-                      const Text(
-                        ' • ',
-                        style: TextStyle(
-                            fontSize: 12, color: Color(0xFF94A3B8)),
-                      ),
-                      Text(
-                        transaction['status'],
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _statusColor(transaction['status'].toString()),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                if (isWithdrawalFull) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Tujuan ${transaction['destination'] ?? '-'}'
-                    '${((transaction['fee'] as num?)?.toDouble() ?? 0) > 0 ? ' • Biaya Rp${_formatRupiah((transaction['fee'] as num).toDouble())}' : ''}'
-                    ' • #${transaction['id'] ?? '-'}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Text(
-            '${isPositive ? '+' : '-'}Rp${_formatRupiah(amount.abs())}',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: isPositive
-                  ? const Color(0xFF22C55E)
-                  : const Color(0xFF191B23),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (isWithdrawalFull) {
-      return GestureDetector(
-        onTap: () => _openWithdrawalDetail(transaction),
-        child: detail,
+        ),
       );
     }
-    return detail;
-  }
 
-  void _openWithdrawalDetail(Map<String, dynamic> transaction) {
-    final time = transaction['created_at_raw'] as DateTime? ?? DateTime.now();
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StatusPenarikanScreen(
-          transactionId: (transaction['id'] ?? '').toString(),
-          amount: ((transaction['amount'] ?? 0) as num).toDouble(),
-          bankName: (transaction['provider'] ?? 'DANA').toString(),
-          maskedAccount: (transaction['destination'] ?? '-').toString(),
-          time: time,
+    if (!_hasMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            'Semua transaksi sudah ditampilkan',
+            style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: _loadMore,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primaryOrange,
+            side: const BorderSide(color: Color(0xFFE8E8E8)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text(
+            'Muat lebih banyak',
+            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
     );
   }
 
-  Color _statusColor(String statusLabel) {
-    switch (statusLabel) {
-      case 'Berhasil':
-        return const Color(0xFF22C55E);
-      case 'Gagal':
-        return const Color(0xFFEF4444);
-      case 'Diproses':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF64748B);
-    }
+  Widget _buildEmptyState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: const [
+        SizedBox(height: 80),
+        Icon(Icons.receipt_long_outlined, size: 40, color: Color(0xFFCBD5E1)),
+        SizedBox(height: 12),
+        Text(
+          'Belum ada transaksi',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF191B23),
+          ),
+        ),
+        SizedBox(height: 4),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'Transaksi pendapatan dan penarikan Anda akan muncul di sini.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
+          ),
+        ),
+      ],
+    );
   }
 
-  String _formatRupiah(num value) {
-    final grouped = value.toStringAsFixed(0).replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]}.',
-        );
-    return grouped;
+  Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 40),
+          const SizedBox(height: 12),
+          Text(
+            _error!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _load,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Coba Lagi'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  static String _dateHeader(DateTime? value) {
+    if (value == null) return 'Tanpa tanggal';
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(value.year, value.month, value.day);
+    final diff = today.difference(day).inDays;
+
+    if (diff == 0) return 'Hari ini';
+    if (diff == 1) return 'Kemarin';
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return '${value.day} ${months[value.month - 1]} ${value.year}';
   }
 }

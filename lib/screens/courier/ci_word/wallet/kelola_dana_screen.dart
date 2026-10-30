@@ -18,6 +18,7 @@ class KelolaDanaScreen extends StatefulWidget {
 class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
   DanaConnection? _danaConnection;
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -26,25 +27,29 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
   }
 
   Future<void> _loadDanaStatus() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
     final result = await WalletService.getDanaStatus();
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        if (result['success'] && result['data'] != null) {
-          _danaConnection = DanaConnection.fromJson(result['data']);
-        } else {
-          // Fallback for development
-          _danaConnection = DanaConnection(
-            status: DanaConnectionStatus.connected,
-            maskedPhone: '08******1234',
-            connectedAt: DateTime.now().toIso8601String(),
-          );
-        }
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+
+      if (result['success'] == true && result['data'] != null) {
+        _danaConnection = DanaConnection.fromJson(
+          (result['data'] as Map).cast<String, dynamic>(),
+        );
+      } else {
+        // Tidak ada data → akun memang belum terhubung. Jangan menampilkan
+        // data contoh.
+        _danaConnection = DanaConnection(status: DanaConnectionStatus.notConnected);
+        _error = result['message']?.toString();
+      }
+    });
   }
 
   void _showDisconnectDialog() {
@@ -114,14 +119,13 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
 
   /// PRD §35: Hubungkan Ulang - replace DANA account.
   Future<void> _reconnectDana() async {
-    // Navigate to linking screen in reconnect mode
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DanaLinkingScreen()),
     );
 
-    if (result == true && mounted) {
-      _loadDanaStatus();
+    if (mounted) {
+      await _loadDanaStatus();
     }
   }
 
@@ -216,9 +220,16 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _danaConnection?.maskedPhone ?? '-',
+                  _danaConnection?.maskedPhone ?? 'Belum terhubung',
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xFF64748B)),
                 ),
+                if ((_danaConnection?.accountName ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'a.n ${_danaConnection!.accountName}',
+                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                  ),
+                ],
               ],
             ),
           ),
@@ -269,6 +280,13 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
                     color: isConnected ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
                   ),
                 ),
+                if (_error != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _error!,
+                    style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                  ),
+                ],
               ],
             ),
           ),
@@ -279,13 +297,15 @@ class _KelolaDanaScreenState extends State<KelolaDanaScreen> {
 
   /// PRD §35: Hubungkan Ulang - replace current DANA account.
   Widget _buildReconnectButton() {
+    final isConnected = _danaConnection?.isConnected ?? false;
+
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: _reconnectDana,
-        icon: Icon(Icons.link, color: AppColors.primaryOrange, size: 18),
+        icon: Icon(isConnected ? Icons.link : Icons.add_link, color: AppColors.primaryOrange, size: 18),
         label: Text(
-          'Hubungkan Ulang',
+          isConnected ? 'Hubungkan Ulang' : 'Hubungkan DANA',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primaryOrange),
         ),
         style: OutlinedButton.styleFrom(

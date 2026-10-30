@@ -29,7 +29,6 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
   bool _isConnecting = false;
   String? _error;
   bool _isSuccess = false;
-  bool _demoBusy = false;
   String? _maskedAccount;
   StreamSubscription<Uri>? _deepLinkSub;
 
@@ -233,72 +232,8 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
   void _onBackendConnected(String? maskedPhone) {
     _isSuccess = true;
     _isConnecting = false;
-    _maskedAccount = (maskedPhone != null && maskedPhone.isNotEmpty) ? maskedPhone : '08******7890';
+    _maskedAccount = (maskedPhone != null && maskedPhone.isNotEmpty) ? maskedPhone : null;
     _scheduleAutoPop();
-  }
-
-  /// Mode demo: berikan kode otorisasi simulasi ke backend
-  /// (POST /courier/dana/mock-connect). Backend yang mencatat koneksi,
-  /// lalu Dompet membaca ulang status asli dari backend.
-  Future<void> _useDemoMode() async {
-    if (_demoBusy) return;
-
-    _pollTimer?.cancel();
-    if (!mounted) return;
-
-    setState(() => _demoBusy = true);
-    final result = await WalletService.mockConnectDana();
-    if (!mounted) return;
-    setState(() => _demoBusy = false);
-
-    if (result['success'] == true) {
-      Navigator.pop(context, 'demo');
-    } else {
-      setState(() {
-        _error =
-            result['message']?.toString() ?? 'Gagal mengaktifkan Mode Demo. Silakan coba lagi.';
-      });
-    }
-  }
-
-  /// Tombol "Mode Demo" — hambatan terakhir sebelum akun sungguhan aktif.
-  Widget _buildDemoButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: _isLoading || _demoBusy ? null : _useDemoMode,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryGreen,
-          side: BorderSide(color: AppColors.primaryGreen.withOpacity(0.5)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: _demoBusy
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: AppColors.primaryGreen,
-                ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.science_outlined, size: 18, color: AppColors.primaryGreen),
-                  SizedBox(width: 8),
-                  Text(
-                    'Gunakan Mode Demo',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryGreen,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
   }
 
   /// Refresh status dari backend. Dipakai tombol "Saya Sudah Selesai",
@@ -501,8 +436,6 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
             ),
           ),
           const SizedBox(height: 12),
-          _buildDemoButton(),
-          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: TextButton(
@@ -551,8 +484,6 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
                 child: const Text('Saya Sudah Selesai', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               ),
             ),
-            const SizedBox(height: 12),
-            _buildDemoButton(),
           ],
         ),
       ),
@@ -594,8 +525,6 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
               child: const Text('Kembali', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
             ),
           ),
-          const SizedBox(height: 12),
-          _buildDemoButton(),
           const SizedBox(height: 16),
         ],
       ),

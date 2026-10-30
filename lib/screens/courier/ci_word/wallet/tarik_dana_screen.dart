@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:city_courierapp/core/config/app_colors.dart';
-import 'package:city_courierapp/services/wallet/wallet_service.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/kelola_dana_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/status_penarikan_screen.dart';
 import 'package:flutter/services.dart';
 
-/// Tarik Dana (Withdraw) Screen.
-/// PRD §15: Tarik Dana page with configurable fee.
-/// PRD §16: MIN_WITHDRAWAL_AMOUNT from backend config.
-/// PRD §17: Validation against backend.
+import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/utils/currency_format.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/status_penarikan_screen.dart';
+import 'package:city_courierapp/services/wallet/wallet_service.dart';
+
+/// Tarik Saldo ke DANA.
+///
+/// Tidak ada binding akun: kurir mengetik nomor DANA tujuan pada setiap
+/// penarikan (format 08… atau 628…, dinormalisasi validasi di backend).
+///
+/// Alur: saldo → nomor tujuan → nominal → validasi (min/max/saldo) →
+/// rincian biaya dari backend → konfirmasi → POST /api/courier/withdrawals →
+/// layar status.
+///
+/// Keamanan: idempotency key dibuat sekali per (nominal, nomor) dan dipakai
+/// ulang bila hasil request tidak pasti (timeout/5xx). Request tidak dikirim
+/// ulang dengan key baru sebelum status transaksi diperiksa.
 class TarikDanaScreen extends StatefulWidget {
   const TarikDanaScreen({super.key});
 
@@ -16,8 +25,7 @@ class TarikDanaScreen extends StatefulWidget {
   State<TarikDanaScreen> createState() => _TarikDanaScreenState();
 }
 
-/// Formatter input nominal agar tampil dengan separator ribuan ("500.000")
-/// sambil tetap menyimpan angka bersih pada parsing.
+/// Formatter input nominal agar tampil dengan separator ribuan ("500.000").
 class _RupiahInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -47,183 +55,269 @@ class _RupiahInputFormatter extends TextInputFormatter {
 
 class _TarikDanaScreenState extends State<TarikDanaScreen> {
   final TextEditingController _amountController = TextEditingController();
-  bool _isLoading = false;
-  bool _isWithdrawing = false;
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final FocusNode _phoneFocus = FocusNode();
+
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  String? _loadError;
 
   double _saldoTersedia = 0;
-  DanaConnection? _danaConnection;
   WithdrawalFeeConfig? _feeConfig;
+
+  /// Idempotency key yang sudah dipakai untuk (nominal, nomor) yang sama.
+  /// Dipakai ulang supaya percobaan ulang setelah timeout tidak membuat
+  /// penarikan kedua.
+  String? _pendingKey;
+  double? _pendingAmount;
+  String? _pendingPhone;
 
   @override
   void initState() {
     super.initState();
+    _phoneFocus.addListener(() => setState(() {}));
     _loadData();
-  }
-
-  /// Load wallet balance, DANA status, and fee configuration from backend.
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-
-    final walletResult = await WalletService.getWallet();
-    final danaResult = await WalletService.getDanaStatus();
-    final feeResult = await WalletService.getFeeConfig();
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-
-        if (walletResult['success'] && walletResult['data'] != null) {
-          final balance = WalletBalance.fromJson(walletResult['data']);
-          _saldoTersedia = balance.availableBalance;
-        } else {
-          _saldoTersedia = 0;
-        }
-
-        if (danaResult['success'] && danaResult['data'] != null) {
-          _danaConnection = DanaConnection.fromJson(danaResult['data']);
-        } else {
-          _danaConnection = DanaConnection(
-            status: DanaConnectionStatus.notConnected,
-          );
-        }
-
-        // PRD §15: Fee from backend configuration
-        if (feeResult['success'] && feeResult['data'] != null) {
-          _feeConfig = WithdrawalFeeConfig.fromJson(feeResult['data']);
-        } else {
-          // Fallback defaults
-          _feeConfig = WithdrawalFeeConfig(
-            adminFee: 2500,
-            minimum: 10000,
-            maximum: 5000000,
-            dailyLimit: 5000000,
-          );
-        }
-      });
-    }
   }
 
   @override
   void dispose() {
     _amountController.dispose();
+    _phoneController.dispose();
+    _nameController.dispose();
+    _phoneFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    final results = await Future.wait([
+      WalletService.getWallet(),
+      WalletService.getFeeConfig(),
+    ]);
+
+    if (!mounted) return;
+
+    final walletResult = results[0];
+    final feeResult = results[1];
+
+    setState(() {
+      _isLoading = false;
+
+      _saldoTersedia = walletResult['success'] == true && walletResult['data'] != null
+          ? WalletBalance.fromJson((walletResult['data'] as Map).cast<String, dynamic>())
+              .availableBalance
+          : 0;
+
+      // Biaya & batas HARUS dari backend. Tanpa konfigurasi, penarikan
+      // ditahan agar tidak menampilkan biaya statis yang belum tentu benar.
+      _feeConfig = feeResult['success'] == true && feeResult['data'] != null
+          ? WithdrawalFeeConfig.fromJson(
+              (feeResult['data'] as Map).cast<String, dynamic>())
+          : null;
+
+      if (walletResult['success'] != true) {
+        _loadError = walletResult['message']?.toString() ?? 'Gagal memuat saldo';
+      }
+    });
   }
 
   double get _amount {
     return double.tryParse(
-            _amountController.text.replaceAll('.', '').replaceAll(',', '')) ??
+          _amountController.text.replaceAll('.', '').replaceAll(',', ''),
+        ) ??
         0;
   }
 
+  /// Nomor DANA yang diketik kurir (normalisasi hanya untuk validasi/preview;
+  /// nomor asli dikirim apa adanya dan dinormalisasi final di backend).
+  String? get _normalizedPhone =>
+      WalletService.normalizePhone(_phoneController.text);
+
+  String get _maskedPhone =>
+      _normalizedPhone != null
+          ? WalletService.maskPhone(_normalizedPhone)
+          : '';
+
+  String? get _phoneName {
+    final name = _nameController.text.trim();
+    return name.isEmpty ? null : name;
+  }
+
+  double get _fee => _feeConfig?.adminFee ?? 0;
+
   double get _netAmount {
-    final fee = _feeConfig?.adminFee ?? 2500;
-    final net = _amount - fee;
+    final net = _amount - _fee;
     return net > 0 ? net : 0;
   }
 
-  bool get _canWithdraw {
-    return _amount > 0 &&
-        _amount >= (_feeConfig?.minimum ?? 10000) &&
-        _amount <= _saldoTersedia &&
-        _danaConnection?.isConnected == true;
-  }
+  bool get _feeConfigReady => _feeConfig != null;
 
-  String get _validationError {
-    if (_amount <= 0) return 'Masukkan jumlah penarikan';
-    if (_amount < (_feeConfig?.minimum ?? 10000)) {
-      return 'Minimum penarikan Rp${(_feeConfig?.minimum ?? 10000).toStringAsFixed(0)}';
+  String? get _phoneError {
+    final text = _phoneController.text.trim();
+    if (text.isEmpty) return null; // diperiksa di _validationError
+    if (_normalizedPhone == null) {
+      return 'Nomor tidak valid. Gunakan format 08… atau 628… (9-13 digit setelah 62/0).';
     }
-    if (_amount > _saldoTersedia) return 'Saldo tidak mencukupi';
-    if (_danaConnection?.isConnected != true) return 'DANA belum terhubung';
-    return '';
+    return null;
   }
 
-  void _onTarikDana() {
-    if (!_canWithdraw) {
+  String? get _validationError {
+    if (!_feeConfigReady) {
+      return 'Konfigurasi penarikan belum tersedia. Coba lagi nanti.';
+    }
+    if (_phoneController.text.trim().isEmpty) {
+      return 'Masukkan nomor DANA tujuan.';
+    }
+    if (_normalizedPhone == null) {
+      return 'Nomor DANA tidak valid. Gunakan format 08… atau 628….';
+    }
+    if (_amount <= 0) return 'Masukkan nominal penarikan.';
+
+    final config = _feeConfig!;
+    if (_amount < config.minimum) {
+      return 'Minimum penarikan ${formatRupiah(config.minimum)}.';
+    }
+    if (_amount > config.maximum) {
+      return 'Maksimum penarikan ${formatRupiah(config.maximum)}.';
+    }
+    if (_amount > _saldoTersedia) return 'Saldo tersedia tidak mencukupi.';
+    if (_amount - _fee <= 0) return 'Nominal harus lebih besar dari biaya admin.';
+    return null;
+  }
+
+  bool get _canSubmit => !_isSubmitting && _validationError == null;
+
+  void _onAmountChanged(String value) {
+    setState(() {
+      _resetPendingKeyIfIdentityChanged();
+    });
+  }
+
+  void _onDestinationChanged(String value) {
+    setState(() {
+      _resetPendingKeyIfIdentityChanged();
+    });
+  }
+
+  /// (Nominal, nomor tujuan) berubah → transaksi berbeda, key lama tidak
+  /// berlaku lagi.
+  void _resetPendingKeyIfIdentityChanged() {
+    if (_pendingKey == null) return;
+    final phoneChanged =
+        _pendingPhone != null && _pendingPhone != _phoneController.text.trim();
+    final amountChanged = _pendingAmount != null && _amount != _pendingAmount;
+
+    if (amountChanged || phoneChanged) {
+      _pendingKey = null;
+      _pendingAmount = null;
+      _pendingPhone = null;
+    }
+  }
+
+  Future<void> _confirm() async {
+    if (_isSubmitting) return;
+
+    final error = _validationError;
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_validationError),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(error), backgroundColor: const Color(0xFFDC2626)),
       );
       return;
     }
 
-    _showConfirmationDialog();
-  }
+    final masked = _maskedPhone;
 
-  void _showConfirmationDialog() {
-    final fee = _feeConfig?.adminFee ?? 2500;
-
-    showDialog(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Konfirmasi Penarikan',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildConfirmRow(
-                'Nominal', 'Rp${_formatRupiah(_amount)}'),
-            const SizedBox(height: 8),
-            _buildConfirmRow(
-                'Biaya admin', 'Rp${_formatRupiah(fee)}'),
-            const Divider(height: 24),
-            _buildConfirmRow(
-              'Dana diterima',
-              'Rp${_formatRupiah(_netAmount)}',
-              isBold: true,
-            ),
-            const SizedBox(height: 12),
-            _buildConfirmRow('Tujuan', 'DANA'),
-            _buildConfirmRow('Akun', _danaConnection?.maskedPhone ?? '-'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal',
-                style: TextStyle(color: Color(0xFF64748B))),
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Konfirmasi Penarikan',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF191B23),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _buildRow('Nominal', formatRupiah(_amount)),
+              _buildRow('Biaya admin', formatRupiah(_fee)),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+              ),
+              _buildRow('Dana diterima', formatRupiah(_netAmount), bold: true),
+              const SizedBox(height: 6),
+              _buildRow('Tujuan', 'DANA'),
+              _buildRow('Nomor', masked),
+              if (_phoneName != null) _buildRow('Nama', _phoneName!),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Ya, Tarik Sekarang',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Pastikan nomor sudah benar. Saldo hanya dipotong setelah '
+                'permintaan dibuat, dan status akhir mengikuti konfirmasi '
+                'resmi dari penyedia.',
+                style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), height: 1.4),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _processWithdrawal();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Tarik Dana'),
-          ),
-        ],
+        ),
       ),
     );
+
+    if (confirmed == true) await _submit();
   }
 
-  Widget _buildConfirmRow(String label, String value,
-      {bool isBold = false}) {
+  Widget _buildRow(String label, String value, {bool bold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
-              color: const Color(0xFF64748B),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
             ),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+              fontSize: 12.5,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
               color: const Color(0xFF191B23),
             ),
           ),
@@ -232,53 +326,123 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
     );
   }
 
-  /// Process the withdrawal via backend API.
-  Future<void> _processWithdrawal() async {
-    setState(() => _isWithdrawing = true);
+  Future<void> _submit() async {
+    setState(() => _isSubmitting = true);
 
-    final idempotencyKey = WalletService.generateIdempotencyKey();
+    final phone = _phoneController.text.trim();
+    final masked = _maskedPhone.isEmpty ? '-' : _maskedPhone;
+    final reusedKey =
+        _pendingKey != null && _pendingAmount == _amount && _pendingPhone == phone;
+    final key = reusedKey ? _pendingKey! : WalletService.generateIdempotencyKey();
+    _pendingKey = key;
+    _pendingAmount = _amount;
+    _pendingPhone = phone;
 
     final result = await WalletService.createWithdrawal(
       amount: _amount,
-      idempotencyKey: idempotencyKey,
+      idempotencyKey: key,
+      destinationPhone: phone,
     );
 
-    if (mounted) {
-      setState(() => _isWithdrawing = false);
+    if (!mounted) return;
 
-      if (result['success'] == true) {
-        final data = result['data'];
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => StatusPenarikanScreen(
-              transactionId: data?['idempotency_key'] ?? idempotencyKey,
-              amount: _amount,
-              bankName: 'DANA',
-              maskedAccount: _danaConnection?.maskedPhone ?? '-',
-              time: DateTime.now(),
-            ),
+    setState(() => _isSubmitting = false);
+
+    if (result['success'] == true) {
+      final data = result['data'] as Map<String, dynamic>?;
+      final reference = (data?['idempotency_key'] ?? key).toString();
+      final serverMasked =
+          (data?['destination'] ?? data?['masked_account'] ?? data?['destination_masked'])
+              ?.toString();
+
+      _pendingKey = null;
+      _pendingAmount = null;
+      _pendingPhone = null;
+
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StatusPenarikanScreen(
+            transactionId: reference,
+            amount: _amount,
+            bankName: 'DANA',
+            maskedAccount: (serverMasked != null && serverMasked.isNotEmpty)
+                ? serverMasked
+                : masked,
+            time: DateTime.now(),
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text(result['message'] ?? 'Gagal melakukan penarikan'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+        ),
+      );
+      return;
     }
+
+    // Hasil tidak pasti (timeout / 5xx): jangan kirim ulang dengan key baru.
+    if (result['uncertain'] == true) {
+      if (!mounted) return;
+      await _showUncertainDialog(key);
+      return;
+    }
+
+    _pendingKey = null;
+    _pendingAmount = null;
+    _pendingPhone = null;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message']?.toString() ?? 'Gagal melakukan penarikan'),
+        backgroundColor: const Color(0xFFDC2626),
+      ),
+    );
+    await _loadData();
   }
 
-  String _formatRupiah(double amount) {
-    final digits = amount.toStringAsFixed(0);
-    final grouped = digits.replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
+  Future<void> _showUncertainDialog(String key) async {
+    final check = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Status belum terkonfirmasi',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        content: const Text(
+          'Koneksi terputus saat mengirim permintaan. Periksa status penarikan '
+          'terlebih dahulu — jangan mengirim ulang sebelum statusnya diketahui.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Nanti', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Periksa Status'),
+          ),
+        ],
+      ),
     );
-    return grouped;
+
+    if (check == true && mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StatusPenarikanScreen(
+            transactionId: key,
+            amount: _amount,
+            bankName: 'DANA',
+            maskedAccount: _maskedPhone.isEmpty ? '-' : _maskedPhone,
+            time: DateTime.now(),
+          ),
+        ),
+      );
+      if (mounted) await _loadData();
+    }
   }
 
   @override
@@ -293,28 +457,30 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
             Expanded(
               child: _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(
-                          color: AppColors.primaryOrange),
+                      child: CircularProgressIndicator(color: AppColors.primaryOrange),
                     )
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 8),
+                          if (_loadError != null) ...[
+                            _buildLoadError(),
+                            const SizedBox(height: 16),
+                          ],
                           _buildSaldoCard(),
-                          const SizedBox(height: 24),
-                          _buildDanaDestination(),
-                          const SizedBox(height: 24),
-                          _buildAmountInput(),
-                          const SizedBox(height: 24),
-                          _buildFeeInfo(),
+                          const SizedBox(height: 20),
+                          _buildDestination(),
+                          const SizedBox(height: 20),
+                          _buildAmountSection(),
+                          const SizedBox(height: 20),
+                          _buildSummary(),
                           const SizedBox(height: 100),
                         ],
                       ),
                     ),
             ),
-            _buildBottomButton(),
+            _buildBottomBar(),
           ],
         ),
       ),
@@ -322,26 +488,49 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-      color: AppColors.backgroundColor,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back, color: Color(0xFF191B23)),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF191B23)),
           ),
           const Expanded(
             child: Text(
-              'Tarik Dana ke DANA',
+              'Tarik Saldo',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF191B23)),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF191B23),
+              ),
             ),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, size: 18, color: Color(0xFFDC2626)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _loadError!,
+              style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C)),
+            ),
+          ),
         ],
       ),
     );
@@ -350,393 +539,393 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
   Widget _buildSaldoCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.primaryOrange,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryOrange.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Saldo tersedia',
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Colors.white70),
+            style: TextStyle(fontSize: 11.5, color: Colors.white70),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
-            'Rp${_formatRupiah(_saldoTersedia)}',
+            formatRupiah(_saldoTersedia),
             style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: -0.5),
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: -0.4,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAmountInput() {
-    final minimum = _feeConfig?.minimum ?? 10000;
+  Widget _buildDestination() {
+    final phoneError = _phoneError;
+    final hasFocus = _phoneFocus.hasFocus;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Nomor DANA Tujuan',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF191B23),
+                ),
+              ),
+            ),
+            // Ejaan bantuan
+            const Text(
+              'Nomor diketik setiap penarikan',
+              style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _phoneController,
+          focusNode: _phoneFocus,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(15),
+          ],
+          enabled: _feeConfigReady,
+          onChanged: _onDestinationChanged,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: phoneError != null ? const Color(0xFFDC2626) : const Color(0xFF191B23),
+          ),
+          decoration: InputDecoration(
+            prefixIcon: _buildDanaBadge(),
+            hintText: '08xxxxxxxxxx',
+            hintStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFE2E8F0),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: phoneError != null ? const Color(0xFFFECACA) : const Color(0xFFE8E8E8),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: phoneError != null
+                    ? const Color(0xFFDC2626)
+                    : AppColors.primaryOrange,
+                width: 1.5,
+              ),
+            ),
+            suffixIcon: hasFocus && _phoneController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
+                    onPressed: () {
+                      _phoneController.clear();
+                      _onDestinationChanged('');
+                    },
+                  )
+                : null,
+          ),
+        ),
+        if (phoneError != null) ...[
+          const SizedBox(height: 6),
+          Text(phoneError, style: const TextStyle(fontSize: 11.5, color: Color(0xFFDC2626))),
+        ] else ...[
+          const SizedBox(height: 6),
+          Text(
+            'Contoh: 081234567890 atau 6281234567890.',
+            style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+          ),
+        ],
+        const SizedBox(height: 10),
+        // Nama pemilik (opsional) supaya kurir bisa cek ulang identitas tujuan.
+        TextField(
+          controller: _nameController,
+          textCapitalization: TextCapitalization.characters,
+          enabled: _feeConfigReady,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            hintText: 'Nama pemilik DANA (opsional)',
+            hintStyle: const TextStyle(fontSize: 13.5, color: Color(0xFFBDCEDE)),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDanaBadge() {
+    return Container(
+      margin: const EdgeInsets.only(left: 12, right: 10),
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: const Color(0xFF118EEA),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(
+        child: Text(
+          'D',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAmountSection() {
+    final minimum = _feeConfig?.minimum;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Jumlah penarikan',
+          'Nominal Penarikan',
           style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF191B23)),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF191B23),
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         TextField(
           controller: _amountController,
           keyboardType: TextInputType.number,
           inputFormatters: [_RupiahInputFormatter()],
-          onChanged: (_) => setState(() {}),
+          enabled: _feeConfigReady,
+          onChanged: _onAmountChanged,
           style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF191B23)),
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF191B23),
+          ),
           decoration: InputDecoration(
             prefixText: 'Rp ',
             prefixStyle: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF64748B)),
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF94A3B8),
+            ),
             hintText: '0',
             hintStyle: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFFE8E8E8)),
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFE2E8F0),
+            ),
             filled: true,
             fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
             ),
-            contentPadding: const EdgeInsets.all(16),
           ),
         ),
-        const SizedBox(height: 16),
-        // Quick amount chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _buildQuickAmountChip(100000),
-              const SizedBox(width: 8),
-              _buildQuickAmountChip(500000),
-              const SizedBox(width: 8),
-              _buildQuickAmountChip(_saldoTersedia.toInt(), isAll: true),
-            ],
-          ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildQuickChip('Tarik semua', _saldoTersedia),
+            if (_saldoTersedia >= 100000) _buildQuickChip('Rp 100.000', 100000),
+            if (_saldoTersedia >= 500000) _buildQuickChip('Rp 500.000', 500000),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
-          'Minimum Rp${_formatRupiah(minimum.toDouble())}',
-          style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF94A3B8)),
+          minimum != null
+              ? 'Minimal ${formatRupiah(minimum)} • Maksimal ${formatRupiah(_feeConfig!.maximum)}'
+              : 'Batas penarikan belum tersedia dari server.',
+          style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
         ),
       ],
     );
   }
 
-  Widget _buildQuickAmountChip(int amount, {bool isAll = false}) {
-    final selected = !isAll && _amount == amount.toDouble();
+  Widget _buildQuickChip(String label, double value) {
+    final enabled = value > 0 && _feeConfigReady;
+    final selected = _amount == value && value > 0;
 
     return ActionChip(
-      backgroundColor: selected ? AppColors.primaryOrange.withOpacity(0.08) : Colors.white,
-      side: BorderSide(color: selected ? AppColors.primaryOrange : const Color(0xFFE8E8E8)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       label: Text(
-        isAll ? 'Tarik Semua' : 'Rp ${_formatRupiah(amount.toDouble())}',
+        label,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 11.5,
           fontWeight: FontWeight.w600,
-          color: selected ? AppColors.primaryOrange : const Color(0xFF64748B),
+          color: !enabled
+              ? const Color(0xFFCBD5E1)
+              : (selected ? AppColors.primaryOrange : const Color(0xFF64748B)),
         ),
       ),
-      onPressed: () {
-        setState(() {
-          _amountController.text = _formatRupiah(amount.toDouble());
-        });
-      },
+      backgroundColor: selected
+          ? AppColors.primaryOrange.withOpacity(0.08)
+          : Colors.white,
+      side: BorderSide(
+        color: selected ? AppColors.primaryOrange : const Color(0xFFE8E8E8),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      onPressed: enabled
+          ? () {
+              setState(() {
+                _amountController.text = formatRupiahDigits(value);
+                _onAmountChanged(_amountController.text);
+              });
+            }
+          : null,
     );
   }
 
-  Widget _buildDanaDestination() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Tujuan Penarikan',
-          style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF191B23)),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE8E8E8)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primaryBlue.withOpacity(0.2)),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet,
-                  color: AppColors.primaryBlue,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'DANA',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF191B23)),
-                    ),
-                    Text(
-                      _danaConnection?.maskedPhone ?? '-',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const KelolaDanaScreen(),
-                    ),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primaryOrange,
-                  backgroundColor: AppColors.primaryOrange.withOpacity(0.08),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Ubah',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFeeInfo() {
-    final fee = _feeConfig?.adminFee ?? 2500;
+  Widget _buildSummary() {
+    final error = _validationError;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE8E8E8)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Rincian Transaksi',
+            'Rincian',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Color(0xFF191B23),
             ),
           ),
-          const SizedBox(height: 16),
-          _buildFeeRow('Nominal Penarikan', 'Rp ${_formatRupiah(_amount)}'),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Text(
-                    'Biaya Admin',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(Icons.info_outline, size: 14, color: Color(0xFF94A3B8)),
-                ],
-              ),
-              Text(
-                'Rp ${_formatRupiah(fee)}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF191B23),
-                ),
-              ),
-            ],
+          const SizedBox(height: 10),
+          _buildRow('Nominal penarikan', formatRupiah(_amount)),
+          _buildRow(
+            'Biaya admin',
+            _feeConfigReady ? formatRupiah(_fee) : 'Belum tersedia',
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, color: Color(0xFFE8E8E8)),
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: Color(0xFFF1F5F9)),
           ),
-          _buildFeeRow(
-            'Total Diterima',
-            'Rp ${_formatRupiah(_netAmount)}',
-            isBold: true,
-            color: AppColors.primaryOrange,
+          _buildRow('Total diterima', formatRupiah(_netAmount), bold: true),
+          _buildRow(
+            'Tujuan',
+            _maskedPhone.isEmpty ? 'Belum diisi' : 'DANA $_maskedPhone',
           ),
+          if (error != null && _amount > 0) ...[
+            const SizedBox(height: 10),
+            Text(
+              error,
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFFDC2626)),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildFeeRow(String label, String value,
-      {bool isBold = false, Color? color}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-              fontSize: 14,
-              fontWeight: isBold ? FontWeight.w600 : FontWeight.w400,
-              color: const Color(0xFF64748B)),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-              fontSize: 14,
-              fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
-              color: color ?? const Color(0xFF191B23)),
-        ),
-      ],
-    );
-  }
+  Widget _buildBottomBar() {
+    final canSubmit = _canSubmit && !_isLoading;
 
-  Widget _buildBottomButton() {
     return Container(
       padding: EdgeInsets.fromLTRB(
-          16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
-      decoration: BoxDecoration(
+        16,
+        12,
+        16,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: const BoxDecoration(
         color: Colors.white,
-        border: const Border(top: BorderSide(color: Color(0xFFF1F5F9))),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
-        ],
+        border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             width: double.infinity,
+            height: 44,
             child: ElevatedButton(
-              onPressed: _isWithdrawing ? null : _onTarikDana,
+              onPressed: canSubmit ? _confirm : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    _canWithdraw ? AppColors.primaryOrange : const Color(0xFFE8E8E8),
-                foregroundColor:
-                    _canWithdraw ? Colors.white : const Color(0xFF94A3B8),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    canSubmit ? AppColors.primaryOrange : const Color(0xFFF1F5F9),
+                foregroundColor: canSubmit ? Colors.white : const Color(0xFF94A3B8),
                 elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: _isWithdrawing
+              child: _isSubmitting
                   ? const SizedBox(
-                      width: 24,
-                      height: 24,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Text(
                       'Konfirmasi Penarikan',
-                      style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
                     ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lock_outline, size: 14, color: Color(0xFF94A3B8)),
+              Icon(Icons.lock_outline, size: 12, color: Color(0xFF94A3B8)),
               SizedBox(width: 4),
               Text(
-                'Transaksi Aman & Terenkripsi',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF94A3B8),
-                  fontWeight: FontWeight.w500,
-                ),
+                'Saldo dipotong hanya saat permintaan dibuat; status akhir '
+                'mengikuti konfirmasi resmi penyedia.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), height: 1.3),
               ),
             ],
           ),
@@ -745,4 +934,3 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
     );
   }
 }
-
