@@ -87,10 +87,13 @@ class PaymentService {
   static Future<PaymentResult?> getStatus(String paymentId) async {
     try {
       final encodedId = Uri.encodeComponent(paymentId);
-      final response = await http.get(
-        Uri.parse('$_baseUrl/payment/status?payment_id=$encodedId'),
-        headers: await _getHeaders(),
-      );
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/payment/status?payment_id=$encodedId'),
+            headers: await _getHeaders(),
+          )
+          // Tanpa batas waktu, tombol Cek Status bisa menggantung diam-diam.
+          .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -117,11 +120,13 @@ class PaymentService {
   /// dibayar, pembatalan ditolak dan harus lewat refund manual.
   static Future<Map<String, dynamic>> cancelPayment(String paymentId) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/payment/cancel'),
-        headers: await _getHeaders(),
-        body: jsonEncode({'payment_id': paymentId}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/payment/cancel'),
+            headers: await _getHeaders(),
+            body: jsonEncode({'payment_id': paymentId}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       final dynamic data = jsonDecode(response.body);
       if (response.statusCode == 200 && data is Map && data['success'] == true) {
