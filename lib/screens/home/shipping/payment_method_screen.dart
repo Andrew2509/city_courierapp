@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:city_courierapp/screens/home/shipping/payment/e_wallet_confirmation_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/payment/virtual_account_confirmation_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/payment/direct_payment_confirmation_screen.dart';
+import 'package:city_courierapp/screens/home/shipping/payment/hosted_payment_screen.dart';
 import 'package:city_courierapp/models/payment/payment_method.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
@@ -801,6 +802,22 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
 
       if (result != null) {
         final String upperCode = selectedMethodCode!.toUpperCase();
+
+        // 0. Redirect Payment iPaymu (cadangan saat Direct/VA ditolak sistem
+        //    risiko iPaymu). Tidak ada VA/QR dari server — buka halaman iPaymu.
+        if (result.isRedirect) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HostedPaymentScreen(
+                amount: widget.totalAmount,
+                method: selectedMethod!,
+                result: result,
+              ),
+            ),
+          );
+          return;
+        }
         
         // 1. Handle Virtual Accounts
         if (result.vaNumber != null || upperCode.contains('VA') || upperCode.contains('VIRTUAL') || upperCode.contains('ACCOUNT')) {
