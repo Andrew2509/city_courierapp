@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -11,13 +12,14 @@ import 'package:city_courierapp/services/payment/payment_service.dart';
 
 /// Pembayaran lewat halaman iPaymu (Redirect Payment), dibuka DI DALAM aplikasi.
 ///
-/// Alasan memakai halaman iPaymu: nomor VA/QRIS hanya dibuat oleh iPaymu setelah
-/// pelanggan memilih bank di halaman mereka, dan respons `POST /api/v2/payment`
-/// hanya berisi SessionID + Url (tanpa PaymentNo). Jadi VA tidak bisa dirender
-/// sendiri oleh aplikasi pada jalur ini.
+/// Nomor VA/QRIS hanya dibuat iPaymu setelah pelanggan memilih bank di halaman
+/// mereka (`POST /api/v2/payment` hanya mengembalikan SessionID + Url), jadi
+/// halaman itu yang ditampilkan. Gayanya dibuat satu keluarga dengan layar
+/// Virtual Account: kartu bergaris tipis, hitung mundur amber, catatan
+/// keamanan biru, dan aksi tetap di bawah.
 ///
-/// Yang penting: status pembayaran TIDAK PERNAH disimpulkan dari URL. Layar ini
-/// hanya membaca status resmi dari backend (webhook + inquiry iPaymu).
+/// Status pembayaran TIDAK PERNAH disimpulkan dari URL — hanya dari backend
+/// (webhook ber-signature + inquiry iPaymu).
 class HostedPaymentScreen extends StatefulWidget {
   final int amount;
   final String method;
@@ -37,6 +39,7 @@ class HostedPaymentScreen extends StatefulWidget {
 class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
   WebViewController? _controller;
   Timer? _pollTimer;
+  Timer? _countdownTimer;
 
   String _status = 'pending';
   bool _checking = false;
@@ -45,20 +48,26 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
   bool _sessionFinished = false;
   double _progress = 0;
   bool _webViewRequested = false;
+  Duration _remaining = Duration.zero;
+
+  static const Color _primary = Color(0xFFEC5B13);
+  static const Color _ink = Color(0xFF0F172A);
+  static const Color _muted = Color(0xFF64748B);
+  static const Color _line = Color(0xFFE2E8F0);
+  static const Color _surface = Color(0xFFF8FAFC);
 
   bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
-  Color get primaryColor => const Color(0xFFEC5B13);
-  Color get bgDark => const Color(0xFF0F172A);
-  Color get bgLight => const Color(0xFFF8FAFC);
-  Color get cardDark => const Color(0xFF1E293B);
-  Color get textMuted => isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  Color get cardColor => isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+  Color get inkColor => isDarkMode ? Colors.white : _ink;
+  Color get mutedColor => isDarkMode ? Colors.grey.shade400 : _muted;
+  Color get lineColor => isDarkMode ? Colors.white.withValues(alpha: 0.08) : _line;
+  Color get pageColor => isDarkMode ? const Color(0xFF0F172A) : _surface;
 
   String? get _checkoutUrl {
     final url = widget.result.checkoutUrl;
     return (url == null || url.isEmpty) ? null : url;
   }
 
-  /// WebView hanya tersedia di Android/iOS; di platform lain tampilkan tautan.
   bool get _canEmbedWebView =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS) && _checkoutUrl != null;
 
@@ -70,6 +79,8 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
     if (!_canEmbedWebView) {
       _loading = false;
     }
+
+    _startCountdown();
 
     // Cek status berkala; tidak pernah menyimpulkan "terbayar" tanpa backend.
     _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) => _refreshStatus());
@@ -89,13 +100,44 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _startCountdown() {
+    final expiry = widget.result.expiryTime;
+    if (expiry == null) return;
+
+    _remaining = expiry.difference(DateTime.now());
+    if (_remaining.isNegative) _remaining = Duration.zero;
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        final next = expiry.difference(DateTime.now());
+        _remaining = next.isNegative ? Duration.zero : next;
+        if (_remaining == Duration.zero) timer.cancel();
+      });
+    });
+  }
+
+  String _twoDigits(int n) => n.toString().padLeft(2, '0');
+
+  (String, String, String) get _countdownParts {
+    if (_remaining.inHours < 1) {
+      return ('00', _twoDigits(_remaining.inMinutes.remainder(60)), _twoDigits(_remaining.inSeconds.remainder(60)));
+    }
+    return (
+      _twoDigits(_remaining.inHours),
+      _twoDigits(_remaining.inMinutes.remainder(60)),
+      _twoDigits(_remaining.inSeconds.remainder(60)),
+    );
   }
 
   void _initWebView(String url) {
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(isDarkMode ? bgDark : Colors.white)
+      ..setBackgroundColor(isDarkMode ? const Color(0xFF0F172A) : Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (value) {
@@ -128,17 +170,14 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
       ..loadRequest(Uri.parse(url));
 
     // Dipanggil dari didChangeDependencies, jadi build akan menyusul; tidak
-    // perlu setState (dan setState saat initState/didChangeDependencies
-    // memang tidak diperlukan).
+    // perlu setState.
     _controller = controller;
   }
 
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
     final target = request.url;
 
-    // iPaymu memanggil returnUrl/cancelUrl setelah pelanggan selesai. Halaman
-    // itu milik server dan hanya untuk browser — di aplikasi kita tutup
-    // sesinya lalu baca status resmi dari backend.
+    // iPaymu memanggil returnUrl/cancelUrl setelah pelanggan selesai.
     if (_matchesUrl(target, widget.result.returnUrl)) {
       _finishSession(canceled: false);
       return NavigationDecision.prevent;
@@ -163,7 +202,6 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
     final normalizedTarget = target.toLowerCase().trimRight();
     final normalizedExpected = expected.toLowerCase().trimRight();
 
-    // Cocokkan tanpa query string supaya parameter iPaymu tidak mengganggu.
     final cut = normalizedTarget.indexOf('?');
     final base = cut >= 0 ? normalizedTarget.substring(0, cut) : normalizedTarget;
     return base == normalizedExpected || base.startsWith('$normalizedExpected?');
@@ -195,14 +233,91 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
       setState(() => _status = latest.status);
       if (_status == 'paid') {
         _pollTimer?.cancel();
-        _showMessage('Pembayaran dikonfirmasi iPaymu.');
+        _snack('Pembayaran dikonfirmasi iPaymu.');
       }
     }
   }
 
-  Future<void> _showResultSheet({required bool canceled}) {
-    final cardColor = isDarkMode ? cardDark : Colors.white;
+  void _copyTotal() {
+    Clipboard.setData(ClipboardData(text: widget.amount.toString()));
+    _snack('Nominal pembayaran berhasil disalin');
+  }
 
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: _primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _cancelPayment() async {
+    final paymentId = widget.result.paymentId;
+    if (paymentId.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: cardColor,
+        title: Text(
+          'Batalkan Pesanan?',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: inkColor),
+        ),
+        content: Text(
+          'Pesanan akan dibatalkan dan status pembayaran diperiksa ke iPaymu. '
+          'Bila pembayaran sudah diterima, pembatalan diproses sebagai pengembalian dana.',
+          style: TextStyle(fontSize: 12.5, height: 1.5, color: mutedColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Tidak', style: TextStyle(color: mutedColor, fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Ya, Batalkan',
+              style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: _primary)),
+    );
+
+    final result = await PaymentService.cancelPayment(paymentId);
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (result['success'] == true) {
+      _pollTimer?.cancel();
+      _snack(result['message']?.toString() ?? 'Pembayaran berhasil dibatalkan');
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message']?.toString() ?? 'Gagal membatalkan pembayaran'),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  Future<void> _showResultSheet({required bool canceled}) {
     final (title, message, color, icon) = switch (_status) {
       'paid' => (
           'Pembayaran berhasil',
@@ -250,17 +365,13 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: inkColor),
               ),
               const SizedBox(height: 8),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, height: 1.5, color: textMuted),
+                style: TextStyle(fontSize: 13, height: 1.5, color: mutedColor),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -269,10 +380,10 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(sheetContext),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
+                    backgroundColor: _primary,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: const Text(
                     'Selesai',
@@ -293,28 +404,15 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
 
     try {
       final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      if (!opened && mounted) {
-        _showMessage('Tidak bisa membuka halaman pembayaran.');
-      }
+      if (!opened && mounted) _snack('Tidak bisa membuka halaman pembayaran.');
     } catch (_) {
-      if (mounted) _showMessage('Tidak bisa membuka halaman pembayaran.');
+      if (mounted) _snack('Tidak bisa membuka halaman pembayaran.');
     }
-  }
-
-  void _showMessage(String text) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        backgroundColor: primaryColor,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   String _formatCurrency(int amount) {
     final str = amount.toString();
-    return 'Rp${str.replaceAllMapped(RegExp(r"(\d{1,3})(?=(?:\d{3})+(?!\d))"), (m) => "${m[1]}.")}';
+    return 'Rp${str.replaceAllMapped(RegExp(r'(\d{1,3})(?=(?:\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
   }
 
   (String, Color) _statusBadge() {
@@ -325,192 +423,33 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
     };
   }
 
-  Widget _header() {
-    final cardColor = isDarkMode ? cardDark : Colors.white;
-    final (label, color) = _statusBadge();
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDarkMode
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.04),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Total pembayaran',
-                  style: TextStyle(fontSize: 11, color: textMuted),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _formatCurrency(widget.amount),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: isDarkMode ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  label,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                widget.method,
-                style: TextStyle(fontSize: 11, color: textMuted),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _body() {
-    if (!_canEmbedWebView) {
-      return _fallbackView();
-    }
-
-    if (_webError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.wifi_off_rounded, size: 44, color: textMuted),
-              const SizedBox(height: 12),
-              Text(
-                'Halaman pembayaran gagal dimuat.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Periksa koneksi lalu coba lagi, atau buka di browser.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: textMuted),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _webError = false;
-                    _loading = true;
-                  });
-                  _controller?.reload();
-                },
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Muat ulang'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final controller = _controller;
-    if (controller == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return WebViewWidget(controller: controller);
-  }
-
-  Widget _fallbackView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.open_in_new_rounded, size: 44, color: textMuted),
-            const SizedBox(height: 12),
-            Text(
-              'Halaman pembayaran dibuka di browser.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isDarkMode ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _openExternal,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                elevation: 0,
-              ),
-              child: const Text('Buka Halaman Pembayaran'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ─── UI ─────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final controller = _controller;
-
     return Scaffold(
-      backgroundColor: isDarkMode ? bgDark : bgLight,
+      backgroundColor: pageColor,
       appBar: AppBar(
-        backgroundColor: isDarkMode ? bgDark : bgLight,
+        backgroundColor: cardColor,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: isDarkMode ? Colors.white : Colors.black87,
-            size: 20,
-          ),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: inkColor, size: 18),
         ),
         title: Text(
           'Pembayaran',
-          style: TextStyle(
-            color: isDarkMode ? Colors.white : Colors.black87,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: inkColor),
         ),
         centerTitle: true,
         actions: [
-          if (controller != null && _canEmbedWebView)
+          if (_canEmbedWebView && _controller != null)
             PopupMenuButton<String>(
-              color: isDarkMode ? cardDark : Colors.white,
-              icon: Icon(Icons.more_vert, color: isDarkMode ? Colors.white : Colors.black87),
+              color: cardColor,
+              icon: Icon(Icons.more_vert, color: inkColor, size: 20),
               onSelected: (value) {
-                if (value == 'reload') controller.reload();
+                if (value == 'reload') _controller?.reload();
                 if (value == 'external') _openExternal();
               },
               itemBuilder: (_) => const [
@@ -526,38 +465,510 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Icon(
-                    Icons.refresh_rounded,
-                    color: isDarkMode ? Colors.white : Colors.black87,
-                  ),
+                : Icon(Icons.refresh_rounded, color: inkColor, size: 20),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: lineColor),
+        ),
       ),
       body: Column(
         children: [
-          _header(),
-          if (_loading && _canEmbedWebView && !_webError)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: _progress == 0 ? null : _progress,
-                  minHeight: 3,
-                  backgroundColor: isDarkMode
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.black.withValues(alpha: 0.05),
-                  color: primaryColor,
-                ),
-              ),
-            ),
           Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: _body(),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              children: [
+                if (widget.result.expiryTime != null) ...[
+                  _buildCountdownCard(),
+                  const SizedBox(height: 12),
+                ],
+                _buildSummaryCard(),
+                const SizedBox(height: 12),
+                if (_canEmbedWebView) ...[
+                  _buildWebViewCard(),
+                  const SizedBox(height: 12),
+                ],
+                _buildSecurityNote(),
+              ],
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: _buildBottomBar(),
+    );
+  }
+
+  Widget _buildCountdownCard() {
+    final (hours, minutes, seconds) = _countdownParts;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDarkMode ? const Color(0xFF2A2113) : const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDarkMode ? const Color(0xFF4A3A12) : const Color(0xFFFDE68A),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.schedule_rounded, size: 18, color: Color(0xFFB45309)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Selesaikan dalam',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDarkMode ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
+              ),
+            ),
+          ),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _timeChunk(hours),
+                  _timeColon(),
+                  _timeChunk(minutes),
+                  _timeColon(),
+                  _timeChunk(seconds),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeChunk(String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: isDarkMode ? Colors.black.withValues(alpha: 0.25) : Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFFDE68A),
+        ),
+      ),
+      child: Text(
+        value,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: isDarkMode ? const Color(0xFFFCD34D) : const Color(0xFF78350F),
+        ),
+      ),
+    );
+  }
+
+  Widget _timeColon() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Text(
+        ':',
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: isDarkMode ? const Color(0xFFFCD34D) : const Color(0xFFB45309),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    final (label, color) = _statusBadge();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: lineColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.method,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: inkColor,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF16A34A),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              'City Courier Delivery',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11.5, color: mutedColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _dashedDivider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Pembayaran',
+                  style: TextStyle(fontSize: 11.5, color: mutedColor),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _formatCurrency(widget.amount),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: _primary,
+                        ),
+                      ),
+                    ),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _copyTotal,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDarkMode
+                                ? Colors.white.withValues(alpha: 0.04)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: lineColor),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.copy_rounded, size: 13, color: mutedColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Salin',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: mutedColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dashedDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const dashWidth = 5.0;
+          final dashCount = (constraints.constrainWidth() / (2 * dashWidth)).floor();
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(dashCount, (_) {
+              return SizedBox(
+                width: dashWidth,
+                height: 1,
+                child: DecoratedBox(decoration: BoxDecoration(color: lineColor)),
+              );
+            }),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWebViewCard() {
+    return Container(
+      height: 480,
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: lineColor),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          if (_loading && !_webError)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: _progress == 0 ? null : _progress,
+                minHeight: 2.5,
+                backgroundColor: isDarkMode
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.05),
+                color: _primary,
+              ),
+            ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              child: _webViewBody(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _webViewBody() {
+    if (_webError) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off_rounded, size: 36, color: mutedColor),
+              const SizedBox(height: 10),
+              Text(
+                'Halaman pembayaran gagal dimuat.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: inkColor),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Periksa koneksi lalu coba lagi, atau buka di browser.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11.5, color: mutedColor),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _webError = false;
+                    _loading = true;
+                  });
+                  _controller?.reload();
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Muat ulang', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final controller = _controller;
+    if (controller == null) {
+      return const Center(child: CircularProgressIndicator(color: _primary));
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: WebViewWidget(controller: controller),
+    );
+  }
+
+  Widget _buildSecurityNote() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: isDarkMode ? const Color(0xFF142033) : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDarkMode ? const Color(0xFF1E3A5F) : const Color(0xFFDBEAFE),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: isDarkMode ? const Color(0xFF1E3A5F) : Colors.white.withValues(alpha: 0.7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF2563EB)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Peringatan Keamanan',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: isDarkMode ? const Color(0xFFBFDBFE) : const Color(0xFF1E3A8A),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Pastikan nama penerima/merchant dan nominal transfer sudah sesuai '
+                  'sebelum melakukan pembayaran.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.5,
+                    color: isDarkMode ? const Color(0xFF93B4D8) : const Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        border: Border(top: BorderSide(color: lineColor)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _checking ? null : _refreshStatus,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: _primary.withValues(alpha: 0.6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _checking
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text(
+                          'Cek Status Pembayaran',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Kembali ke Beranda',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: mutedColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _cancelPayment,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Batalkan Pesanan',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
