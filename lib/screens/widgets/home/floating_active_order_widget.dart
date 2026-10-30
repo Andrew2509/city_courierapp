@@ -45,6 +45,12 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
           return const SizedBox.shrink();
         }
 
+        // Pesanan yang masih menunggu pembayaran belum masuk proses kurir,
+        // jadi kartu pengiriman baru muncul setelah pembayaran dikonfirmasi.
+        if (order['awaiting_payment'] == true) {
+          return const SizedBox.shrink();
+        }
+
         final bool hasCourier = order['has_courier'] ?? true;
         final orderId = order['order_id'] ?? 'CC2610284680';
         final status = order['status'] ?? 'Sedang Dikirim';

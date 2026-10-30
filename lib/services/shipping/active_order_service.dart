@@ -23,6 +23,17 @@ class ActiveOrderService {
   static Timer? _pollingTimer;
   static bool _isSyncing = false;
 
+  /// Pesanan yang pembayarannya belum dikonfirmasi tidak boleh muncul di kartu
+  /// melayang: kartu itu menandakan pengiriman sedang berjalan, sedangkan
+  /// pesanan yang masih "menunggu pembayaran" belum masuk proses kurir.
+  /// Pesanan tanpa transaksi pending (mis. COD/tunai) tetap ditampilkan.
+  static bool isAwaitingPayment(ShipmentModel shipment) {
+    final info = shipment.paymentInfo;
+    if (info == null) return false;
+    final status = (info.status ?? 'pending').toLowerCase();
+    return status == 'pending';
+  }
+
   /// Default sample order used as fallback when previewing without backend orders.
   static final Map<String, dynamic> defaultSampleOrder = {
     'order_id': 'CC2610284680',
@@ -53,7 +64,11 @@ class ActiveOrderService {
             decoded['status'] == 'Paket Diterima' ||
             decoded['status_raw'] == 'cancelled';
 
-        if (decoded['is_active'] == true && !isFinished) {
+        // Pesanan yang masih menunggu pembayaran tidak ditampilkan; sync
+        // backend di bawah akan menyegarkan statusnya.
+        if (decoded['is_active'] == true &&
+            !isFinished &&
+            decoded['awaiting_payment'] != true) {
           activeOrderNotifier.value = decoded;
           // Perkaya data order dari direktori kurir jika foto atau plat nomor belum lengkap
           unawaited(_enrichCachedOrderIfNeeded());
@@ -99,10 +114,15 @@ class ActiveOrderService {
         final List<ShipmentModel> shipments =
             List<ShipmentModel>.from(response['data'] as List);
 
-        if (shipments.isNotEmpty) {
+        // Sembunyikan pesanan yang belum dibayar; kalau semua pesanan aktif
+        // masih menunggu pembayaran, tidak ada kartu yang ditampilkan.
+        final payable =
+            shipments.where((s) => !isAwaitingPayment(s)).toList();
+
+        if (payable.isNotEmpty) {
           // Sort by creation date descending to track the most recent active order
-          shipments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          final latest = shipments.first;
+          payable.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          final latest = payable.first;
           final trackingNum =
               (latest.trackingNumber ?? latest.orderNumber).trim();
 
@@ -329,6 +349,8 @@ class ActiveOrderService {
       'is_active': true,
       'has_courier': hasCourier,
       'is_delivered': statusRaw == 'delivered',
+      // Kartu disembunyikan selama pembayaran belum dikonfirmasi.
+      'awaiting_payment': isAwaitingPayment(shipment),
       'shipment_data': shipment.toJson(),
     };
   }
@@ -471,6 +493,8 @@ class ActiveOrderService {
       'is_active': true,
       'has_courier': hasCourier,
       'is_delivered': statusRaw == 'delivered',
+      // Pertahankan status pembayaran yang sudah diketahui dari sync terakhir.
+      'awaiting_payment': current?['awaiting_payment'] ?? false,
       'shipment_data': current?['shipment_data'],
     };
 

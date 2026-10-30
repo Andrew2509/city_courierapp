@@ -192,6 +192,43 @@ void main() {
     ActiveOrderService.stopPolling();
   });
 
+  testWidgets('FloatingActiveOrderWidget tidak tampil selama menunggu pembayaran', (WidgetTester tester) async {
+    ActiveOrderService.saveActiveOrder({
+      'order_id': 'CC2610311111',
+      'status': 'Menunggu Kurir',
+      'status_raw': 'pending',
+      'estimated_time': 'Mencari...',
+      'courier_name': 'Menunggu Kurir',
+      'courier_vehicle': 'Sistem mencari kurir terdekat...',
+      'destination': 'Sidoarjo',
+      'status_message': 'Pesanan berhasil dibuat.',
+      'step': 0,
+      'has_courier': false,
+      'is_active': true,
+      'awaiting_payment': true,
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              FloatingActiveOrderWidget(),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Pembayaran belum dikonfirmasi → kartu pengiriman tidak muncul sama sekali.
+    expect(find.text('Menunggu Kurir'), findsNothing);
+    expect(find.text('Pesanan berhasil dibuat.'), findsNothing);
+    expect(find.text('Lihat Live Tracking'), findsNothing);
+
+    ActiveOrderService.stopPolling();
+  });
+
   testWidgets('FloatingActiveOrderWidget disappears when order is not active', (WidgetTester tester) async {
     ActiveOrderService.clearActiveOrder();
 
