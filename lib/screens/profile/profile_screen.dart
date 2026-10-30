@@ -20,7 +20,17 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Map<String, dynamic>? _userData;
+  Map<String, dynamic>? _courierData;
   bool _isLoading = true;
+
+  /// Pilihan "Akun Kurir" hanya muncul untuk pengguna yang benar-benar sudah
+  /// terdaftar sebagai kurir dan disetujui admin (`is_verified`).
+  bool get _isVerifiedCourier {
+    final courier = _courierData;
+    if (courier == null) return false;
+    final verified = courier['is_verified'];
+    return verified == true || verified == 1 || verified == '1';
+  }
 
   @override
   void initState() {
@@ -37,6 +47,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _userData = profile?['user'];
+          _courierData = profile?['courier'] is Map
+              ? Map<String, dynamic>.from(profile!['courier'] as Map)
+              : null;
           _isLoading = false;
         });
       }
@@ -91,6 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     userData: _userData,
                     isLoading: _isLoading,
                     onEditProfile: _showEditProfile,
+                    isCourier: _isVerifiedCourier,
                   ),
 
                   // Order Status (Stats Grid)

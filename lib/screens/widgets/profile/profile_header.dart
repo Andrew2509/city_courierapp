@@ -9,6 +9,10 @@ class ProfileHeader extends StatefulWidget {
   final VoidCallback? onEditProfile;
   final bool initialCourierMode;
 
+  /// True hanya untuk pengguna yang sudah resmi terdaftar dan terverifikasi
+  /// sebagai kurir. Selama belum, pilihan "Akun Kurir" tidak ditampilkan.
+  final bool isCourier;
+
   const ProfileHeader({
     super.key,
     required this.primaryColor,
@@ -16,6 +20,7 @@ class ProfileHeader extends StatefulWidget {
     this.isLoading = false,
     this.onEditProfile,
     this.initialCourierMode = false,
+    this.isCourier = false,
   });
 
   @override
@@ -28,7 +33,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   @override
   void initState() {
     super.initState();
-    _isCourierMode = widget.initialCourierMode;
+    _isCourierMode = widget.initialCourierMode && widget.isCourier;
   }
 
   @override
@@ -279,7 +284,9 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                   const SizedBox(height: 20), // Space to show the courier background illustration
                   
                   // Bottom Section: Mode Switch
-                  Container(
+                  // Hanya untuk kurir terverifikasi; pengguna biasa tidak
+                  // melihat pilihan "Akun Kurir" sama sekali.
+                  if (widget.isCourier) Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white,
