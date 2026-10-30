@@ -33,6 +33,12 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
   String? _maskedAccount;
   StreamSubscription<Uri>? _deepLinkSub;
 
+  /// URL Deeplink Binding dari backend (sesi yang sedang aktif) beserta modenya.
+  /// URL ini dipakai ulang saat kurir menekan "Lanjutkan ke DANA" — jangan
+  /// membuat sesi baru agar `state` di callback sama dengan sesi yang dibuka.
+  String? _bindingUrl;
+  String _bindingMode = 'normal';
+
   @override
   void initState() {
     super.initState();
@@ -66,22 +72,24 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
     }
   }
 
-  /// Step 1: Create linking session via backend.
-  /// POST /api/courier/dana/binding → backend calls ApplyOTT
-  Future<void> _createSession() async {
+  /// Step 1: Create linking session via backend (Deeplink Binding).
+  /// POST /api/courier/dana/binding → backend builds the official DANA binding URL.
+  Future<void> _createSession({bool seamless = true}) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final result = await WalletService.connectDana();
+      final result = await WalletService.connectDana(seamless: seamless);
 
       if (!mounted) return;
 
       if (result['success'] == true && result['authorizationUrl'] != null) {
         setState(() {
           _isLoading = false;
+          _bindingUrl = result['authorizationUrl'] as String?;
+          _bindingMode = (result['bindingMode'] ?? 'normal').toString();
         });
         // Session created — show "Lanjutkan ke DANA" button
       } else {
@@ -111,26 +119,38 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
     });
 
     try {
-      // Get Deeplink Binding redirect URL from backend (CreateBinding)
-      final result = await WalletService.connectDana();
-      final redirectUrl = result['authorizationUrl'] as String?;
+      // Pakai URL sesi yang sudah dibuat; buat baru hanya bila belum ada.
+      String? redirectUrl = _bindingUrl;
+      if (redirectUrl == null || redirectUrl.isEmpty) {
+        final result = await WalletService.connectDana(seamless: true);
+        redirectUrl = result['authorizationUrl'] as String?;
+        _bindingMode = (result['bindingMode'] ?? 'normal').toString();
+        _bindingUrl = redirectUrl;
+      }
 
-      if (redirectUrl != null && redirectUrl.isNotEmpty) {
-        final uri = Uri.parse(redirectUrl);
-        bool opened = false;
-        if (await canLaunchUrl(uri)) {
-          opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
+      var opened = await _launchDanaBindingUrl(redirectUrl);
 
-        if (opened) {
-          // User is authorizing in DANA — poll backend for connection status
-          _startStatusPolling();
-          return;
+      // Seamless Binding bisa ditolak DANA — jatuh ke Normal Binding sekali.
+      if (!opened && _bindingMode == 'seamless') {
+        final fallback = await WalletService.connectDana(seamless: false);
+        final fallbackUrl = fallback['authorizationUrl'] as String?;
+        if (fallback['success'] == true && fallbackUrl != null) {
+          _bindingMode = 'normal';
+          _bindingUrl = fallbackUrl;
+          opened = await _launchDanaBindingUrl(fallbackUrl);
         }
       }
 
-      // Cannot open DANA / no URL from backend — show error, no mock fallback
+      if (opened) {
+        // JANGAN anggap terhubung hanya karena DANA terbuka — status final
+        // ditentukan backend setelah callback + Apply Token diverifikasi.
+        _startStatusPolling();
+        return;
+      }
+
+      // Tidak bisa membuka DANA — tampilkan tombol coba lagi, tanpa klaim sukses.
       debugPrint('[DanaLinking] Cannot open DANA: $redirectUrl');
+      if (!mounted) return;
       setState(() {
         _error = 'Tidak dapat membuka aplikasi DANA. Pastikan DANA terinstal, lalu coba lagi.';
         _isConnecting = false;
@@ -142,6 +162,22 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
         _error = _friendlyError({'errorCode': 'NETWORK_ERROR'});
         _isConnecting = false;
       });
+    }
+  }
+
+  /// Buka binding URL lewat OS (Universal Link / Deeplink) agar pengguna
+  /// dialihkan ke aplikasi DANA. URL DANA (`m.dana.id`, `link.dana.id`,
+  /// `danaid.link`, skema `danaid://`) harus dibuka eksternal, bukan dimuat
+  /// sebagai halaman in-app.
+  Future<bool> _launchDanaBindingUrl(String? url) async {
+    if (url == null || url.isEmpty) return false;
+    try {
+      final uri = Uri.parse(url);
+      if (!await canLaunchUrl(uri)) return false;
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('[DanaLinking] launch failed: $e');
+      return false;
     }
   }
 
@@ -436,6 +472,20 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: Color(0xFF64748B), height: 1.6),
           ),
           const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              _bindingMode == 'seamless'
+                  ? 'Seamless Binding — nomor HP terverifikasi'
+                  : 'Normal Binding — masukkan nomor HP di DANA',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+            ),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(

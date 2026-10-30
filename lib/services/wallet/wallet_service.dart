@@ -153,13 +153,18 @@ class WalletService {
     }
   }
 
-  /// Start DANA linking - creates binding session via backend.
-  /// PRD §8.1: POST /api/courier/dana/binding → { binding_url, expires_at }
-  static Future<Map<String, dynamic>> connectDana() async {
+  /// Start DANA linking — Deeplink Binding session via backend.
+  /// POST /api/courier/dana/binding → { binding_url, external_id, binding_mode, expires_at }
+  ///
+  /// `seamless: true` memakai Seamless Binding (nomor HP kurir yang sudah
+  /// terverifikasi); kirim `seamless: false` untuk Normal Binding bila DANA
+  /// menolak seamless atau nomor belum terverifikasi.
+  static Future<Map<String, dynamic>> connectDana({bool seamless = true}) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/courier/dana/binding'),
         headers: await _getHeaders(),
+        body: json.encode({'seamless': seamless}),
       );
 
       final data = json.decode(response.body);
@@ -169,6 +174,8 @@ class WalletService {
         'authorizationUrl': data['data']?['binding_url'] ??
             data['data']?['authorization_url'] ??
             data['data']?['redirect_url'],
+        'externalId': data['data']?['external_id'],
+        'bindingMode': data['data']?['binding_mode'],
         'expiresAt': data['data']?['expires_at'],
         'status': data['data']?['status'],
         'errorCode': data['error_code'],
