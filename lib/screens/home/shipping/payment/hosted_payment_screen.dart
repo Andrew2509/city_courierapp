@@ -221,7 +221,15 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
   }
 
   Future<void> _refreshStatus() async {
-    if (_checking || widget.result.paymentId.isEmpty) return;
+    if (_checking) return;
+
+    if (widget.result.paymentId.isEmpty) {
+      debugPrint('Hosted: paymentId kosong, tidak bisa cek status');
+      _snack('ID pembayaran tidak ditemukan. Buka ulang pembayaran dari checkout.');
+      return;
+    }
+
+    debugPrint('Hosted: cek status paymentId=${widget.result.paymentId}');
     if (mounted) setState(() => _checking = true);
 
     final latest = await PaymentService.getStatus(widget.result.paymentId);
@@ -256,7 +264,12 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
 
   Future<void> _cancelPayment() async {
     final paymentId = widget.result.paymentId;
-    if (paymentId.isEmpty) return;
+    debugPrint('Hosted: batalkan pembayaran paymentId=$paymentId');
+
+    if (paymentId.isEmpty) {
+      _snack('ID pembayaran tidak ditemukan. Batalkan pesanan dari halaman pelacakan.');
+      return;
+    }
 
     final confirm = await showDialog<bool>(
       context: context,

@@ -29,7 +29,11 @@ void main() {
     }
   }
 
-  Future<void> pump(WidgetTester tester, {Size size = const Size(360, 800)}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    Size size = const Size(360, 800),
+    PaymentResult? result,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -40,7 +44,7 @@ void main() {
         home: VirtualAccountConfirmationScreen(
           amount: 15800,
           method: 'BNI',
-          result: buildResult(),
+          result: result ?? buildResult(),
         ),
       ),
     );
@@ -85,6 +89,49 @@ void main() {
     expect(find.textContaining('Buka aplikasi BNI Mobile Banking'), findsOneWidget);
     expect(find.textContaining('9881988123592330'), findsWidgets);
     expectNoLayoutOverflow(tester);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('tombol Batalkan Pesanan membuka konfirmasi', (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.text('Batalkan Pesanan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Batalkan Pesanan?'), findsOneWidget);
+
+    await tester.tap(find.text('Tidak'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('Cek Status tanpa ID memberi pesan jelas', (tester) async {
+    await pump(
+      tester,
+      result: PaymentResult(
+        paymentId: '',
+        method: 'BNI',
+        amount: 15800,
+        status: 'pending',
+        vaNumber: '9881988123592330',
+      ),
+    );
+
+    await tester.tap(find.text('Cek Status Pembayaran'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Data Pembayaran Tidak Lengkap'), findsOneWidget);
+
+    await tester.tap(find.text('Mengerti'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

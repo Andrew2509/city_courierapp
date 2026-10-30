@@ -121,18 +121,70 @@ class _VirtualAccountConfirmationScreenState
     );
   }
 
+  Future<void> _infoDialog(
+    String title,
+    String message, {
+    IconData icon = Icons.info_outline_rounded,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: cardColor,
+        title: Row(
+          children: [
+            Icon(icon, size: 20, color: _primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: inkColor),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: TextStyle(fontSize: 12.5, height: 1.5, color: mutedColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Mengerti', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Minta status resmi ke backend; tidak pernah menyimpulkan "terbayar" sendiri.
   Future<void> _checkStatus() async {
     final paymentId = widget.result.paymentId;
-    if (paymentId.isEmpty || _checking) return;
+    if (_checking) return;
 
+    if (paymentId.isEmpty) {
+      debugPrint('VA: paymentId kosong, tidak bisa cek status');
+      await _infoDialog(
+        'Data Pembayaran Tidak Lengkap',
+        'ID transaksi pembayaran tidak ditemukan pada layar ini. Tutup layar ini '
+            'dan buat ulang pembayaran dari halaman checkout.',
+      );
+      return;
+    }
+
+    debugPrint('VA: cek status paymentId=$paymentId');
     setState(() => _checking = true);
     final latest = await PaymentService.getStatus(paymentId);
     if (!mounted) return;
     setState(() => _checking = false);
 
     if (latest == null) {
-      _snack('Status pembayaran belum bisa diperiksa. Coba lagi.', Colors.orange.shade700);
+      await _infoDialog(
+        'Status Belum Bisa Diperiksa',
+        'Server belum mengembalikan status pembayaran. Pastikan koneksi internet '
+            'aktif lalu coba lagi. Status tetap tidak diubah sebelum ada konfirmasi '
+            'resmi dari iPaymu.',
+      );
       return;
     }
 
@@ -182,7 +234,16 @@ class _VirtualAccountConfirmationScreenState
 
   void _cancelPayment() async {
     final paymentId = widget.result.paymentId;
-    if (paymentId.isEmpty) return;
+    debugPrint('VA: batalkan pembayaran paymentId=$paymentId');
+
+    if (paymentId.isEmpty) {
+      await _infoDialog(
+        'Data Pembayaran Tidak Lengkap',
+        'ID transaksi pembayaran tidak ditemukan pada layar ini. Tutup layar ini '
+            'dan batalkan pesanan dari halaman detail pelacakan.',
+      );
+      return;
+    }
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -232,10 +293,12 @@ class _VirtualAccountConfirmationScreenState
       return;
     }
 
-    // Perlu refund / status belum pasti: jangan klaim batal.
-    _snack(
-      result['message']?.toString() ?? 'Gagal membatalkan pembayaran',
-      Colors.orange.shade700,
+    // Perlu refund / status belum pasti: jangan klaim batal, dan jangan diam.
+    debugPrint('VA: pembatalan tidak berhasil error_code=${result['error_code']}');
+    await _infoDialog(
+      'Pembatalan Belum Berhasil',
+      result['message']?.toString() ?? 'Gagal membatalkan pembayaran. Coba lagi nanti.',
+      icon: Icons.error_outline_rounded,
     );
   }
 

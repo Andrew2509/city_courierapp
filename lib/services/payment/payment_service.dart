@@ -97,7 +97,12 @@ class PaymentService {
         if (data['success'] == true) {
           return PaymentResult.fromJson(data['data']);
         }
+        print('PaymentService: getStatus ditolak body=${response.body}');
+        return null;
       }
+
+      // Jangan diam: 401/404 di sini membuat tombol "Cek Status" terlihat mati.
+      print('PaymentService: getStatus gagal (${response.statusCode}) body=${response.body}');
       return null;
     } catch (e) {
       print('PaymentService Error (getStatus): $e');
