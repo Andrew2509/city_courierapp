@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
 /// Layar pembayaran Virtual Account dengan tampilan ringkas ala aplikasi bank:
 /// hitung mundur, kartu bank berisi nomor VA & total, peringatan keamanan,
@@ -381,17 +382,8 @@ class _VirtualAccountConfirmationScreenState
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: _buildBankLogo(),
-                ),
+                // Logo lokal: tidak bergantung koneksi saat layar dibuka.
+                PaymentBrandLogo(method: widget.method),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -860,61 +852,4 @@ class _VirtualAccountConfirmationScreenState
     return m;
   }
 
-  Widget _buildBankLogo() {
-    if (widget.iconUrl != null && widget.iconUrl!.isNotEmpty) {
-      return Image.network(
-        widget.iconUrl!,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => _buildFallbackLogo(),
-      );
-    }
-    return _buildFallbackLogo();
-  }
-
-  Widget _buildFallbackLogo() {
-    final method = widget.method.trim().toUpperCase();
-    String logoUrl = '';
-
-    if (method.contains('BRI')) {
-      logoUrl = 'https://static.midtrans.com/img/bank/bri.png';
-    } else if (method.contains('BCA')) {
-      logoUrl = 'https://static.midtrans.com/img/bank/bca.png';
-    } else if (method.contains('BNI')) {
-      logoUrl = 'https://static.midtrans.com/img/bank/bni.png';
-    } else if (method.contains('MANDIRI')) {
-      logoUrl = 'https://static.midtrans.com/img/bank/mandiri.png';
-    } else if (method.contains('PERMATA')) {
-      logoUrl = 'https://static.midtrans.com/img/bank/permata.png';
-    }
-
-    if (logoUrl.isEmpty) {
-      return Center(
-        child: Text(
-          _bankCode,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: _primary,
-          ),
-        ),
-      );
-    }
-
-    return Image.network(
-      logoUrl,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) => Center(
-        child: Text(
-          _bankCode,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: _primary,
-          ),
-        ),
-      ),
-    );
-  }
 }

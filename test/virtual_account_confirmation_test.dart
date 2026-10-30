@@ -64,6 +64,9 @@ void main() {
     expect(find.text('Kembali ke Beranda'), findsOneWidget);
     expect(find.text('Batalkan Pesanan'), findsOneWidget);
 
+    // Logo harus lokal: tidak ada gambar yang diunduh dari jaringan.
+    expect(find.byType(Image), findsNothing);
+
     // Tidak ada overflow saat dirender.
     expectNoLayoutOverflow(tester);
 

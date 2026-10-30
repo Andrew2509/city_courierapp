@@ -8,6 +8,7 @@ import 'package:city_courierapp/screens/home/shipping/payment/hosted_payment_scr
 import 'package:city_courierapp/models/payment/payment_method.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
 class PaymentMethodScreen extends StatefulWidget {
   final int totalAmount;
@@ -602,28 +603,8 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isDarkMode ? Colors.grey.shade900 : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: method.iconUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Image.network(
-                          method.iconUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => 
-                              Icon(Icons.payment_rounded, color: primaryColor, size: 20),
-                        ),
-                      ),
-                    )
-                  : Icon(Icons.payment_rounded, color: primaryColor, size: 20),
-            ),
+            // Logo lokal agar daftar metode tetap tampil tanpa koneksi.
+            PaymentBrandLogo(method: method.code, size: 40, borderRadius: 10),
             const SizedBox(width: 16),
             Expanded(
               child: Column(

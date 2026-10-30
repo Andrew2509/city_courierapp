@@ -66,6 +66,9 @@ void main() {
     expect(find.text('Kembali ke Beranda'), findsOneWidget);
     expect(find.text('Batalkan Pesanan'), findsOneWidget);
 
+    // Logo lokal: tidak ada gambar jaringan di layar.
+    expect(find.byType(Image), findsNothing);
+
     expectNoLayoutOverflow(tester);
 
     // Lepas widget agar timer hitung mundur berhenti.

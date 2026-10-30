@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
 /// Layar pembayaran QRIS & e-wallet.
 ///
@@ -401,17 +402,8 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: _buildMethodLogo(),
-                ),
+                // Logo lokal: tidak bergantung koneksi saat layar dibuka.
+                PaymentBrandLogo(method: widget.method),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -899,30 +891,4 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
     );
   }
 
-  Widget _buildMethodLogo() {
-    if (widget.iconUrl != null && widget.iconUrl!.isNotEmpty) {
-      return Image.network(
-        widget.iconUrl!,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => _logoFallback(),
-      );
-    }
-    return _logoFallback();
-  }
-
-  Widget _logoFallback() {
-    return Center(
-      child: Text(
-        _isQris ? 'QRIS' : widget.method,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: _primary,
-        ),
-      ),
-    );
-  }
 }
