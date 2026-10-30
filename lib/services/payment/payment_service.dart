@@ -66,6 +66,10 @@ class PaymentService {
         }
         throw Exception(data['message'] ?? 'Gagal membuat pembayaran');
       } else {
+        // Tampilkan body lengkap (termasuk blok `debug` dari backend) supaya
+        // penolakan provider seperti "Suspicious buyer" bisa didiagnosis dari
+        // console tanpa menebak-nebak.
+        print('PaymentService: createPayment gagal (${response.statusCode}) body=${response.body}');
         final data = jsonDecode(response.body);
         String msg = data['message'] ?? 'Error ${response.statusCode}';
         if (data['errors'] != null) {
