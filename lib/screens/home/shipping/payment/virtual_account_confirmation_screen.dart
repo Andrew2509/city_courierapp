@@ -162,22 +162,36 @@ class _VirtualAccountConfirmationScreenState
     );
 
     try {
-      final success = await PaymentService.cancelPayment(paymentId);
+      final result = await PaymentService.cancelPayment(paymentId);
 
       // Hide loading
       if (mounted) Navigator.pop(context);
 
-      if (success) {
+      if (result['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Pesanan berhasil dibatalkan'),
+              content: Text(
+                result['message']?.toString() ?? 'Pembayaran berhasil dibatalkan',
+              ),
               backgroundColor: Colors.red.shade600,
               behavior: SnackBarBehavior.floating,
             ),
           );
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
+      } else if (mounted) {
+        // Menunggu refund / status belum bisa dipastikan: jangan klaim batal.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['message']?.toString() ?? 'Gagal membatalkan pembayaran',
+            ),
+            backgroundColor: Colors.orange.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     } catch (e) {
       // Hide loading

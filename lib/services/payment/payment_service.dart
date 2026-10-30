@@ -105,8 +105,12 @@ class PaymentService {
     }
   }
 
-  /// Cancel payment
-  static Future<bool> cancelPayment(String paymentId) async {
+  /// Batalkan pembayaran yang masih menunggu.
+  ///
+  /// Backend menanyakan status resmi ke iPaymu lebih dulu: bila transaksi masih
+  /// pending, pembayaran ditutup lokal (iPaymu tanpa API pembatalan); bila sudah
+  /// dibayar, pembatalan ditolak dan harus lewat refund manual.
+  static Future<Map<String, dynamic>> cancelPayment(String paymentId) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/payment/cancel'),
@@ -114,15 +118,29 @@ class PaymentService {
         body: jsonEncode({'payment_id': paymentId}),
       );
 
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return data['success'] == true;
-      } else {
-        throw Exception(data['message'] ?? 'Gagal membatalkan pesanan');
+      final dynamic data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data is Map && data['success'] == true) {
+        return {
+          'success': true,
+          'message': data['message']?.toString() ?? 'Pembayaran berhasil dibatalkan',
+          'payment': data['payment'],
+        };
       }
+
+      return {
+        'success': false,
+        'error_code': data is Map ? data['error_code']?.toString() : null,
+        'payment': data is Map ? data['payment'] : null,
+        'message': data is Map && data['message'] != null
+            ? data['message'].toString()
+            : 'Gagal membatalkan pembayaran (HTTP ${response.statusCode})',
+      };
     } catch (e) {
       print('PaymentService Error (cancelPayment): $e');
-      rethrow;
+      return {
+        'success': false,
+        'message': 'Gagal membatalkan pembayaran: $e',
+      };
     }
   }
 

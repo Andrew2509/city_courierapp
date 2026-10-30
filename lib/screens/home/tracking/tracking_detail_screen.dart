@@ -709,6 +709,95 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
     );
   }
 
+  /// Dialog informasi hasil pembatalan (mis. pesanan sudah dibayar / status
+  /// pembayaran belum bisa diverifikasi).
+  Future<void> _showCancellationNoticeDialog({
+    required String title,
+    required String message,
+    IconData icon = Icons.info_rounded,
+    Color color = const Color(0xFFEA580C),
+    bool offerSupport = false,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        contentPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 12.5,
+            height: 1.5,
+            color: Color(0xFF475569),
+          ),
+        ),
+        actions: [
+          if (offerSupport)
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _contactSupport();
+                },
+                icon: const Icon(Icons.support_agent_rounded, size: 16, color: Colors.white),
+                label: const Text(
+                  'Hubungi Admin',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                'Mengerti',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Memproses pembatalan pesanan dan sinkronisasi ke backend website
   Future<void> _handleCancelOrder() async {
     // Jika waktu pickup tersisa <= 2 jam atau sudah lewat, tampilkan dialog pembatasan
@@ -754,6 +843,37 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
         await _fetchTracking();
       } else {
         final errorCode = result['error_code']?.toString();
+
+        // Pembayaran sudah diterima iPaymu: pembatalan = refund manual.
+        if (errorCode == 'payment_already_paid') {
+          await _fetchTracking();
+          if (!mounted) return;
+          await _showCancellationNoticeDialog(
+            title: 'Pesanan Sudah Dibayar',
+            message: result['message']?.toString() ??
+                'Pesanan sudah dibayar. Pembatalan pesanan memerlukan proses '
+                    'pengembalian dana sesuai ketentuan iPaymu.',
+            icon: Icons.receipt_long_rounded,
+            color: const Color(0xFF2563EB),
+            offerSupport: true,
+          );
+          return;
+        }
+
+        // Status pembayaran belum bisa dipastikan → jangan klaim berhasil/batal.
+        if (errorCode == 'payment_status_unknown') {
+          await _fetchTracking();
+          if (!mounted) return;
+          await _showCancellationNoticeDialog(
+            title: 'Pembatalan Sedang Diproses',
+            message: result['message']?.toString() ??
+                'Permintaan pembatalan sedang diproses. Silakan periksa kembali '
+                    'status pesanan beberapa saat lagi.',
+            icon: Icons.hourglass_top_rounded,
+          );
+          return;
+        }
+
         if (errorCode == 'within_2_hours' || errorCode == 'pickup_time_passed') {
           await _fetchTracking();
           if (!mounted) return;

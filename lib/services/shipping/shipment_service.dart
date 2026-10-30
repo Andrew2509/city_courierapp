@@ -248,6 +248,9 @@ class ShipmentService {
           'message': responseData is Map && responseData['message'] != null
               ? responseData['message'].toString()
               : 'Pesanan berhasil dibatalkan.',
+          // Ringkasan transaksi iPaymu (status, referensi, hasil pembatalan)
+          // supaya layar bisa membedakan pembatalan biasa dari kasus refund.
+          'payment': responseData is Map ? responseData['payment'] : null,
           'data': responseData is Map ? responseData['data'] : null,
         };
       }
@@ -257,6 +260,7 @@ class ShipmentService {
         'status_code': response.statusCode,
         'error_code': responseData is Map ? responseData['error_code']?.toString() : null,
         'minutes_until_pickup': responseData is Map ? responseData['minutes_until_pickup'] : null,
+        'payment': responseData is Map ? responseData['payment'] : null,
         'message': responseData is Map && responseData['message'] != null
             ? responseData['message'].toString()
             : 'Gagal membatalkan pesanan (HTTP ${response.statusCode})',
