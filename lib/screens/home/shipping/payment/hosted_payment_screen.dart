@@ -44,6 +44,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
   bool _webError = false;
   bool _sessionFinished = false;
   double _progress = 0;
+  bool _webViewRequested = false;
 
   bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Color get primaryColor => const Color(0xFFEC5B13);
@@ -66,14 +67,23 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
     super.initState();
     _status = widget.result.status;
 
-    if (_canEmbedWebView) {
-      _initWebView(_checkoutUrl!);
-    } else {
+    if (!_canEmbedWebView) {
       _loading = false;
     }
 
     // Cek status berkala; tidak pernah menyimpulkan "terbayar" tanpa backend.
     _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) => _refreshStatus());
+  }
+
+  /// WebView diinisialisasi di sini (bukan initState) karena warnanya bergantung
+  /// pada `Theme.of(context)`, dan InheritedWidget belum boleh diakses sebelum
+  /// initState selesai.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_webViewRequested || !_canEmbedWebView) return;
+    _webViewRequested = true;
+    _initWebView(_checkoutUrl!);
   }
 
   @override
@@ -117,7 +127,10 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
       )
       ..loadRequest(Uri.parse(url));
 
-    setState(() => _controller = controller);
+    // Dipanggil dari didChangeDependencies, jadi build akan menyusul; tidak
+    // perlu setState (dan setState saat initState/didChangeDependencies
+    // memang tidak diperlukan).
+    _controller = controller;
   }
 
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
