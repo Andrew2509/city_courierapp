@@ -1,56 +1,106 @@
 import 'package:flutter/material.dart';
 
-/// Logo bank / e-wallet yang digambar lokal (tanpa unduhan gambar).
+/// Ikon bank / QRIS untuk layar pembayaran.
 ///
-/// Sebelumnya layar pembayaran memuat logo dari URL Midtrans/`iconUrl` backend.
-/// Kalau koneksi lambat atau diblokir, kartu pembayaran tampil kosong. Widget
-/// ini selalu tersedia offline: kotak bersudut dengan warna khas brand dan
-/// kode singkatnya.
-///
-/// Catatan: ini bukan reproduksi logo resmi (yang merupakan merek dagang).
-/// Bila nanti file logo resmi sudah dilisensikan, cukup ganti isi widget ini
-/// dengan `Image.asset` — seluruh layar otomatis ikut.
+/// Gambar logo resmi disimpan di `assets/images/payment/` dan dibundel bersama
+/// aplikasi, jadi tampil seketika tanpa menunggu unduhan (tidak bergantung
+/// koneksi maupun URL logo pihak ketiga yang bisa mati). Metode yang belum
+/// punya berkas logo tetap tampil rapi lewat kotak berlabel warna brand.
 class PaymentBrandLogo extends StatelessWidget {
   /// Nama metode dari backend, mis. "BNI", "BNI Virtual Account", "QRIS".
   final String method;
 
   final double size;
+
+  /// Lebar kotak logo bila berbeda dari [size]. Logo bank berbentuk melebar,
+  /// jadi kartu pembayaran memakai kotak yang lebih lebar agar terlihat jelas.
+  final double? width;
   final double borderRadius;
 
   const PaymentBrandLogo({
     super.key,
     required this.method,
     this.size = 44,
+    this.width,
     this.borderRadius = 8,
   });
 
+  /// Berkas logo per brand. Kunci = potongan nama metode (uppercase).
+  static const Map<String, String> _assets = {
+    'QRIS': 'assets/images/payment/qris.png',
+    'BNI': 'assets/images/payment/bni.png',
+    'BRI': 'assets/images/payment/bri.png',
+    'BCA': 'assets/images/payment/bca.png',
+    'MANDIRI': 'assets/images/payment/mandiri.png',
+    'PERMATA': 'assets/images/payment/permata.png',
+    'CIMB': 'assets/images/payment/cimb.png',
+    'BSI': 'assets/images/payment/bsi.png',
+    'BTN': 'assets/images/payment/btn.png',
+    'DANAMON': 'assets/images/payment/danamon.png',
+  };
+
+  /// Cocokkan nama metode ke berkas logo; null bila belum tersedia.
+  static String? assetFor(String method) {
+    final m = method.trim().toUpperCase();
+    // QRIS dicek lebih dulu supaya "QRIS BCA" tetap memakai logo QRIS.
+    if (m.contains('QRIS')) return _assets['QRIS'];
+    for (final entry in _assets.entries) {
+      if (entry.key == 'QRIS') continue;
+      if (m.contains(entry.key)) return entry.value;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final brand = PaymentBrand.fromMethod(method);
+    final asset = assetFor(method);
 
     return Container(
-      width: size,
+      width: width ?? size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: brand.background,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: brand.needsBorder ? Border.all(color: const Color(0xFFE2E8F0)) : null,
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Padding(
-        padding: EdgeInsets.all(size * 0.16),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            brand.label,
-            maxLines: 1,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: size * 0.32,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-              color: brand.foreground,
-            ),
+        padding: EdgeInsets.all(size * 0.12),
+        child: asset == null
+            ? _fallbackLabel()
+            : Image.asset(
+                asset,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+                // Berkas hilang / gagal dimuat → tetap ada penanda brand.
+                errorBuilder: (_, __, ___) => _fallbackLabel(),
+              ),
+      ),
+    );
+  }
+
+  Widget _fallbackLabel() {
+    final brand = PaymentBrand.fromMethod(method);
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: brand.background,
+        borderRadius: BorderRadius.circular(borderRadius * 0.6),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          brand.label,
+          maxLines: 1,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: size * 0.32,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+            color: brand.foreground,
           ),
         ),
       ),
@@ -58,7 +108,7 @@ class PaymentBrandLogo extends StatelessWidget {
   }
 }
 
-/// Pemetaan nama metode → warna & label brand.
+/// Pemetaan nama metode → warna & label brand untuk fallback tanpa berkas.
 class PaymentBrand {
   final String label;
   final Color background;
@@ -135,7 +185,7 @@ class PaymentBrand {
       return const PaymentBrand(label: 'Retail', background: Color(0xFFDC2626), foreground: _white);
     }
 
-    // Tidak dikenal: pakai dua huruf pertama agar tetap terlihat rapi.
+    // Tidak dikenal: pakai tiga huruf pertama agar tetap terlihat rapi.
     final fallback = m.isEmpty
         ? '?'
         : (m.length >= 3 ? m.substring(0, 3) : m);

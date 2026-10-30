@@ -5,6 +5,7 @@ import 'package:city_courierapp/screens/home/shipping/payment_method_screen.dart
 import 'package:city_courierapp/screens/home/shipping/payment/virtual_account_confirmation_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/payment/e_wallet_confirmation_screen.dart';
 import 'package:city_courierapp/models/payment/payment_result.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 import 'package:intl/intl.dart';
 
 class UnpaidListScreen extends StatefulWidget {
@@ -430,40 +431,10 @@ class _UnpaidListScreenState extends State<UnpaidListScreen> {
     return m;
   }
 
+  /// Logo bank / QRIS dibundel bersama aplikasi (bukan URL Midtrans yang
+  /// sudah tidak aktif), jadi ikon tetap tampil tanpa koneksi.
   Widget _buildBankLogo(String method) {
-    final m = method.trim().toUpperCase();
-    String logoUrl = '';
-
-    if (m.contains('BNI'))
-      logoUrl = 'https://static.midtrans.com/img/bank/bni.png';
-    else if (m.contains('BRI'))
-      logoUrl = 'https://static.midtrans.com/img/bank/bri.png';
-    else if (m.contains('BCA'))
-      logoUrl = 'https://static.midtrans.com/img/bank/bca.png';
-    else if (m.contains('MANDIRI'))
-      logoUrl = 'https://static.midtrans.com/img/bank/mandiri.png';
-    else if (m.contains('PERMATA'))
-      logoUrl = 'https://static.midtrans.com/img/bank/permata.png';
-
-    if (logoUrl.isEmpty)
-      return const Icon(Icons.account_balance, size: 16, color: Colors.grey);
-
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.shade200, width: 0.5),
-      ),
-      child: Image.network(
-        logoUrl,
-        height: 14,
-        width: 22,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
-            const Icon(Icons.account_balance, size: 14, color: Colors.grey),
-      ),
-    );
+    return PaymentBrandLogo(method: method, size: 22, borderRadius: 4);
   }
 
   void _navigateToPayment(ShipmentModel shipment) {

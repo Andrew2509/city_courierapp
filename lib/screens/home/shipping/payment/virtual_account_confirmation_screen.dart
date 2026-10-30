@@ -457,8 +457,8 @@ class _VirtualAccountConfirmationScreenState
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             child: Row(
               children: [
-                // Logo lokal: tidak bergantung koneksi saat layar dibuka.
-                PaymentBrandLogo(method: widget.method),
+                // Logo bank lokal (bundled): tampil tanpa menunggu unduhan.
+                PaymentBrandLogo(method: widget.method, size: 40, width: 76),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

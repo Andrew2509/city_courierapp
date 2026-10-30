@@ -68,8 +68,14 @@ void main() {
     expect(find.text('Kembali ke Beranda'), findsOneWidget);
     expect(find.text('Batalkan Pesanan'), findsOneWidget);
 
-    // Logo harus lokal: tidak ada gambar yang diunduh dari jaringan.
-    expect(find.byType(Image), findsNothing);
+    // Logo bank harus dari berkas yang dibundel, bukan diunduh dari jaringan.
+    final logoImages = tester.widgetList<Image>(find.byType(Image));
+    expect(logoImages, isNotEmpty, reason: 'logo bank harus tampil sebagai gambar');
+    expect(
+      logoImages.any((image) => image.image is NetworkImage),
+      isFalse,
+      reason: 'logo tidak boleh diunduh dari jaringan',
+    );
 
     // Tidak ada overflow saat dirender.
     expectNoLayoutOverflow(tester);
