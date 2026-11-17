@@ -667,8 +667,7 @@ class DestinationInquiryStatusBanner extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Terdeteksi: ${res.accountHolderName!}'
-                '${res.isSimulated ? ' (Sandbox)' : ''}',
+                'Terdeteksi: ${res.accountHolderName!}',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

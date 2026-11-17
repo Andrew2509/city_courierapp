@@ -1,4 +1,481 @@
-import 'dart:convert';
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    import 'dart:convert';
 
 import 'package:city_courierapp/screens/courier/ci_word/wallet/add_bank_account_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/add_ewallet_account_screen.dart';
@@ -530,9 +1007,9 @@ void main() {
                 'channel_code': 'ID_DANA',
                 'account_number': '081234567890',
                 'mode': 'sandbox',
-                'is_simulated': true,
-                'provider': 'mock',
-                'message': 'Nama pemilik ditemukan (Simulasi Sandbox).',
+                'is_simulated': false,
+                'provider': 'account_profile',
+                'message': 'Nama diisi otomatis sesuai profil akun Anda.',
               },
             }),
             200,
@@ -599,19 +1076,41 @@ void main() {
             req.method == 'POST') {
           final body = jsonDecode(req.body) as Map<String, dynamic>;
           final isBank = body['destination_type'] == 'bank';
+          final accNum = body['account_number']?.toString() ?? '';
+          if (isBank && accNum == '9999000011') {
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'data': {
+                  'supported': false,
+                  'found': false,
+                  'account_holder_name': null,
+                  'channel_code': body['channel_code'],
+                  'account_number': accNum,
+                  'mode': 'sandbox',
+                  'is_simulated': false,
+                  'provider': 'mock',
+                  'message': 'Cek nama otomatis belum didukung. Isi nama secara manual.',
+                },
+              }),
+              200,
+            );
+          }
           return http.Response(
             jsonEncode({
               'success': true,
               'data': {
                 'supported': true,
                 'found': true,
-                'account_holder_name': isBank ? 'BUDI SANTOSO' : 'RINA DANA',
+                'account_holder_name': isBank ? 'BUDI TERSIMPAN' : 'RINA PROFIL',
                 'channel_code': body['channel_code'],
-                'account_number': body['account_number'],
+                'account_number': accNum,
                 'mode': 'sandbox',
-                'is_simulated': true,
-                'provider': 'mock',
-                'message': 'Nama pemilik ditemukan (Simulasi Sandbox).',
+                'is_simulated': false,
+                'provider': isBank ? 'saved_destination' : 'account_profile',
+                'message': isBank
+                    ? 'Nama pemilik ditemukan dari rekening tersimpan.'
+                    : 'Nama diisi otomatis sesuai profil akun Anda.',
               },
             }),
             200,
@@ -674,14 +1173,23 @@ void main() {
       await tester.tap(find.text('Push Bank'));
       await tester.pumpAndSettle();
 
+      // Unknown bank returns supported=false -> banner shows manual guidance & no fake name
+      await tester.enterText(find.byType(TextField).at(0), '9999000011');
+      await tester.pump(const Duration(milliseconds: 550));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Isi nama secara manual'), findsOneWidget);
+      expect(find.text('BUDI SANTOSO'), findsNothing);
+
+      // Saved verified bank account auto-fills cleanly
       await tester.enterText(find.byType(TextField).at(0), '1234567890');
       await tester.pump(const Duration(milliseconds: 550));
       await tester.pumpAndSettle();
 
-      expect(find.text('BUDI SANTOSO'), findsOneWidget);
+      expect(find.text('BUDI TERSIMPAN'), findsOneWidget);
+      expect(find.textContaining('(Sandbox)'), findsNothing);
       await tester.tap(find.text('Simpan Rekening Bank'));
       await tester.pumpAndSettle();
-      expect(submittedBankHolder, 'BUDI SANTOSO');
+      expect(submittedBankHolder, 'BUDI TERSIMPAN');
       expect(find.text('Push Bank'), findsOneWidget);
 
       await tester.pumpWidget(
@@ -708,10 +1216,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 550));
       await tester.pumpAndSettle();
 
-      expect(find.text('RINA DANA'), findsOneWidget);
+      expect(find.text('RINA PROFIL'), findsOneWidget);
       await tester.tap(find.text('Simpan E-Wallet'));
       await tester.pumpAndSettle();
-      expect(submittedEwalletHolder, 'RINA DANA');
+      expect(submittedEwalletHolder, 'RINA PROFIL');
       expect(find.text('Push Ewallet'), findsOneWidget);
     },
   );
