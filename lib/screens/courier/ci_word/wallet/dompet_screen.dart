@@ -19,6 +19,7 @@ import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_hi
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_notifications_sheet.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
+import 'package:city_courierapp/services/provider_availability_service.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
@@ -526,20 +527,26 @@ class _DompetScreenState extends State<DompetScreen> {
             ),
           ),
           const SizedBox(width: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Text(
-              'Aktif',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF16A34A),
-              ),
-            ),
+          FutureBuilder<ProviderStatusSnapshot>(
+            future: ProviderAvailabilityService.fetch(),
+            builder: (context, snapshot) {
+              final active = snapshot.data?.isEnabled('ipaymu') ?? true;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: active ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  active ? 'Aktif' : 'Nonaktif',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

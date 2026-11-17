@@ -62,6 +62,9 @@ dependencies:
   flutter_tts: ^4.2.5
   speech_to_text: ^7.4.0
   webview_flutter: ^4.14.1
+  local_auth: ^3.0.2
+  device_info_plus: ^12.4.0
+  local_auth_android: ^2.0.8
 
 dev_dependencies:
   flutter_test:

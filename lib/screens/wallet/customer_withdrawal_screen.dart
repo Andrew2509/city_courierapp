@@ -1,6 +1,7 @@
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
+import 'package:city_courierapp/screens/profile/keamanan_akun/widgets/transaction_pin_prompt_sheet.dart';
 import 'package:city_courierapp/screens/wallet/payout_destinations_screen.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
@@ -92,15 +93,62 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
       return;
     }
 
+    String? pin;
+    if (widget.wallet.hasTransactionPin) {
+      pin = await TransactionPinPromptSheet.show(
+        context,
+        subtitle: 'Masukkan 6 digit PIN untuk mengonfirmasi penarikan saldo.',
+      );
+      if (pin == null || !mounted) return;
+    }
+
     setState(() => _submitting = true);
     try {
-      await _service.requestWithdrawal(amount: amount, destinationId: dest.id);
+      await _service.requestWithdrawal(
+        amount: amount,
+        destinationId: dest.id,
+        transactionPin: pin,
+      );
       if (!mounted) return;
       _amountCtrl.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Permintaan penarikan dana berhasil dikirim.'), backgroundColor: Colors.green),
       );
       _load();
+    } on WalletApiException catch (e) {
+      if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' && mounted) {
+        setState(() => _submitting = false);
+        final prompted = await TransactionPinPromptSheet.show(
+          context,
+          subtitle: 'Masukkan 6 digit PIN untuk mengonfirmasi penarikan saldo.',
+        );
+        if (prompted == null || !mounted) return;
+        setState(() => _submitting = true);
+        try {
+          await _service.requestWithdrawal(
+            amount: amount,
+            destinationId: dest.id,
+            transactionPin: prompted,
+          );
+          if (!mounted) return;
+          _amountCtrl.clear();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permintaan penarikan dana berhasil dikirim.'), backgroundColor: Colors.green),
+          );
+          _load();
+          return;
+        } catch (err) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(err.toString()), backgroundColor: Colors.red),
+          );
+          return;
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -148,9 +196,11 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Fitur Penarikan Terkunci di Production',
-                                    style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF92400E)),
+                                  Text(
+                                    !widget.wallet.withdrawalProviderEnabled
+                                        ? 'Gateway Pencairan Dinonaktifkan'
+                                        : 'Fitur Penarikan Terkunci di Production',
+                                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF92400E)),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/status_penarikan_screen.dart';
+import 'package:city_courierapp/services/provider_availability_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Tarik Saldo ke DANA.
@@ -67,6 +68,7 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
 
   double _saldoTersedia = 0;
   WithdrawalFeeConfig? _feeConfig;
+  String? _providerDisabledReason;
 
   /// Idempotency key yang sudah dipakai untuk (nominal, nomor) yang sama.
   /// Dipakai ulang supaya percobaan ulang setelah timeout tidak membuat
@@ -113,15 +115,20 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
     final results = await Future.wait([
       WalletService.getWallet(),
       WalletService.getFeeConfig(),
+      ProviderAvailabilityService.fetch(forceRefresh: true),
     ]);
 
     if (!mounted) return;
 
-    final walletResult = results[0];
-    final feeResult = results[1];
+    final walletResult = results[0] as Map<String, dynamic>;
+    final feeResult = results[1] as Map<String, dynamic>;
+    final providers = results[2] as ProviderStatusSnapshot;
 
     setState(() {
       _isLoading = false;
+      _providerDisabledReason = providers.isEnabled('ipaymu')
+          ? null
+          : 'Layanan pencairan iPaymu sedang dinonaktifkan oleh Admin.';
 
       _saldoTersedia = walletResult['success'] == true && walletResult['data'] != null
           ? WalletBalance.fromJson((walletResult['data'] as Map).cast<String, dynamic>())
@@ -182,6 +189,9 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
   }
 
   String? get _validationError {
+    if (_providerDisabledReason != null) {
+      return _providerDisabledReason;
+    }
     if (!_feeConfigReady) {
       return 'Konfigurasi penarikan belum tersedia. Coba lagi nanti.';
     }

@@ -8,6 +8,7 @@ import 'package:city_courierapp/screens/wallet/topup_amount_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transaction_detail_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transactions_screen.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
+import 'package:city_courierapp/services/security/biometric_guard_service.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:flutter/material.dart';
 
@@ -25,12 +26,25 @@ class _CustomerWalletDashboardScreenState extends State<CustomerWalletDashboardS
   CustomerWalletSummary? _wallet;
   List<WalletTransactionV1> _recentTx = [];
   bool _loading = true;
+  bool _biometricLocked = false;
+  String? _biometricHint;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  Future<void> _unlockWithBiometric() async {
+    final res = await BiometricGuardService.authenticate(
+      reason: 'Verifikasi sidik jari atau wajah untuk membuka City Wallet',
+    );
+    if (!mounted) return;
+    setState(() {
+      _biometricLocked = !res.authenticated;
+      _biometricHint = res.authenticated ? null : res.message;
+    });
   }
 
   Future<void> _load() async {
@@ -43,12 +57,20 @@ class _CustomerWalletDashboardScreenState extends State<CustomerWalletDashboardS
       final txFuture = _service.getTransactions(page: 1, perPage: 6);
       final wallet = await walletFuture;
       final txPage = await txFuture;
+      final needsBiometric =
+          wallet.biometricEnabled && !BiometricGuardService.isSessionUnlocked;
+
       if (!mounted) return;
       setState(() {
         _wallet = wallet;
         _recentTx = txPage.items;
         _loading = false;
+        _biometricLocked = needsBiometric;
       });
+
+      if (needsBiometric) {
+        await _unlockWithBiometric();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -70,7 +92,53 @@ class _CustomerWalletDashboardScreenState extends State<CustomerWalletDashboardS
       backgroundColor: const Color(0xFFF8FAFC),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
+          : _biometricLocked
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Icon(
+                            Icons.fingerprint_rounded,
+                            color: Color(0xFF2563EB),
+                            size: 34,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'City Wallet Terkunci',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _biometricHint ??
+                              'Verifikasi biometrik diperlukan untuk melindungi saldo Anda.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 18),
+                        ElevatedButton.icon(
+                          onPressed: _unlockWithBiometric,
+                          icon: const Icon(Icons.fingerprint_rounded),
+                          label: const Text('Buka dengan Biometrik'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEC5B13),
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _error != null
               ? WalletErrorState(message: _error!, onRetry: _load)
               : RefreshIndicator(
                   onRefresh: _load,
@@ -146,7 +214,7 @@ class _CustomerWalletDashboardScreenState extends State<CustomerWalletDashboardS
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _wallet!.isFrozen
+                                onPressed: (_wallet!.isFrozen || !_wallet!.topupProviderEnabled)
                                     ? null
                                     : () async {
                                         final changed = await Navigator.push<bool>(
@@ -164,10 +232,16 @@ class _CustomerWalletDashboardScreenState extends State<CustomerWalletDashboardS
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primaryOrange,
                                   foregroundColor: Colors.white,
+                                  disabledBackgroundColor: Colors.white24,
+                                  disabledForegroundColor: Colors.white60,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
                                 icon: const Icon(Icons.add_circle_outline),
-                                label: const Text('Top-Up Saldo'),
+                                label: Text(
+                                  _wallet!.topupProviderEnabled
+                                      ? 'Top-Up Saldo'
+                                      : 'Top-Up Dinonaktifkan Admin',
+                                ),
                               ),
                             ),
                           ],

@@ -5,6 +5,28 @@ import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 
+class PaymentProviderDisabledException implements Exception {
+  final String message;
+  const PaymentProviderDisabledException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+class CheckoutPaymentMethodsResult {
+  final List<PaymentMethod> methods;
+  final bool ipaymuEnabled;
+  final bool hasError;
+  final String? message;
+
+  const CheckoutPaymentMethodsResult({
+    required this.methods,
+    required this.ipaymuEnabled,
+    this.hasError = false,
+    this.message,
+  });
+}
+
 class PaymentService {
   static String get _baseUrl => ApiService.baseUrl;
 
@@ -18,7 +40,7 @@ class PaymentService {
   }
 
   /// Get list of available payment methods
-  static Future<List<PaymentMethod>> getPaymentMethods() async {
+  static Future<CheckoutPaymentMethodsResult> fetchCheckoutPaymentMethods() async {
     try {
       final response = await http.get(
         Uri.parse('$_baseUrl/payment/methods'),
@@ -28,15 +50,58 @@ class PaymentService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
-          final List methods = data['data'];
-          return methods.map((m) => PaymentMethod.fromJson(m)).toList();
+          final bool ipaymuEnabled =
+              data['ipaymu_enabled'] != false && data['disabled'] != true;
+          if (!ipaymuEnabled) {
+            return CheckoutPaymentMethodsResult(
+              methods: const [],
+              ipaymuEnabled: false,
+              hasError: false,
+              message: data['message']?.toString(),
+            );
+          }
+
+          final List methods = data['data'] is List ? data['data'] as List : const [];
+          return CheckoutPaymentMethodsResult(
+            methods: methods.map((m) => PaymentMethod.fromJson(m)).toList(),
+            ipaymuEnabled: true,
+          );
         }
       }
-      return [];
+
+      if (response.statusCode == 403 || response.statusCode == 503) {
+        try {
+          final data = jsonDecode(response.body);
+          if (data is Map && data['error_code'] == 'PROVIDER_DISABLED') {
+            return CheckoutPaymentMethodsResult(
+              methods: const [],
+              ipaymuEnabled: false,
+              hasError: false,
+              message: data['message']?.toString(),
+            );
+          }
+        } catch (_) {}
+      }
+
+      return const CheckoutPaymentMethodsResult(
+        methods: [],
+        ipaymuEnabled: true,
+        hasError: true,
+      );
     } catch (e) {
       print('PaymentService Error (getPaymentMethods): $e');
-      return [];
+      return CheckoutPaymentMethodsResult(
+        methods: const [],
+        ipaymuEnabled: true,
+        hasError: true,
+        message: e.toString(),
+      );
     }
+  }
+
+  static Future<List<PaymentMethod>> getPaymentMethods() async {
+    final result = await fetchCheckoutPaymentMethods();
+    return result.methods;
   }
 
   static Future<PaymentResult?> createPayment({
@@ -72,6 +137,9 @@ class PaymentService {
         print('PaymentService: createPayment gagal (${response.statusCode}) body=${response.body}');
         final data = jsonDecode(response.body);
         String msg = data['message'] ?? 'Error ${response.statusCode}';
+        if (data is Map && data['error_code'] == 'PROVIDER_DISABLED') {
+          throw PaymentProviderDisabledException(msg);
+        }
         if (data['errors'] != null) {
           msg += ': ' + data['errors'].toString();
         }

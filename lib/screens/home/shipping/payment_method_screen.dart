@@ -7,9 +7,11 @@ import 'package:city_courierapp/screens/home/shipping/payment/direct_payment_con
 import 'package:city_courierapp/screens/home/shipping/payment/hosted_payment_screen.dart';
 import 'package:city_courierapp/models/payment/payment_method.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
+import 'package:city_courierapp/screens/profile/keamanan_akun/widgets/transaction_pin_prompt_sheet.dart';
 import 'package:city_courierapp/screens/wallet/wallet_payment_confirmation_screen.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/services/provider_availability_service.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
@@ -27,6 +29,8 @@ class PaymentMethodScreen extends StatefulWidget {
   final String? trackingUrl;
   final Map<String, dynamic>? shipmentData;
   final CustomerWalletService? walletService;
+  final Future<CheckoutPaymentMethodsResult> Function()? methodsFetcher;
+  final Future<Map<String, dynamic>?> Function()? settingsFetcher;
 
   const PaymentMethodScreen({
     super.key,
@@ -43,6 +47,8 @@ class PaymentMethodScreen extends StatefulWidget {
     this.trackingUrl,
     this.shipmentData,
     this.walletService,
+    this.methodsFetcher,
+    this.settingsFetcher,
   });
 
   @override
@@ -73,6 +79,14 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     _loadPaymentMethods();
   }
 
+  bool _ipaymuEnabled = true;
+  String? _ipaymuDisabledMessage;
+
+  static bool _isLocalCheckoutMethod(String code) {
+    final upper = code.toUpperCase();
+    return upper == 'WALLET' || upper == 'COD' || upper == 'TUNAI';
+  }
+
   Future<void> _loadPaymentMethods() async {
     if (!mounted) return;
     setState(() => isLoading = true);
@@ -83,10 +97,40 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         walletSummary = await walletSvc.getWallet();
       } catch (_) {}
 
-      final methods = await PaymentService.getPaymentMethods();
+      final results = await Future.wait([
+        (widget.methodsFetcher ?? PaymentService.fetchCheckoutPaymentMethods)(),
+        ProviderAvailabilityService.fetch(
+          forceRefresh: true,
+          settingsFetcher: widget.settingsFetcher,
+        ),
+      ]);
+      final methodResult = results[0] as CheckoutPaymentMethodsResult;
+      final providerSnapshot = results[1] as ProviderStatusSnapshot;
+
+      final bool ipaymuEnabled =
+          methodResult.ipaymuEnabled && providerSnapshot.isEnabled('ipaymu', defaultValue: true);
+
+      final List<PaymentMethod> methods = ipaymuEnabled
+          ? List<PaymentMethod>.from(methodResult.methods)
+          : methodResult.methods
+              .where((m) => _isLocalCheckoutMethod(m.code))
+              .toList();
+
       if (mounted) {
         setState(() {
+          _ipaymuEnabled = ipaymuEnabled;
+          _ipaymuDisabledMessage = ipaymuEnabled
+              ? null
+              : (methodResult.message ??
+                  'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.');
           paymentMethods = methods;
+          if (!ipaymuEnabled &&
+              selectedMethodCode != null &&
+              !_isLocalCheckoutMethod(selectedMethodCode!)) {
+            selectedMethod = null;
+            selectedMethodCode = null;
+            selectedMethodGroup = null;
+          }
           // Tambahkan City Wallet di kategori direct
           if (!paymentMethods.any((m) => m.code.toUpperCase() == 'WALLET')) {
             final walletLabel = walletSummary != null
@@ -199,6 +243,47 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                             color: isDarkMode ? Colors.white : Colors.black87,
                           ),
                         ),
+                        if (!_ipaymuEnabled) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isDarkMode
+                                  ? const Color(0xFF334155)
+                                  : const Color(0xFFFFF7ED),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isDarkMode
+                                    ? const Color(0xFF475569)
+                                    : const Color(0xFFFED7AA),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 18,
+                                  color: primaryColor,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _ipaymuDisabledMessage ??
+                                        'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDarkMode
+                                          ? Colors.white70
+                                          : const Color(0xFF9A3412),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         _buildPaymentMethodList(primaryColor, cardColor),
                       ],
@@ -766,7 +851,26 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           throw Exception('ID pengiriman tidak valid untuk pembayaran wallet.');
         }
         final walletSvc = widget.walletService ?? CustomerWalletService.instance;
-        final res = await walletSvc.payOrderWithWallet(shipmentId: shipmentIntId);
+        Map<String, dynamic> res;
+        try {
+          res = await walletSvc.payOrderWithWallet(shipmentId: shipmentIntId);
+        } on WalletApiException catch (e) {
+          if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' && mounted) {
+            setState(() => isLoading = false);
+            final pin = await TransactionPinPromptSheet.show(
+              context,
+              subtitle: 'Masukkan 6 digit PIN untuk menyelesaikan pembayaran City Wallet.',
+            );
+            if (pin == null || !mounted) return;
+            setState(() => isLoading = true);
+            res = await walletSvc.payOrderWithWallet(
+              shipmentId: shipmentIntId,
+              transactionPin: pin,
+            );
+          } else {
+            rethrow;
+          }
+        }
         final txMap = (res['payment_transaction'] as Map?)?.cast<String, dynamic>() ?? {};
         final remaining = (res['wallet_available_balance'] as num?)?.toInt() ?? 0;
 
@@ -929,9 +1033,16 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => isLoading = false);
+        if (e is PaymentProviderDisabledException) {
+          _loadPaymentMethods();
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Terjadi kesalahan: ${e.toString()}'),
+            content: Text(
+              e is PaymentProviderDisabledException
+                  ? e.message
+                  : 'Terjadi kesalahan: ${e.toString()}',
+            ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

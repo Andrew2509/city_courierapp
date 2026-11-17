@@ -136,6 +136,40 @@ class _TopupMethodScreenState extends State<TopupMethodScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (!_bundle!.providerEnabled || _bundle!.methods.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.pause_circle_outline_rounded, color: Colors.orange.shade700, size: 26),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Metode Top-Up Tidak Tersedia',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _bundle!.disabledReason ??
+                                        'Gateway top-up (${_bundle!.activeProvider.toUpperCase()}) sedang dinonaktifkan oleh Admin.',
+                                    style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
                     ..._bundle!.methods.map((method) {
                       final isSelected = _selected?.channelCode == method.channelCode;
                       return Card(

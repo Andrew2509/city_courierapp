@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../data/models/address_model.dart';
 import '../../core/config/map_config.dart';
+import '../provider_availability_service.dart';
 import 'geocoding_service.dart';
 import 'backend_geocoding_service.dart';
 import 'nominatim_geocoding_service.dart';
@@ -45,6 +46,11 @@ class LocationRepository {
   }) async {
     final cleanQuery = query.toLowerCase().trim();
     if (cleanQuery.isEmpty) return [];
+
+    if (!await ProviderAvailabilityService.isProviderEnabled('map')) {
+      debugPrint('[LocationRepo] Map & Geocoding disabled by Admin.');
+      return [];
+    }
 
     final cacheKey =
         '${cleanQuery}_${latitude != null ? latitude.toStringAsFixed(3) : ""}_${longitude != null ? longitude.toStringAsFixed(3) : ""}';
@@ -142,6 +148,11 @@ class LocationRepository {
   ///
   /// Tries backend first, then Nominatim, then Photon.
   Future<Address?> reverseGeocode(double lat, double lng) async {
+    if (!await ProviderAvailabilityService.isProviderEnabled('map')) {
+      debugPrint('[LocationRepo] Map & Geocoding disabled by Admin.');
+      return null;
+    }
+
     // Check cache
     final key = '${lat.toStringAsFixed(5)},${lng.toStringAsFixed(5)}';
     final cached = _reverseCache[key];

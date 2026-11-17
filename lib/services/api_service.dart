@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/services/auth_service.dart';
+import 'package:city_courierapp/services/security/biometric_guard_service.dart';
+import 'package:city_courierapp/services/security/device_metadata_service.dart';
 
 class ApiService {
   // Gunakan 10.0.2.2 untuk Android Emulator, 127.0.0.1 untuk iOS Simulator / Web
@@ -45,10 +47,15 @@ class ApiService {
     String otp,
   ) async {
     try {
+      final deviceHeaders = await DeviceMetadataService.getHeaders();
       final response = await http
           .post(
             Uri.parse('$baseUrl/verify-otp'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...deviceHeaders,
+            },
             body: jsonEncode({'phone': phone, 'otp': otp}),
           )
           .timeout(const Duration(seconds: 30));
@@ -94,10 +101,15 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/auth/phone');
       print('ApiService: Attempting POST to $uri');
 
+      final deviceHeaders = await DeviceMetadataService.getHeaders();
       final response = await http
           .post(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...deviceHeaders,
+            },
             body: jsonEncode({'id_token': idToken}),
           )
           .timeout(const Duration(seconds: 30));
@@ -130,10 +142,15 @@ class ApiService {
     try {
       final uri = Uri.parse('$baseUrl/auth/google');
 
+      final deviceHeaders = await DeviceMetadataService.getHeaders();
       final response = await http
           .post(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...deviceHeaders,
+            },
             body: jsonEncode({'id_token': idToken}),
           )
           .timeout(const Duration(seconds: 30));
@@ -181,17 +198,24 @@ class ApiService {
 
       if (token == null) return null;
 
+      final deviceHeaders = await DeviceMetadataService.getHeaders();
       final response = await http.get(
         Uri.parse('$baseUrl/profile'),
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'Authorization': 'Bearer $token',
+          ...deviceHeaders,
         },
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['data'];
+      }
+      if (response.statusCode == 401) {
+        await TokenStore.clear();
+        await BiometricGuardService.clearSessionUnlock(clearPreference: true);
       }
       return null;
     } catch (e) {
@@ -407,7 +431,22 @@ class ApiService {
   }
 
   static Future<void> logout() async {
+    final token = await TokenStore.read();
+    if (token != null && token.isNotEmpty) {
+      try {
+        await http
+            .post(
+              Uri.parse('$baseUrl/logout'),
+              headers: {
+                'Accept': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+            )
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {}
+    }
     await TokenStore.clear();
+    await BiometricGuardService.clearSessionUnlock(clearPreference: true);
     try {
       await AuthService.signOut().timeout(
         const Duration(milliseconds: 300),

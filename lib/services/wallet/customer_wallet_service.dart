@@ -139,6 +139,7 @@ class CustomerWalletService {
     int? shipmentId,
     int? orderId,
     String? idempotencyKey,
+    String? transactionPin,
   }) async {
     final key = idempotencyKey ?? newIdempotencyKey('walpay');
     final res = await _client.post(
@@ -147,6 +148,8 @@ class CustomerWalletService {
       body: jsonEncode({
         if (shipmentId != null) 'shipment_id': shipmentId,
         if (orderId != null) 'order_id': orderId,
+        if (transactionPin != null && transactionPin.isNotEmpty)
+          'transaction_pin': transactionPin,
         'idempotency_key': key,
       }),
     );
@@ -205,6 +208,7 @@ class CustomerWalletService {
     required int amount,
     required int destinationId,
     String? idempotencyKey,
+    String? transactionPin,
   }) async {
     final key = idempotencyKey ?? newIdempotencyKey('wd');
     final res = await _client.post(
@@ -213,6 +217,8 @@ class CustomerWalletService {
       body: jsonEncode({
         'amount': amount,
         'destination_id': destinationId,
+        if (transactionPin != null && transactionPin.isNotEmpty)
+          'transaction_pin': transactionPin,
         'idempotency_key': key,
       }),
     );

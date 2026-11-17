@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 import 'package:city_courierapp/models/shipping/route_model.dart';
+import 'package:city_courierapp/services/provider_availability_service.dart';
 import 'package:city_courierapp/services/shipping/map_service.dart';
 
 /// Exception ketika routing gagal atau response tidak dapat diparsing.
@@ -33,6 +34,10 @@ class CityCourierRoutingService implements RoutingService {
     List<LatLng> waypoints = const [],
     String profile = 'motorcycle',
   }) async {
+    if (!await ProviderAvailabilityService.isProviderEnabled('map')) {
+      throw const RoutingException('Layanan Peta & Routing sedang dinonaktifkan oleh Admin.');
+    }
+
     final raw = await MapService.getRouting(
       '${origin.longitude},${origin.latitude}',
       '${destination.longitude},${destination.latitude}',

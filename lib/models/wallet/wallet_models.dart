@@ -28,12 +28,16 @@ class CustomerWalletSummary {
   final String mode;
   final bool isSandboxOrDemo;
   final String activePaymentProvider;
+  final bool topupProviderEnabled;
+  final bool withdrawalProviderEnabled;
   final bool withdrawalEnabled;
   final String? withdrawalBlockedReason;
   final int withdrawalMinIdr;
   final int withdrawalMaxIdr;
   final int topupMinIdr;
   final int topupMaxIdr;
+  final bool hasTransactionPin;
+  final bool biometricEnabled;
 
   const CustomerWalletSummary({
     required this.walletId,
@@ -50,17 +54,22 @@ class CustomerWalletSummary {
     required this.mode,
     required this.isSandboxOrDemo,
     required this.activePaymentProvider,
+    this.topupProviderEnabled = true,
+    this.withdrawalProviderEnabled = true,
     required this.withdrawalEnabled,
     this.withdrawalBlockedReason,
     required this.withdrawalMinIdr,
     required this.withdrawalMaxIdr,
     required this.topupMinIdr,
     required this.topupMaxIdr,
+    this.hasTransactionPin = false,
+    this.biometricEnabled = false,
   });
 
   factory CustomerWalletSummary.fromJson(Map<String, dynamic> json) {
     final wd = (json['withdrawal_policy'] as Map?)?.cast<String, dynamic>() ?? {};
     final topup = (json['topup_policy'] as Map?)?.cast<String, dynamic>() ?? {};
+    final security = (json['security'] as Map?)?.cast<String, dynamic>() ?? {};
     return CustomerWalletSummary(
       walletId: _asInt(json['wallet_id']),
       walletType: (json['wallet_type'] ?? 'customer').toString(),
@@ -76,12 +85,16 @@ class CustomerWalletSummary {
       mode: (json['mode'] ?? 'sandbox').toString(),
       isSandboxOrDemo: json['is_sandbox_or_demo'] != false,
       activePaymentProvider: (json['active_payment_provider'] ?? 'mock').toString(),
+      topupProviderEnabled: json['topup_provider_enabled'] != false,
+      withdrawalProviderEnabled: wd['provider_enabled'] != false,
       withdrawalEnabled: wd['enabled'] == true,
       withdrawalBlockedReason: wd['blocked_reason']?.toString(),
       withdrawalMinIdr: _asInt(wd['min_amount_idr'], fallback: 10000),
       withdrawalMaxIdr: _asInt(wd['max_amount_idr'], fallback: 5000000),
       topupMinIdr: _asInt(topup['min_amount_idr'], fallback: 10000),
       topupMaxIdr: _asInt(topup['max_amount_idr'], fallback: 10000000),
+      hasTransactionPin: security['has_transaction_pin'] == true,
+      biometricEnabled: security['biometric_enabled'] == true,
     );
   }
 }
@@ -161,6 +174,8 @@ class TopupMethodOption {
 class TopupMethodsBundle {
   final String mode;
   final String activeProvider;
+  final bool providerEnabled;
+  final String? disabledReason;
   final bool isSimulated;
   final int minAmountIdr;
   final int maxAmountIdr;
@@ -169,6 +184,8 @@ class TopupMethodsBundle {
   const TopupMethodsBundle({
     required this.mode,
     required this.activeProvider,
+    this.providerEnabled = true,
+    this.disabledReason,
     required this.isSimulated,
     required this.minAmountIdr,
     required this.maxAmountIdr,
@@ -180,13 +197,16 @@ class TopupMethodsBundle {
         .whereType<Map>()
         .map((m) => TopupMethodOption.fromJson(Map<String, dynamic>.from(m)))
         .toList();
+    final providerEnabled = json['provider_enabled'] != false;
     return TopupMethodsBundle(
       mode: (json['mode'] ?? 'sandbox').toString(),
       activeProvider: (json['active_provider'] ?? 'mock').toString(),
+      providerEnabled: providerEnabled,
+      disabledReason: json['disabled_reason']?.toString(),
       isSimulated: json['is_simulated'] == true,
       minAmountIdr: _asInt(json['min_amount_idr'], fallback: 10000),
       maxAmountIdr: _asInt(json['max_amount_idr'], fallback: 10000000),
-      methods: list,
+      methods: providerEnabled ? list : const [],
     );
   }
 }

@@ -297,6 +297,10 @@ class _DanaLinkingScreenState extends State<DanaLinkingScreen>
         return 'Sesi tidak valid. Silakan mulai dari awal.';
       case 'DANA_NOT_CONNECTED':
         return 'Akun DANA belum terhubung.';
+      case 'PROVIDER_DISABLED':
+        return msg.isNotEmpty
+            ? msg
+            : 'Layanan DANA sedang dinonaktifkan oleh Admin.';
       case 'NETWORK_ERROR':
         return 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
       default:

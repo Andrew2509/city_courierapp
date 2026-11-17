@@ -114,7 +114,9 @@ class ProfileNavigationGrid extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const AccountSecurityScreen(),
+                      builder: (context) => AccountSecurityScreen(
+                        initialUserData: userData,
+                      ),
                     ),
                   );
                 } else if (navItems[index]['label'] == 'Daftar Kurir') {
