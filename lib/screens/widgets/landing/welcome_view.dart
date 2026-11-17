@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/screens/auth/complete_profile_screen.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_screen.dart';
 import 'package:city_courierapp/screens/home/cek_ongkir/cek_ongkir_screen.dart';
@@ -36,22 +37,37 @@ class _WelcomeViewState extends State<WelcomeView> {
       }
 
       // 2. Kirim ke Backend Laravel untuk autentikasi
-      final success = await ApiService.loginWithGoogle(idToken);
+      final result = await ApiService.loginWithGoogle(idToken);
 
-      if (success && mounted) {
-        // Berhasil login, arahkan ke Home
+      if (result['success'] == true && mounted) {
+        final user = result['user'] is Map
+            ? Map<String, dynamic>.from(result['user'] as Map)
+            : <String, dynamic>{};
+        user['phone_verified'] ??= result['phone_verified'] == true;
+
+        final requiresCompletion =
+            result['requires_profile_completion'] == true ||
+            result['profile_completed'] != true ||
+            result['phone_verified'] != true;
+
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
+            builder: (context) => requiresCompletion
+                ? CompleteProfileScreen(userData: user)
+                : const HomeScreen(),
           ),
           (route) => false,
         );
       } else if (mounted) {
         // Gagal di sisi backend
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gagal menghubungkan dengan server. Silakan coba lagi.'),
+          SnackBar(
+            content: Text(
+              (result['message'] ??
+                      'Gagal menghubungkan dengan server. Silakan coba lagi.')
+                  .toString(),
+            ),
             backgroundColor: Colors.red,
           ),
         );

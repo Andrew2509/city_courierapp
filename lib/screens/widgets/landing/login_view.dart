@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/screens/auth/complete_profile_screen.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/widgets/landing/landing_widgets.dart';
 import 'package:city_courierapp/services/api_service.dart';
@@ -8,13 +9,16 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 enum LoginStep { phone, otp }
 
+/// Pesan validasi ketika nomor belum terdaftar melalui Google.
+const String kPhoneNotRegisteredMessage =
+    'Nomor telepon belum terdaftar. Silakan gunakan nomor telepon yang sudah '
+    'terdaftar melalui Google. Jika belum memiliki akun, silakan daftar '
+    'terlebih dahulu menggunakan Google.';
+
 class LoginView extends StatefulWidget {
   final VoidCallback onBackToLanding;
 
-  const LoginView({
-    super.key,
-    required this.onBackToLanding,
-  });
+  const LoginView({super.key, required this.onBackToLanding});
 
   @override
   State<LoginView> createState() => _LoginViewState();
@@ -27,8 +31,10 @@ class _LoginViewState extends State<LoginView> {
   bool _isLoading = false;
 
   final TextEditingController _phoneController = TextEditingController();
-  final List<TextEditingController> _otpControllers =
-      List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _otpControllers = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _otpFocusNodes = List.generate(4, (_) => FocusNode());
 
   @override
@@ -61,28 +67,37 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _resendOtp() async {
+    if (_isLoading) return;
+
     String phone = _phoneController.text.trim();
     if (phone.isEmpty) return;
 
+    setState(() => _isLoading = true);
+
     try {
       final result = await ApiService.requestOtp(phone);
-      if (result != null && result['success'] == true) {
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      if (result['success'] == true) {
         _startTimer();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('OTP baru telah dikirim ke WhatsApp Anda')),
-          );
-        }
+        _showMessage('OTP baru telah dikirim ke WhatsApp Anda');
       } else {
-        throw result?['message'] ?? 'Gagal mengirim ulang OTP.';
+        _showMessage(result['message'] ?? 'Gagal mengirim ulang OTP.');
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
-      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showMessage('Tidak dapat terhubung ke server. Silakan coba lagi.');
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _handleBack() {
@@ -97,149 +112,333 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _verifyPhoneNumber() async {
+    if (_isLoading) return;
+
     String phone = _phoneController.text.trim();
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Masukkan nomor HP Anda')),
-      );
+      _showMessage('Masukkan nomor HP Anda');
       return;
     }
 
-    // Basic phone validation
-    if (phone.length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nomor HP minimal 10 digit')),
-      );
+    // Validasi dasar sebelum memanggil backend.
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 10) {
+      _showMessage('Nomor HP minimal 10 digit');
+      return;
+    }
+    if (digits.length > 15) {
+      _showMessage('Nomor HP tidak valid');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Call Laravel backend to send WhatsApp OTP via Fonnte
+      // Backend memvalidasi bahwa nomor sudah terdaftar melalui Google.
       final result = await ApiService.requestOtp(phone);
-      
-      if (result != null && result['success'] == true) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _currentStep = LoginStep.otp;
-            _startTimer();
-          });
-        }
-      } else {
-        throw result?['message'] ?? 'Gagal mengirim OTP. Pastikan nomor HP benar.';
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        setState(() {
+          _isLoading = false;
+          _currentStep = LoginStep.otp;
+          _startTimer();
+        });
+        return;
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
+
+      setState(() => _isLoading = false);
+
+      if (result['code'] == 'PHONE_NOT_REGISTERED') {
+        await _showPhoneNotRegisteredSheet();
+      } else {
+        _showMessage(
+          result['message'] ??
+              'Gagal mengirim OTP. Periksa kembali nomor HP Anda.',
         );
       }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showMessage('Tidak dapat terhubung ke server. Silakan coba lagi.');
     }
   }
 
   Future<void> _signInWithPhoneNumber() async {
+    if (_isLoading) return;
+
     String smsCode = _otpControllers.map((c) => c.text).join();
     if (smsCode.length != 4) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Masukkan 4 digit kode OTP')),
-      );
+      _showMessage('Masukkan 4 digit kode OTP');
       return;
     }
-    
+
     setState(() => _isLoading = true);
 
     try {
       // Verify OTP with Laravel backend
-      final result = await ApiService.verifyOtp(_phoneController.text.trim(), smsCode);
-      
-      if (result != null) {
-        if (mounted) {
-          // Check user role and navigate accordingly
-          final role = result['user']?['role'] ?? 'customer';
-          
-          if (role == 'courier') {
-            // Navigate to courier/driver home screen
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (route) => false,
-            );
-          } else {
-            // Navigate to customer home screen
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-              (route) => false,
-            );
-          }
-        }
-      } else {
-        throw 'Kode OTP salah atau sudah kadaluarsa.';
+      final result = await ApiService.verifyOtp(
+        _phoneController.text.trim(),
+        smsCode,
+      );
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        final user = result['user'] is Map
+            ? Map<String, dynamic>.from(result['user'] as Map)
+            : <String, dynamic>{};
+        user['phone_verified'] ??= result['phone_verified'] == true;
+        final requiresCompletion =
+            result['requires_profile_completion'] == true ||
+            result['profile_completed'] == false;
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => requiresCompletion
+                ? CompleteProfileScreen(userData: user)
+                : const HomeScreen(),
+          ),
+          (route) => false,
+        );
+        return;
       }
-    } catch (e) {
+
       setState(() => _isLoading = false);
-      // Clear OTP fields on error
-      for (var controller in _otpControllers) {
-        controller.clear();
-      }
-      _otpFocusNodes[0].requestFocus();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
+      _clearOtpFields();
+
+      if (result['code'] == 'PHONE_NOT_REGISTERED') {
+        // Kembali ke langkah nomor agar pengguna bisa mendaftar via Google
+        // atau mencoba nomor lain.
+        setState(() {
+          _currentStep = LoginStep.phone;
+          _stopTimer();
+        });
+        await _showPhoneNotRegisteredSheet();
+      } else {
+        _showMessage(
+          result['message'] ?? 'Kode OTP salah atau sudah kadaluarsa.',
         );
       }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _clearOtpFields();
+      _showMessage('Tidak dapat terhubung ke server. Silakan coba lagi.');
     }
   }
 
+  void _clearOtpFields() {
+    for (var controller in _otpControllers) {
+      controller.clear();
+    }
+    _otpFocusNodes[0].requestFocus();
+  }
+
+  /// Tampilkan pesan bahwa nomor belum terdaftar melalui Google beserta
+  /// pilihan untuk mendaftar lewat Google atau mencoba lagi.
+  Future<void> _showPhoneNotRegisteredSheet() async {
+    if (!mounted) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFF7ED),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.person_search_rounded,
+                        color: Color(0xFFEA580C),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Nomor Belum Terdaftar',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      kPhoneNotRegisteredMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF6B7280),
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(sheetContext, 'google'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF97316),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.account_circle, size: 20),
+                            SizedBox(width: 10),
+                            Flexible(
+                              child: Text(
+                                'Daftar dengan Google',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext, 'retry'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFEA580C),
+                          side: const BorderSide(color: Color(0xFFFED7AA)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          'Coba Lagi',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (action == 'google') {
+      await _handleGoogleSignIn();
+    }
+    // 'retry' cukup menutup sheet; nomor tetap diisi agar pengguna bisa
+    // memperbaiki format atau mencoba lagi tanpa mengetik ulang.
+  }
+
   Future<void> _handleGoogleSignIn() async {
+    if (_isLoading) return;
+
     try {
       setState(() => _isLoading = true);
 
       // 1. Trigger Google Sign-In
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
       // 2. Authenticate with Firebase
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(credential);
       final String? idToken = await userCredential.user?.getIdToken();
 
       if (idToken != null) {
-        // 3. Send ID Token and Photo URL to Laravel Backend
-        bool success = await ApiService.loginWithGoogle(
+        // 3. Send ID Token to Laravel Backend
+        final result = await ApiService.loginWithGoogle(
           idToken,
           photoUrl: userCredential.user?.photoURL,
         );
-        
-        if (success) {
+
+        if (result['success'] == true) {
           if (mounted) {
+            final user = result['user'] is Map
+                ? Map<String, dynamic>.from(result['user'] as Map)
+                : <String, dynamic>{};
+            user['phone_verified'] ??= result['phone_verified'] == true;
+            final requiresCompletion =
+                result['requires_profile_completion'] == true ||
+                result['profile_completed'] != true ||
+                result['phone_verified'] != true;
+
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              MaterialPageRoute(
+                builder: (context) => requiresCompletion
+                    ? CompleteProfileScreen(userData: user)
+                    : const HomeScreen(),
+              ),
               (route) => false,
             );
           }
         } else {
-          throw 'Gagal autentikasi dengan server backend.';
+          if (mounted) {
+            _showMessage(
+              (result['message'] ??
+                      'Gagal masuk dengan Google. Silakan coba lagi.')
+                  .toString(),
+            );
+          }
         }
       } else {
         throw 'Gagal mendapatkan token dari Firebase.';
       }
-    } catch (e) {
+    } catch (_) {
+      // Jangan tampilkan detail teknis (stack trace / platform exception)
+      // kepada pengguna.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Terjadi kesalahan: $e')),
+        _showMessage(
+          'Gagal masuk dengan Google. Silakan coba lagi beberapa saat lagi.',
         );
       }
     } finally {
@@ -274,7 +473,9 @@ class _LoginViewState extends State<LoginView> {
               ),
               Expanded(
                 child: Text(
-                  _currentStep == LoginStep.phone ? 'Masuk ke Akun' : 'Verifikasi OTP',
+                  _currentStep == LoginStep.phone
+                      ? 'Masuk ke Akun'
+                      : 'Verifikasi OTP',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -288,7 +489,8 @@ class _LoginViewState extends State<LoginView> {
           const SizedBox(height: 24),
           if (_currentStep == LoginStep.phone) ...[
             Text(
-              'Masukkan nomor HP Anda untuk menerima kode verifikasi OTP.',
+              'Masukkan nomor HP yang sudah terdaftar melalui Google untuk '
+              'menerima kode verifikasi OTP.',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[500],
@@ -313,13 +515,20 @@ class _LoginViewState extends State<LoginView> {
                       color: _isLoading ? Colors.grey : const Color(0xFFF97316),
                       shape: BoxShape.circle,
                     ),
-                    child: _isLoading 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                   ),
                 ),
               ),
@@ -359,8 +568,11 @@ class _LoginViewState extends State<LoginView> {
                   Image.network(
                     'https://developers.google.com/identity/images/g-logo.png',
                     height: 20,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.account_circle, color: Colors.blue, size: 20),
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.account_circle,
+                      color: Colors.blue,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Flexible(
@@ -389,9 +601,9 @@ class _LoginViewState extends State<LoginView> {
                 children: [
                   const TextSpan(text: 'Kode OTP telah dikirim ke nomor '),
                   TextSpan(
-                    text: _phoneController.text.isNotEmpty ? 
-                          _phoneController.text.replaceRange(4, 8, '****') : 
-                          '0812****890',
+                    text: _phoneController.text.isNotEmpty
+                        ? _phoneController.text.replaceRange(4, 8, '****')
+                        : '0812****890',
                     style: const TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.bold,
@@ -438,7 +650,7 @@ class _LoginViewState extends State<LoginView> {
                       } else if (value.isEmpty && index > 0) {
                         _otpFocusNodes[index - 1].requestFocus();
                       }
-                      
+
                       // Auto-submit if all 4 digits filled
                       if (index == 3 && value.isNotEmpty) {
                         _signInWithPhoneNumber();
@@ -471,7 +683,7 @@ class _LoginViewState extends State<LoginView> {
                       ),
                     )
                   : GestureDetector(
-                      onTap: _resendOtp,
+                      onTap: _isLoading ? null : _resendOtp,
                       child: Text(
                         'Kirim Ulang Kode',
                         style: TextStyle(

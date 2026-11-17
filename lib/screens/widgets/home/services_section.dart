@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
+import 'package:city_courierapp/screens/home/shipping/pickup_screen.dart';
 
 class ServicesSection extends StatelessWidget {
   const ServicesSection({Key? key}) : super(key: key);
@@ -41,6 +42,11 @@ class ServicesSection extends StatelessWidget {
                 context,
                 'Reguler',
                 assetPath: 'assets/images/Reguler.png',
+                onTap: () => _openShipping(
+                  context,
+                  initialVehicle: 'motor',
+                  initialJenisKiriman: 'Barang',
+                ),
                 accentColor: AppColors.primaryOrange,
                 isDarkMode: isDarkMode,
               ),
@@ -48,6 +54,11 @@ class ServicesSection extends StatelessWidget {
                 context,
                 'Dokumen',
                 assetPath: 'assets/images/Dokumen.png',
+                onTap: () => _openShipping(
+                  context,
+                  initialVehicle: 'motor',
+                  initialJenisKiriman: 'Dokumen',
+                ),
                 accentColor: AppColors.primaryBlue,
                 isDarkMode: isDarkMode,
               ),
@@ -55,6 +66,11 @@ class ServicesSection extends StatelessWidget {
                 context,
                 'Cargo',
                 assetPath: 'assets/images/Cargo.png',
+                onTap: () => _openShipping(
+                  context,
+                  initialVehicle: 'mobil',
+                  initialJenisKiriman: 'Barang',
+                ),
                 accentColor: AppColors.primaryGreen,
                 isDarkMode: isDarkMode,
               ),
@@ -79,25 +95,42 @@ class ServicesSection extends StatelessWidget {
     );
   }
 
+  /// Buka alur pembuatan pesanan dengan preset layanan yang dipilih.
+  void _openShipping(
+    BuildContext context, {
+    required String initialVehicle,
+    required String initialJenisKiriman,
+  }) {
+    AuthGuard.runWithAuth(
+      context,
+      onAuthenticated: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PickupScreen(
+              initialVehicle: initialVehicle,
+              initialJenisKiriman: initialJenisKiriman,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildServiceItem(
     BuildContext context,
     String title, {
     required String assetPath,
     required Color accentColor,
     required bool isDarkMode,
+    VoidCallback? onTap,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         GestureDetector(
-          onTap: () {
-            AuthGuard.runWithAuth(
-              context,
-              onAuthenticated: () {
-                // Handle service navigation
-              },
-            );
-          },
+          key: ValueKey('service_item_$title'),
+          onTap: onTap,
           child: Container(
             width: 60,
             height: 60,

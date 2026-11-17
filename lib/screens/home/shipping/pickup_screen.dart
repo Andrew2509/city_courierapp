@@ -10,7 +10,18 @@ import 'package:city_courierapp/screens/home/shipping/confirmation_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/widgets/pickup_time_bottom_sheet.dart';
 
 class PickupScreen extends StatefulWidget {
-  const PickupScreen({super.key});
+  /// Kendaraan awal yang sudah terpilih. Dipakai tombol layanan di beranda
+  /// (mis. Cargo langsung memakai mobil).
+  final String initialVehicle;
+
+  /// Jenis kiriman awal: 'Barang' atau 'Dokumen'.
+  final String initialJenisKiriman;
+
+  const PickupScreen({
+    super.key,
+    this.initialVehicle = 'motor',
+    this.initialJenisKiriman = 'Barang',
+  });
 
   @override
   State<PickupScreen> createState() => _PickupScreenState();
@@ -20,7 +31,7 @@ class _PickupScreenState extends State<PickupScreen> {
   bool isScheduledPickup = false;
   DateTime? selectedPickupDateTime;
   String? selectedPickupTime;
-  String selectedVehicle = 'motor';
+  late String selectedVehicle;
   bool isItemInfoSaved = false;
   String itemDeskripsi = '';
   String? itemKategori;
@@ -161,6 +172,7 @@ class _PickupScreenState extends State<PickupScreen> {
   @override
   void initState() {
     super.initState();
+    selectedVehicle = widget.initialVehicle;
     isScheduledPickup = false;
     selectedPickupDateTime = null;
     selectedPickupTime = null;
@@ -1302,6 +1314,7 @@ class _PickupScreenState extends State<PickupScreen> {
             MaterialPageRoute(
               builder: (context) => ItemInfoScreen(
                 initialVehicle: selectedVehicle,
+                initialJenisKiriman: widget.initialJenisKiriman,
                 initialBerat: isItemInfoSaved ? itemBerat : null,
                 initialPanjang: isItemInfoSaved ? itemPanjang : null,
                 initialLebar: isItemInfoSaved ? itemLebar : null,
@@ -1636,6 +1649,7 @@ class _PickupScreenState extends State<PickupScreen> {
                 MaterialPageRoute(
                   builder: (context) => ItemInfoScreen(
                     initialVehicle: selectedVehicle,
+                    initialJenisKiriman: widget.initialJenisKiriman,
                     initialBerat: isItemInfoSaved ? itemBerat : null,
                     initialPanjang: isItemInfoSaved ? itemPanjang : null,
                     initialLebar: isItemInfoSaved ? itemLebar : null,

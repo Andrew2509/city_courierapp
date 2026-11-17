@@ -14,9 +14,13 @@ class ItemInfoScreen extends StatefulWidget {
   final String? initialKategori;
   final List<String>? initialPhotoPaths;
 
+  /// 'Barang' atau 'Dokumen', dipilih otomatis dari tombol layanan beranda.
+  final String initialJenisKiriman;
+
   const ItemInfoScreen({
     super.key,
     this.initialVehicle = 'motor',
+    this.initialJenisKiriman = 'Barang',
     this.initialBerat,
     this.initialPanjang,
     this.initialLebar,
@@ -33,7 +37,7 @@ class ItemInfoScreen extends StatefulWidget {
 
 class _ItemInfoScreenState extends State<ItemInfoScreen> {
   bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
-  String jenisKiriman = 'Barang'; // 'Dokumen' or 'Barang'
+  late String jenisKiriman; // 'Dokumen' or 'Barang'
   String? kategoriBarang = 'lainnya';
   late String selectedKendaraan;
 
@@ -52,8 +56,11 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
   @override
   void initState() {
     super.initState();
+    jenisKiriman =
+        widget.initialJenisKiriman == 'Dokumen' ? 'Dokumen' : 'Barang';
     deskripsiController = TextEditingController(
-      text: widget.initialDeskripsi ?? 'Peralatan Rumah Tangga',
+      text: widget.initialDeskripsi ??
+          (jenisKiriman == 'Dokumen' ? 'Dokumen' : 'Peralatan Rumah Tangga'),
     );
     panjangController = TextEditingController(
       text: widget.initialPanjang != null

@@ -10,7 +10,7 @@ import 'package:city_courierapp/screens/widgets/home/bottom_nav_bar.dart';
 import 'package:city_courierapp/screens/widgets/home/floating_active_order_widget.dart';
 import 'package:city_courierapp/services/shipping/active_order_service.dart';
 import 'package:city_courierapp/services/api_service.dart';
-import 'package:city_courierapp/screens/widgets/home/complete_profile_sheet.dart';
+import 'package:city_courierapp/screens/auth/complete_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -54,16 +54,28 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   Future<void> _checkProfileCompletion() async {
     final profileData = await ApiService.getProfile();
-    
-    if (profileData != null) {
-      final user = profileData['user'];
-      final String name = user['name'] ?? '';
-      final String email = user['email'] ?? '';
 
-      bool isIncomplete = name.startsWith('User ') || 
-                          email.contains('@citycourier.local') ||
-                          name.isEmpty ||
-                          email.isEmpty;
+    if (profileData != null && profileData['user'] is Map) {
+      final user = Map<String, dynamic>.from(profileData['user'] as Map);
+      user['phone_verified'] ??= profileData['phone_verified'] == true;
+
+      final String name = (user['name'] ?? '').toString().trim();
+      final String email = (user['email'] ?? '').toString().trim();
+      final String phone = (user['phone'] ?? '').toString().trim();
+      final bool phoneVerified =
+          profileData['phone_verified'] == true ||
+          user['phone_verified'] == true;
+
+      final bool isIncomplete =
+          profileData['requires_profile_completion'] == true ||
+          profileData['profile_completed'] == false ||
+          name.isEmpty ||
+          name.startsWith('User ') ||
+          name == 'Google User' ||
+          email.isEmpty ||
+          email.contains('@citycourier.local') ||
+          phone.isEmpty ||
+          !phoneVerified;
 
       if (mounted) {
         setState(() {
@@ -72,7 +84,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       }
 
       if (isIncomplete && mounted) {
-        _showCompleteProfileSheet(user);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => CompleteProfileScreen(userData: user),
+          ),
+          (route) => false,
+        );
       }
     } else {
       if (mounted && _userData != null) {
@@ -81,21 +98,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         });
       }
     }
-  }
-
-  void _showCompleteProfileSheet(Map<String, dynamic> user) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false, 
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (context) => CompleteProfileSheet(
-        userData: user,
-        onComplete: () {
-        },
-      ),
-    );
   }
 
   @override

@@ -1075,14 +1075,20 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.lock_outline, size: 12, color: Color(0xFF94A3B8)),
+              Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.lock_outline, size: 12, color: Color(0xFF94A3B8)),
+              ),
               SizedBox(width: 4),
-              Text(
-                'Saldo dipotong hanya saat permintaan dibuat; status akhir '
-                'mengikuti konfirmasi resmi penyedia.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), height: 1.3),
+              Flexible(
+                child: Text(
+                  'Saldo dipotong hanya saat permintaan dibuat; status akhir '
+                  'mengikuti konfirmasi resmi penyedia.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), height: 1.3),
+                ),
               ),
             ],
           ),

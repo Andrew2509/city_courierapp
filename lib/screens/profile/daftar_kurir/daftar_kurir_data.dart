@@ -5,6 +5,9 @@ class DaftarKurirData extends ChangeNotifier {
   String? vehicleType;
   String? name;
   String? nik;
+  String? birthPlace;
+  String? birthDate;
+  String? gender;
   String? email;
   String? phone;
   String? address;
@@ -23,6 +26,9 @@ class DaftarKurirData extends ChangeNotifier {
     vehicleType = null;
     name = null;
     nik = null;
+    birthPlace = null;
+    birthDate = null;
+    gender = null;
     email = null;
     phone = null;
     address = null;

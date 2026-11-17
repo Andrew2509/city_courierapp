@@ -59,12 +59,14 @@ class LocationPickerScreen extends StatefulWidget {
   final Address? initialAddress;
   final String? regionHint;
   final String title;
+  final LocationRepository? locationRepository;
 
   const LocationPickerScreen({
     super.key,
     this.initialAddress,
     this.regionHint,
     this.title = 'Set lokasi penjemputan',
+    this.locationRepository,
   });
 
   @override
@@ -73,7 +75,8 @@ class LocationPickerScreen extends StatefulWidget {
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
   final MapController _mapController = MapController();
-  final LocationRepository _locationRepository = LocationRepository();
+  late final LocationRepository _locationRepository;
+  late final bool _ownsLocationRepository;
   late LatLng _currentCenter;
   Address? _currentAddress;
   bool _isReverseGeocoding = false;
@@ -175,6 +178,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   void initState() {
     super.initState();
+    _ownsLocationRepository = widget.locationRepository == null;
+    _locationRepository = widget.locationRepository ?? LocationRepository();
+
     if (widget.initialAddress != null) {
       _currentCenter = LatLng(
         widget.initialAddress!.latitude,
@@ -186,7 +192,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         _benchmarkNote = widget.initialAddress!.addressDetail!.trim();
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _matchRajaOngkir(_currentAddress, _currentCenter);
+        if (widget.initialAddress!.streetName == null &&
+            widget.initialAddress!.poiName == null) {
+          _updateAddressFromMap(showErrorOnFailure: false);
+        } else {
+          _matchRajaOngkir(_currentAddress, _currentCenter);
+        }
       });
     } else {
       // Default to UNTAG Surabaya area as showcased in screenshot
@@ -205,7 +216,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     _debounce?.cancel();
-    _locationRepository.dispose();
+    if (_ownsLocationRepository) {
+      _locationRepository.dispose();
+    }
     super.dispose();
   }
 
@@ -501,7 +514,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   // ── Reverse Geocoding ──────────────────────────────────────────────
 
-  Future<void> _updateAddressFromMap() async {
+  Future<void> _updateAddressFromMap({bool showErrorOnFailure = true}) async {
     if (_isReverseGeocoding) return;
 
     setState(() {
@@ -529,16 +542,43 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       if (address != null && mounted) {
         setState(() {
           _currentAddress = address;
+          _isReverseGeocoding = false;
           if (address.poiName != null) {
             _searchController.text = address.poiName!;
           }
         });
         await _matchRajaOngkir(address, _currentCenter);
       } else if (mounted) {
+        setState(() {
+          _isReverseGeocoding = false;
+        });
+        if (showErrorOnFailure) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Lokasi gagal ditemukan. Silakan geser pin atau cari alamat lain.',
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+        }
         await _matchRajaOngkir(_currentAddress, _currentCenter);
       }
     } catch (_) {
-      // Keep previous address on failure
+      if (mounted && showErrorOnFailure) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Lokasi gagal ditemukan. Silakan geser pin atau cari alamat lain.',
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+      }
     } finally {
       if (mounted) {
         setState(() {

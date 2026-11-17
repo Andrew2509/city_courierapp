@@ -55,3 +55,10 @@ stitch_screens/
 ui_prototypes/
 scripts/
 tools/
+node_modules/
+jsconfig.json
+documentation/
+simulation_data/
+*.docx
+~$*
+/flutter_*.png
