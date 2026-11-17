@@ -44,9 +44,13 @@ class CourierWalletV1Service {
   Map<String, dynamic> _decodeData(http.Response response) {
     Map<String, dynamic> decoded = {};
     if (response.body.isNotEmpty) {
-      final raw = jsonDecode(response.body);
-      if (raw is Map<String, dynamic>) {
-        decoded = raw;
+      try {
+        final raw = jsonDecode(response.body);
+        if (raw is Map<String, dynamic>) {
+          decoded = raw;
+        }
+      } catch (_) {
+        // Biarkan decoded kosong agar status HTTP tetap dilaporkan rapi.
       }
     }
 
@@ -57,7 +61,7 @@ class CourierWalletV1Service {
     }
 
     throw WalletApiException(
-      (decoded['message'] ?? 'Permintaan kurir gagal (HTTP ${response.statusCode})').toString(),
+      (decoded['message'] ?? 'Permintaan kurir gagal (HTTP ${response.statusCode}).').toString(),
       errorCode: decoded['error_code']?.toString(),
       statusCode: response.statusCode,
     );

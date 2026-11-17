@@ -43,9 +43,13 @@ class CustomerWalletService {
   Map<String, dynamic> _decodeData(http.Response response) {
     Map<String, dynamic> decoded = {};
     if (response.body.isNotEmpty) {
-      final raw = jsonDecode(response.body);
-      if (raw is Map<String, dynamic>) {
-        decoded = raw;
+      try {
+        final raw = jsonDecode(response.body);
+        if (raw is Map<String, dynamic>) {
+          decoded = raw;
+        }
+      } catch (_) {
+        // Biarkan decoded kosong agar status HTTP tetap dilaporkan rapi.
       }
     }
 
@@ -56,7 +60,7 @@ class CustomerWalletService {
     }
 
     throw WalletApiException(
-      (decoded['message'] ?? 'Permintaan gagal (HTTP ${response.statusCode})').toString(),
+      (decoded['message'] ?? 'Permintaan gagal (HTTP ${response.statusCode}).').toString(),
       errorCode: decoded['error_code']?.toString(),
       statusCode: response.statusCode,
     );

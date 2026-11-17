@@ -1031,18 +1031,20 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         );
       }
     } catch (e) {
+      debugPrint('DEBUG: Payment error ($selectedMethodCode): $e');
       if (mounted) {
         setState(() => isLoading = false);
         if (e is PaymentProviderDisabledException) {
           _loadPaymentMethods();
         }
+        final errorMessage = switch (e) {
+          PaymentProviderDisabledException _ => e.message,
+          WalletApiException _ => e.message,
+          _ => 'Terjadi kesalahan: $e',
+        };
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              e is PaymentProviderDisabledException
-                  ? e.message
-                  : 'Terjadi kesalahan: ${e.toString()}',
-            ),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
