@@ -4,7 +4,9 @@ import 'package:city_courierapp/screens/profile/keamanan_akun/account_security_s
 import 'package:city_courierapp/screens/profile/daftar_kurir/views/informasi_pendaftaran_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/services/courier/courier_api_service.dart';
+import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/help/help_screen.dart';
+import 'package:city_courierapp/screens/wallet/customer_wallet_dashboard_screen.dart';
 
 class ProfileNavigationGrid extends StatelessWidget {
   final Color primaryColor;
@@ -31,7 +33,44 @@ class ProfileNavigationGrid extends StatelessWidget {
       {'icon': Icons.help, 'label': 'Pusat Bantuan'},
     ];
 
-    return Container(
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => AuthGuard.runWithAuth(
+            context,
+            onAuthenticated: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CustomerWalletDashboardScreen()),
+            ),
+          ),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.account_balance_wallet_rounded, color: primaryColor),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('City Wallet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      Text('Top-up saldo, bayar pesanan, & refund', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Colors.black45),
+              ],
+            ),
+          ),
+        ),
+        Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: surfaceColor,
@@ -112,6 +151,8 @@ class ProfileNavigationGrid extends StatelessWidget {
           );
         },
       ),
+    ),
+      ],
     );
   }
 

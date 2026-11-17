@@ -6,8 +6,11 @@ import 'package:city_courierapp/screens/home/shipping/payment/virtual_account_co
 import 'package:city_courierapp/screens/home/shipping/payment/direct_payment_confirmation_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/payment/hosted_payment_screen.dart';
 import 'package:city_courierapp/models/payment/payment_method.dart';
+import 'package:city_courierapp/models/wallet/wallet_models.dart';
+import 'package:city_courierapp/screens/wallet/wallet_payment_confirmation_screen.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
+import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
 class PaymentMethodScreen extends StatefulWidget {
@@ -23,6 +26,7 @@ class PaymentMethodScreen extends StatefulWidget {
   final String? vehicle;
   final String? trackingUrl;
   final Map<String, dynamic>? shipmentData;
+  final CustomerWalletService? walletService;
 
   const PaymentMethodScreen({
     super.key,
@@ -38,6 +42,7 @@ class PaymentMethodScreen extends StatefulWidget {
     this.vehicle,
     this.trackingUrl,
     this.shipmentData,
+    this.walletService,
   });
 
   @override
@@ -72,10 +77,30 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     if (!mounted) return;
     setState(() => isLoading = true);
     try {
+      final walletSvc = widget.walletService ?? CustomerWalletService.instance;
+      CustomerWalletSummary? walletSummary;
+      try {
+        walletSummary = await walletSvc.getWallet();
+      } catch (_) {}
+
       final methods = await PaymentService.getPaymentMethods();
       if (mounted) {
         setState(() {
           paymentMethods = methods;
+          // Tambahkan City Wallet di kategori direct
+          if (!paymentMethods.any((m) => m.code.toUpperCase() == 'WALLET')) {
+            final walletLabel = walletSummary != null
+                ? 'City Wallet (Saldo ${_formatCurrency(walletSummary.availableBalance)})'
+                : 'City Wallet (Bayar Pakai Saldo)';
+            paymentMethods.insert(0, PaymentMethod(
+              code: 'WALLET',
+              name: walletLabel,
+              group: 'direct',
+              iconUrl: '',
+              fee: 0,
+              isAvailable: true,
+            ));
+          }
           // Tambahkan metode pembayaran COD secara lokal jika tidak ada dari API
           if (!paymentMethods.any((m) => m.code.toUpperCase() == 'COD')) {
             paymentMethods.insert(0, PaymentMethod(
@@ -734,6 +759,35 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     try {
       debugPrint('DEBUG: Creating Payment - ShipmentId: ${widget.shipmentId}, Type: $selectedMethodGroup, Channel: $selectedMethodCode, Amount: ${widget.totalAmount}');
       
+      // 0. WALLET: Pembayaran instan menggunakan saldo City Wallet
+      if (selectedMethodCode!.toUpperCase() == 'WALLET') {
+        final shipmentIntId = int.tryParse(widget.shipmentId ?? '');
+        if (shipmentIntId == null) {
+          throw Exception('ID pengiriman tidak valid untuk pembayaran wallet.');
+        }
+        final walletSvc = widget.walletService ?? CustomerWalletService.instance;
+        final res = await walletSvc.payOrderWithWallet(shipmentId: shipmentIntId);
+        final txMap = (res['payment_transaction'] as Map?)?.cast<String, dynamic>() ?? {};
+        final remaining = (res['wallet_available_balance'] as num?)?.toInt() ?? 0;
+
+        if (mounted) {
+          setState(() => isLoading = false);
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => WalletPaymentConfirmationScreen(
+                reference: (txMap['reference'] ?? widget.trackingNumber ?? widget.shipmentId!).toString(),
+                amount: (txMap['amount'] as num?)?.toInt() ?? widget.totalAmount,
+                remainingBalance: remaining,
+                mode: (txMap['mode'] ?? 'sandbox').toString(),
+              ),
+            ),
+            (route) => false,
+          );
+        }
+        return;
+      }
+
       // 1. COD & TUNAI: Konfirmasi pembayaran ke backend (status pending → confirmed)
       if (selectedMethodCode!.toUpperCase() == 'COD' || selectedMethodCode!.toUpperCase() == 'TUNAI') {
         try {

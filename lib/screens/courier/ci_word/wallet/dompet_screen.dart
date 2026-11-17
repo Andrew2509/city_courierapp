@@ -5,12 +5,21 @@ import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
+import 'package:city_courierapp/models/wallet/wallet_models.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/auto_payout_status_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_available_earnings_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_earnings_overview_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_destinations_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_history_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_pending_earnings_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/riwayat_transaksi_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/tarik_dana_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/transaction_detail_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_history_tile.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_notifications_sheet.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
+import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
+import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Dompet Kurir.
@@ -29,6 +38,7 @@ class DompetScreen extends StatefulWidget {
 
 class _DompetScreenState extends State<DompetScreen> {
   WalletBalance? _balance;
+  CourierWalletV1Summary? _v1Summary;
   List<WalletHistoryItem> _recent = const [];
   int _notificationCount = 0;
 
@@ -83,6 +93,12 @@ class _DompetScreenState extends State<DompetScreen> {
             ? null
             : (walletResult['message']?.toString() ?? 'Gagal memuat data dompet');
       });
+
+      CourierWalletV1Service.instance.getWallet().then((summary) {
+        if (mounted) {
+          setState(() => _v1Summary = summary);
+        }
+      }).catchError((_) {});
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -134,6 +150,8 @@ class _DompetScreenState extends State<DompetScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   _buildSaldoCard(),
+                                  const SizedBox(height: 16),
+                                  _buildAutoPayoutHubCard(),
                                   const SizedBox(height: 16),
                                   _buildMetodeCard(),
                                   const SizedBox(height: 24),
@@ -367,6 +385,85 @@ class _DompetScreenState extends State<DompetScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAutoPayoutHubCard() {
+    final s = _v1Summary;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8E8E8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Earnings & Auto-Payout',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              ),
+              if (s != null) EnvironmentModeBadge(mode: s.mode, isSimulated: s.isSandboxOrDemo),
+            ],
+          ),
+          if (s != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Pending Settlement: ${formatRupiah(s.pendingBalance)} • Siap Payout: ${formatRupiah(s.availableBalance)}',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+            ),
+            if (s.defaultDestination != null)
+              Text(
+                'Tujuan Default: ${s.defaultDestination!.channelName} (${s.defaultDestination!.accountNumberMasked})',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _hubChip(Icons.trending_up, 'Ringkasan Earnings', () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierEarningsOverviewScreen()));
+              }),
+              _hubChip(Icons.schedule, 'Pending', () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierPendingEarningsScreen()));
+              }),
+              _hubChip(Icons.check_circle_outline, 'Available', () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierAvailableEarningsScreen()));
+              }),
+              _hubChip(Icons.account_balance, 'Rekening & E-Wallet', () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CourierPayoutDestinationsScreen()),
+                );
+                if (mounted) _load();
+              }),
+              _hubChip(Icons.autorenew, 'Auto-Payout', () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AutoPayoutStatusScreen()));
+              }),
+              _hubChip(Icons.history, 'Riwayat Payout', () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierPayoutHistoryScreen()));
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hubChip(IconData icon, String label, VoidCallback onTap) {
+    return ActionChip(
+      avatar: Icon(icon, size: 16, color: AppColors.primaryOrange),
+      label: Text(label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+      backgroundColor: const Color(0xFFF8FAFC),
+      side: BorderSide(color: Colors.grey.shade300),
+      onPressed: onTap,
     );
   }
 
