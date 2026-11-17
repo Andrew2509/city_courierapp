@@ -23,7 +23,8 @@ class TopupInstructionScreen extends StatefulWidget {
 }
 
 class _TopupInstructionScreenState extends State<TopupInstructionScreen> {
-  late final CustomerWalletService _service = widget.service ?? CustomerWalletService.instance;
+  late final CustomerWalletService _service =
+      widget.service ?? CustomerWalletService.instance;
   late TopupTransactionV1 _topup = widget.initialTopup;
   bool _checking = false;
   bool _simulating = false;
@@ -39,7 +40,9 @@ class _TopupInstructionScreenState extends State<TopupInstructionScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -54,7 +57,10 @@ class _TopupInstructionScreenState extends State<TopupInstructionScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: CityWalletUi.errorRed,
+        ),
       );
     } finally {
       if (mounted) setState(() => _simulating = false);
@@ -70,147 +76,286 @@ class _TopupInstructionScreenState extends State<TopupInstructionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSimulate = _topup.isSimulated || _topup.mode.toLowerCase() != 'production';
+    final canSimulate =
+        _topup.isSimulated || _topup.mode.toLowerCase() != 'production';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Instruksi Top-Up'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
-      ),
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    WalletStatusChip(status: _topup.status),
-                    EnvironmentModeBadge(mode: _topup.mode, isSimulated: _topup.isSimulated),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  formatRupiah(_topup.amount),
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_topup.channelCode} • ${_topup.reference}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-                if (_topup.qrString != null && _topup.qrString!.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  QrImageView(
-                    data: _topup.qrString!,
-                    size: 190,
-                    backgroundColor: Colors.white,
-                  ),
-                ],
-                if (_topup.vaNumber != null && _topup.vaNumber!.isNotEmpty) ...[
-                  const SizedBox(height: 18),
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            CityWalletUi.buildHeader(context, title: 'Instruksi Top-Up'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: CityWalletUi.borderColor),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Nomor Virtual Account', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                              const SizedBox(height: 2),
-                              Text(
-                                _topup.vaNumber!,
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1),
-                              ),
-                            ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            WalletStatusChip(status: _topup.status),
+                            EnvironmentModeBadge(
+                              mode: _topup.mode,
+                              isSimulated: _topup.isSimulated,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Nominal Pembayaran',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: CityWalletUi.inkSecondary,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: _topup.vaNumber!));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Nomor VA disalin')),
-                            );
-                          },
-                          icon: const Icon(Icons.copy, size: 16),
-                          label: const Text('Salin'),
+                        const SizedBox(height: 4),
+                        Text(
+                          formatRupiah(_topup.amount),
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: CityWalletUi.inkPrimary,
+                            letterSpacing: -0.5,
+                          ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_topup.channelCode} • ${_topup.reference}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: CityWalletUi.inkSecondary,
+                          ),
+                        ),
+                        if (_topup.qrString != null &&
+                            _topup.qrString!.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: CityWalletUi.borderColor),
+                            ),
+                            child: QrImageView(
+                              data: _topup.qrString!,
+                              size: 185,
+                              backgroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                        if (_topup.vaNumber != null &&
+                            _topup.vaNumber!.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border:
+                                  Border.all(color: CityWalletUi.borderColor),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Nomor Virtual Account',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: CityWalletUi.inkSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _topup.vaNumber!,
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.8,
+                                          color: CityWalletUi.inkPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    Clipboard.setData(
+                                      ClipboardData(text: _topup.vaNumber!),
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Nomor VA disalin'),
+                                      ),
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.primaryOrange,
+                                  ),
+                                  icon: const Icon(Icons.copy, size: 16),
+                                  label: const Text(
+                                    'Salin',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
+                  if (_topup.instructions.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: CityWalletUi.borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Cara Pembayaran',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                              color: CityWalletUi.inkPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ..._topup.instructions.asMap().entries.map(
+                                (e) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryOrange
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '${e.key + 1}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primaryOrange,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          e.value,
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            color: CityWalletUi.inkSecondary,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_topup.instructions.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
               ),
+            ),
+            CityWalletUi.stickyBottomBar(
+              context,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Cara Pembayaran', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  ..._topup.instructions.asMap().entries.map(
-                        (e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text('${e.key + 1}. ${e.value}', style: const TextStyle(fontSize: 13)),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: _checking ? null : _checkStatus,
+                      style: CityWalletUi.primaryButtonStyle(enabled: !_checking),
+                      icon: _checking
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.sync_rounded, size: 18),
+                      label: const Text(
+                        'Periksa Status Pembayaran',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ),
+                  ),
+                  if (canSimulate && !_topup.isSettled) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: _simulating ? null : _simulatePaid,
+                        style: CityWalletUi.secondaryButtonStyle(
+                          borderTint:
+                              AppColors.primaryOrange.withValues(alpha: 0.45),
+                          fgColor: AppColors.primaryOrange,
+                        ),
+                        icon: _simulating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primaryOrange,
+                                ),
+                              )
+                            : const Icon(Icons.bolt_rounded, size: 18),
+                        label: const Text(
+                          'Simulasikan Pembayaran Berhasil (Sandbox)',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: _checking ? null : _checkStatus,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            icon: _checking
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Icon(Icons.sync),
-            label: const Text('Periksa Status Pembayaran'),
-          ),
-          if (canSimulate && !_topup.isSettled) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _simulating ? null : _simulatePaid,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryOrange,
-                side: BorderSide(color: AppColors.primaryOrange),
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: _simulating
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.bolt),
-              label: const Text('Simulasikan Pembayaran Berhasil (Sandbox)'),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }

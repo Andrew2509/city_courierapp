@@ -21,7 +21,8 @@ class TopupMethodScreen extends StatefulWidget {
 }
 
 class _TopupMethodScreenState extends State<TopupMethodScreen> {
-  late final CustomerWalletService _service = widget.service ?? CustomerWalletService.instance;
+  late final CustomerWalletService _service =
+      widget.service ?? CustomerWalletService.instance;
   TopupMethodsBundle? _bundle;
   TopupMethodOption? _selected;
   bool _loading = true;
@@ -83,143 +84,270 @@ class _TopupMethodScreenState extends State<TopupMethodScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: CityWalletUi.errorRed,
+        ),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
+  IconData _methodIcon(String paymentType) {
+    return switch (paymentType) {
+      'qris' => Icons.qr_code_2_rounded,
+      'va' => Icons.account_balance_outlined,
+      _ => Icons.account_balance_wallet_outlined,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final unavailable =
+        _bundle != null && (!_bundle!.providerEnabled || _bundle!.methods.isEmpty);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pilih Metode Top-Up'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
-      ),
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? WalletErrorState(message: _error!, onRetry: _load)
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.shade200),
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            CityWalletUi.buildHeader(context, title: 'Pilih Metode Top-Up'),
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primaryOrange,
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Total Top-Up', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                              const SizedBox(height: 2),
-                              Text(
-                                formatRupiah(widget.amount),
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                              ),
-                            ],
-                          ),
-                          EnvironmentModeBadge(
-                            mode: _bundle!.mode,
-                            isSimulated: _bundle!.isSimulated,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (!_bundle!.providerEnabled || _bundle!.methods.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    )
+                  : _error != null
+                      ? WalletErrorState(message: _error!, onRetry: _load)
+                      : ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                           children: [
-                            Icon(Icons.pause_circle_outline_rounded, color: Colors.orange.shade700, size: 26),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryOrange,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
                                 children: [
-                                  const Text(
-                                    'Metode Top-Up Tidak Tersedia',
-                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Total Top-Up',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white70,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          formatRupiah(widget.amount),
+                                          style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                            letterSpacing: -0.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _bundle!.disabledReason ??
-                                        'Gateway top-up (${_bundle!.activeProvider.toUpperCase()}) sedang dinonaktifkan oleh Admin.',
-                                    style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                                  EnvironmentModeBadge(
+                                    mode: _bundle!.mode,
+                                    isSimulated: _bundle!.isSimulated,
                                   ),
                                 ],
                               ),
                             ),
+                            const SizedBox(height: 18),
+                            if (unavailable)
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFF59E0B),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.pause_circle_outline_rounded,
+                                      color: Color(0xFFB45309),
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Metode Top-Up Tidak Tersedia',
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF92400E),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _bundle!.disabledReason ??
+                                                'Gateway top-up (${_bundle!.activeProvider.toUpperCase()}) sedang dinonaktifkan oleh Admin.',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFF78350F),
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else ...[
+                              CityWalletUi.fieldLabel('Kanal Pembayaran'),
+                              const SizedBox(height: 10),
+                              ..._bundle!.methods.map((method) {
+                                final isSelected =
+                                    _selected?.channelCode == method.channelCode;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: InkWell(
+                                    onTap: () =>
+                                        setState(() => _selected = method),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppColors.primaryOrange
+                                                .withValues(alpha: 0.04)
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? AppColors.primaryOrange
+                                              : CityWalletUi.borderColor,
+                                          width: isSelected ? 1.5 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? AppColors.primaryOrange
+                                                      .withValues(alpha: 0.12)
+                                                  : const Color(0xFFF8FAFC),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              _methodIcon(method.paymentType),
+                                              size: 20,
+                                              color: isSelected
+                                                  ? AppColors.primaryOrange
+                                                  : CityWalletUi.inkSecondary,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  method.label,
+                                                  style: const TextStyle(
+                                                    fontSize: 13.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color:
+                                                        CityWalletUi.inkPrimary,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  method.feeIdr == 0
+                                                      ? 'Biaya admin gratis'
+                                                      : 'Biaya ${formatRupiah(method.feeIdr)}',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: CityWalletUi
+                                                        .inkSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(
+                                            isSelected
+                                                ? Icons.radio_button_checked
+                                                : Icons.radio_button_off,
+                                            color: isSelected
+                                                ? AppColors.primaryOrange
+                                                : CityWalletUi.inkMuted,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
                           ],
                         ),
-                      )
-                    else
-                    ..._bundle!.methods.map((method) {
-                      final isSelected = _selected?.channelCode == method.channelCode;
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                            color: isSelected ? AppColors.primaryOrange : Colors.grey.shade200,
-                            width: isSelected ? 1.8 : 1,
-                          ),
-                        ),
-                        child: ListTile(
-                          onTap: () => setState(() => _selected = method),
-                          leading: Icon(
-                            method.paymentType == 'qris'
-                                ? Icons.qr_code_2_rounded
-                                : (method.paymentType == 'va'
-                                    ? Icons.account_balance_rounded
-                                    : Icons.account_balance_wallet_rounded),
-                            color: isSelected ? AppColors.primaryOrange : Colors.black54,
-                          ),
-                          title: Text(method.label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                          subtitle: Text(
-                            method.feeIdr == 0 ? 'Biaya admin gratis' : 'Biaya ${formatRupiah(method.feeIdr)}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          trailing: Icon(
-                            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: isSelected ? AppColors.primaryOrange : Colors.grey,
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: (_selected != null && !_submitting) ? _submit : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            child: _submitting
-                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text('Buat Instruksi Pembayaran'),
-          ),
+            if (!_loading && _error == null)
+              CityWalletUi.stickyBottomBar(
+                context,
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: (!unavailable && _selected != null && !_submitting)
+                        ? _submit
+                        : null,
+                    style: CityWalletUi.primaryButtonStyle(
+                      enabled:
+                          !unavailable && _selected != null && !_submitting,
+                    ),
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Buat Instruksi Pembayaran',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

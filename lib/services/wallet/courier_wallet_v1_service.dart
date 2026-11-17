@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/services/api_service.dart';
@@ -20,12 +21,19 @@ class CourierWalletV1Service {
 
   static final CourierWalletV1Service instance = CourierWalletV1Service();
 
-  Future<Map<String, String>> _headers() async {
+  static String newIdempotencyKey([String prefix = 'cur-wd']) {
+    final rand = Random.secure().nextInt(999999);
+    return '$prefix-${DateTime.now().microsecondsSinceEpoch}-$rand';
+  }
+
+  Future<Map<String, String>> _headers({String? idempotencyKey}) async {
     final token = await _tokenReader();
     return {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (idempotencyKey != null && idempotencyKey.isNotEmpty)
+        'Idempotency-Key': idempotencyKey,
     };
   }
 
@@ -126,6 +134,23 @@ class CourierWalletV1Service {
         .toList();
   }
 
+  Future<DestinationInquiryResult> inquireDestination({
+    required String destinationType,
+    required String channelCode,
+    required String accountNumber,
+  }) async {
+    final res = await _client.post(
+      _v1('/destinations/inquiry'),
+      headers: await _headers(),
+      body: jsonEncode({
+        'destination_type': destinationType,
+        'channel_code': channelCode,
+        'account_number': accountNumber,
+      }),
+    );
+    return DestinationInquiryResult.fromJson(_decodeData(res));
+  }
+
   Future<PayoutDestinationV1> addDestination({
     required String destinationType,
     required String channelCode,
@@ -153,5 +178,26 @@ class CourierWalletV1Service {
       headers: await _headers(),
     );
     return PayoutDestinationV1.fromJson(_decodeData(res));
+  }
+
+  Future<PayoutTransactionV1> requestWithdrawal({
+    required int amount,
+    required int destinationId,
+    String? idempotencyKey,
+    String? transactionPin,
+  }) async {
+    final key = idempotencyKey ?? newIdempotencyKey();
+    final res = await _client.post(
+      _v1('/withdrawals'),
+      headers: await _headers(idempotencyKey: key),
+      body: jsonEncode({
+        'amount': amount,
+        'destination_id': destinationId,
+        if (transactionPin != null && transactionPin.isNotEmpty)
+          'transaction_pin': transactionPin,
+        'idempotency_key': key,
+      }),
+    );
+    return PayoutTransactionV1.fromJson(_decodeData(res));
   }
 }

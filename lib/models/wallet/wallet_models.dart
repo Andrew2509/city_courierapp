@@ -576,10 +576,13 @@ class CourierWalletV1Summary {
   final bool isSandboxOrDemo;
   final String activePayoutProvider;
   final bool autoPayoutEnabled;
+  final bool payoutProviderEnabled;
   final int minPayoutIdr;
+  final int maxPayoutIdr;
   final int feeIdr;
   final String scheduleCron;
   final bool eligibleForNextAutoPayout;
+  final bool hasTransactionPin;
   final CourierEarningsSummaryV1 earningsSummary;
   final PayoutDestinationV1? defaultDestination;
 
@@ -596,16 +599,20 @@ class CourierWalletV1Summary {
     required this.isSandboxOrDemo,
     required this.activePayoutProvider,
     required this.autoPayoutEnabled,
+    this.payoutProviderEnabled = true,
     required this.minPayoutIdr,
+    this.maxPayoutIdr = 5000000,
     required this.feeIdr,
     required this.scheduleCron,
     required this.eligibleForNextAutoPayout,
+    this.hasTransactionPin = false,
     required this.earningsSummary,
     this.defaultDestination,
   });
 
   factory CourierWalletV1Summary.fromJson(Map<String, dynamic> json) {
     final policy = (json['payout_policy'] as Map?)?.cast<String, dynamic>() ?? {};
+    final security = (json['security'] as Map?)?.cast<String, dynamic>() ?? {};
     final earnings = (json['earnings_summary'] as Map?)?.cast<String, dynamic>() ?? {};
     final dest = json['default_destination'] is Map
         ? PayoutDestinationV1.fromJson(Map<String, dynamic>.from(json['default_destination'] as Map))
@@ -624,12 +631,55 @@ class CourierWalletV1Summary {
       isSandboxOrDemo: json['is_sandbox_or_demo'] != false,
       activePayoutProvider: (json['active_payout_provider'] ?? 'mock').toString(),
       autoPayoutEnabled: policy['auto_payout_enabled'] != false,
+      payoutProviderEnabled: policy['provider_enabled'] != false,
       minPayoutIdr: _asInt(policy['min_payout_idr'], fallback: 20000),
+      maxPayoutIdr: _asInt(policy['max_payout_idr'], fallback: 5000000),
       feeIdr: _asInt(policy['fee_idr']),
       scheduleCron: (policy['schedule_cron'] ?? '0 * * * *').toString(),
       eligibleForNextAutoPayout: policy['eligible_for_next_auto_payout'] == true,
+      hasTransactionPin: security['has_transaction_pin'] == true,
       earningsSummary: CourierEarningsSummaryV1.fromJson(earnings),
       defaultDestination: dest,
+    );
+  }
+}
+
+class DestinationInquiryResult {
+  final bool supported;
+  final bool found;
+  final String? accountHolderName;
+  final String channelCode;
+  final String accountNumber;
+  final String mode;
+  final bool isSimulated;
+  final String provider;
+  final String? message;
+
+  const DestinationInquiryResult({
+    required this.supported,
+    required this.found,
+    this.accountHolderName,
+    this.channelCode = '',
+    this.accountNumber = '',
+    this.mode = 'sandbox',
+    this.isSimulated = true,
+    this.provider = 'mock',
+    this.message,
+  });
+
+  factory DestinationInquiryResult.fromJson(Map<String, dynamic> json) {
+    final rawName = json['account_holder_name']?.toString().trim();
+    return DestinationInquiryResult(
+      supported: json['supported'] == true,
+      found: json['found'] == true && rawName != null && rawName.isNotEmpty,
+      accountHolderName:
+          (rawName != null && rawName.isNotEmpty) ? rawName : null,
+      channelCode: (json['channel_code'] ?? '').toString(),
+      accountNumber: (json['account_number'] ?? '').toString(),
+      mode: (json['mode'] ?? 'sandbox').toString(),
+      isSimulated: json['is_simulated'] == true,
+      provider: (json['provider'] ?? 'mock').toString(),
+      message: json['message']?.toString(),
     );
   }
 }

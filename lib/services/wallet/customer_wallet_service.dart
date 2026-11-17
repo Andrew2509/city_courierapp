@@ -146,8 +146,8 @@ class CustomerWalletService {
       _v1('/payments'),
       headers: await _headers(idempotencyKey: key),
       body: jsonEncode({
-        if (shipmentId != null) 'shipment_id': shipmentId,
-        if (orderId != null) 'order_id': orderId,
+        'shipment_id': ?shipmentId,
+        'order_id': ?orderId,
         if (transactionPin != null && transactionPin.isNotEmpty)
           'transaction_pin': transactionPin,
         'idempotency_key': key,
@@ -163,6 +163,23 @@ class CustomerWalletService {
         .whereType<Map>()
         .map((e) => PayoutDestinationV1.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+  }
+
+  Future<DestinationInquiryResult> inquireDestination({
+    required String destinationType,
+    required String channelCode,
+    required String accountNumber,
+  }) async {
+    final res = await _client.post(
+      _v1('/destinations/inquiry'),
+      headers: await _headers(),
+      body: jsonEncode({
+        'destination_type': destinationType,
+        'channel_code': channelCode,
+        'account_number': accountNumber,
+      }),
+    );
+    return DestinationInquiryResult.fromJson(_decodeData(res));
   }
 
   Future<PayoutDestinationV1> addDestination({
@@ -252,7 +269,7 @@ class CustomerWalletService {
       body: jsonEncode({
         'shipment_id': shipmentId,
         'reason': reason,
-        if (amount != null) 'amount': amount,
+        'amount': ?amount,
         'idempotency_key': key,
       }),
     );

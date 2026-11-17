@@ -6,38 +6,41 @@ import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_s
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/auto_payout_status_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_available_earnings_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_earnings_overview_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_destinations_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_history_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_pending_earnings_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_withdrawal_v1_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/riwayat_transaksi_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/tarik_dana_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/transaction_detail_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_history_tile.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_notifications_sheet.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
-import 'package:city_courierapp/services/provider_availability_service.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Dompet Kurir.
 ///
-/// Menampilkan saldo dan transaksi terbaru — seluruh nominal berasal dari
-/// backend (GET /api/courier/wallet, /wallet/history, /wallet/notifications).
-///
-/// Pencairan ke DANA tidak lagi membutuhkan binding akun: nomor DANA tujuan
-/// diketik kurir pada setiap penarikan (layar Tarik Saldo).
+/// Menampilkan saldo, tombol Tarik Saldo yang terhubung langsung ke alur v1 Sandbox,
+/// dan riwayat transaksi terbaru.
 class DompetScreen extends StatefulWidget {
-  const DompetScreen({super.key});
+  final CourierWalletV1Service? v1Service;
+  final Future<Map<String, dynamic>> Function()? walletFetcher;
+  final Future<Map<String, dynamic>> Function()? historyFetcher;
+  final Future<Map<String, dynamic>> Function()? notificationsFetcher;
+
+  const DompetScreen({
+    super.key,
+    this.v1Service,
+    this.walletFetcher,
+    this.historyFetcher,
+    this.notificationsFetcher,
+  });
 
   @override
   State<DompetScreen> createState() => _DompetScreenState();
 }
 
 class _DompetScreenState extends State<DompetScreen> {
+  late final CourierWalletV1Service _v1Service =
+      widget.v1Service ?? CourierWalletV1Service.instance;
   WalletBalance? _balance;
   CourierWalletV1Summary? _v1Summary;
   List<WalletHistoryItem> _recent = const [];
@@ -60,26 +63,36 @@ class _DompetScreenState extends State<DompetScreen> {
     });
 
     try {
+      final v1Future = _v1Service
+          .getWallet()
+          .then<CourierWalletV1Summary?>((s) => s)
+          .catchError((_) => null);
+
       final results = await Future.wait([
-        WalletService.getWallet(),
-        WalletService.getHistory(page: 1, perPage: 5),
-        WalletService.getNotifications(),
+        (widget.walletFetcher ?? WalletService.getWallet)(),
+        (widget.historyFetcher ?? () => WalletService.getHistory(page: 1, perPage: 5))(),
+        (widget.notificationsFetcher ?? WalletService.getNotifications)(),
+        v1Future,
       ]);
 
       if (!mounted) return;
 
-      final walletResult = results[0];
-      final historyResult = results[1];
-      final notificationsResult = results[2];
+      final walletResult = results[0] as Map<String, dynamic>;
+      final historyResult = results[1] as Map<String, dynamic>;
+      final notificationsResult = results[2] as Map<String, dynamic>;
+      final v1Summary = results[3] as CourierWalletV1Summary?;
 
-      final walletOk = walletResult['success'] == true && walletResult['data'] != null;
+      final walletOk =
+          (walletResult['success'] == true && walletResult['data'] != null) ||
+              v1Summary != null;
 
       setState(() {
         _isLoading = false;
 
-        _balance = walletOk
+        _balance = (walletResult['success'] == true && walletResult['data'] != null)
             ? WalletBalance.fromJson((walletResult['data'] as Map).cast<String, dynamic>())
             : null;
+        _v1Summary = v1Summary;
 
         _recent = historyResult['success'] == true
             ? (historyResult['items'] as List<WalletHistoryItem>)
@@ -94,12 +107,6 @@ class _DompetScreenState extends State<DompetScreen> {
             ? null
             : (walletResult['message']?.toString() ?? 'Gagal memuat data dompet');
       });
-
-      CourierWalletV1Service.instance.getWallet().then((summary) {
-        if (mounted) {
-          setState(() => _v1Summary = summary);
-        }
-      }).catchError((_) {});
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -112,7 +119,9 @@ class _DompetScreenState extends State<DompetScreen> {
   Future<void> _openTarikSaldo() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const TarikDanaScreen()),
+      MaterialPageRoute(
+        builder: (_) => CourierWithdrawalV1Screen(service: _v1Service),
+      ),
     );
     if (mounted) await _load();
   }
@@ -151,10 +160,6 @@ class _DompetScreenState extends State<DompetScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   _buildSaldoCard(),
-                                  const SizedBox(height: 16),
-                                  _buildAutoPayoutHubCard(),
-                                  const SizedBox(height: 16),
-                                  _buildMetodeCard(),
                                   const SizedBox(height: 24),
                                   _buildRiwayatSection(),
                                   const SizedBox(height: 80),
@@ -254,10 +259,11 @@ class _DompetScreenState extends State<DompetScreen> {
 
   Widget _buildSaldoCard() {
     final balance = _balance;
-    final total = balance?.totalBalance ?? 0;
-    final available = balance?.availableBalance ?? 0;
-    final pending = balance?.pendingBalance ?? 0;
-    final earnings = balance?.totalEarnings ?? 0;
+    final available = _v1Summary?.availableBalance ?? balance?.availableBalance ?? 0;
+    final pending = _v1Summary != null
+        ? (_v1Summary!.reservedBalance + _v1Summary!.pendingBalance)
+        : (balance?.pendingBalance ?? 0);
+    final total = available + pending;
 
     return Container(
       width: double.infinity,
@@ -281,6 +287,13 @@ class _DompetScreenState extends State<DompetScreen> {
                   ),
                 ),
               ),
+              if (_v1Summary != null) ...[
+                EnvironmentModeBadge(
+                  mode: _v1Summary!.mode,
+                  isSimulated: _v1Summary!.isSandboxOrDemo,
+                ),
+                const SizedBox(width: 6),
+              ],
               GestureDetector(
                 onTap: () => setState(() => _hideBalance = !_hideBalance),
                 behavior: HitTestBehavior.opaque,
@@ -326,25 +339,6 @@ class _DompetScreenState extends State<DompetScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Total pendapatan',
-                  style: TextStyle(fontSize: 11.5, color: Colors.white70),
-                ),
-              ),
-              Text(
-                _hideBalance ? '••••••' : formatRupiah(earnings),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -386,170 +380,6 @@ class _DompetScreenState extends State<DompetScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildAutoPayoutHubCard() {
-    final s = _v1Summary;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Earnings & Auto-Payout',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-              ),
-              if (s != null) EnvironmentModeBadge(mode: s.mode, isSimulated: s.isSandboxOrDemo),
-            ],
-          ),
-          if (s != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Pending Settlement: ${formatRupiah(s.pendingBalance)} • Siap Payout: ${formatRupiah(s.availableBalance)}',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-            ),
-            if (s.defaultDestination != null)
-              Text(
-                'Tujuan Default: ${s.defaultDestination!.channelName} (${s.defaultDestination!.accountNumberMasked})',
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
-              ),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _hubChip(Icons.trending_up, 'Ringkasan Earnings', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierEarningsOverviewScreen()));
-              }),
-              _hubChip(Icons.schedule, 'Pending', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierPendingEarningsScreen()));
-              }),
-              _hubChip(Icons.check_circle_outline, 'Available', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierAvailableEarningsScreen()));
-              }),
-              _hubChip(Icons.account_balance, 'Rekening & E-Wallet', () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CourierPayoutDestinationsScreen()),
-                );
-                if (mounted) _load();
-              }),
-              _hubChip(Icons.autorenew, 'Auto-Payout', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const AutoPayoutStatusScreen()));
-              }),
-              _hubChip(Icons.history, 'Riwayat Payout', () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CourierPayoutHistoryScreen()));
-              }),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _hubChip(IconData icon, String label, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: AppColors.primaryOrange),
-      label: Text(label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-      backgroundColor: const Color(0xFFF8FAFC),
-      side: BorderSide(color: Colors.grey.shade300),
-      onPressed: onTap,
-    );
-  }
-
-  // ───────────────────────── METODE DANA ─────────────────────────
-
-  /// Kartu metode pencairan — informasi, bukan gerbang binding.
-  /// Nomor DANA tujuan diketik kurir pada layar Tarik Saldo.
-  Widget _buildMetodeCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: const Color(0xFF118EEA),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Center(
-              child: Text(
-                'D',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'DANA',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF191B23),
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Metode pencairan saldo penghasilan. Nomor DANA tujuan '
-                  'diisi saat penarikan — bisa berbeda setiap kali.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-          FutureBuilder<ProviderStatusSnapshot>(
-            future: ProviderAvailabilityService.fetch(),
-            builder: (context, snapshot) {
-              final active = snapshot.data?.isEnabled('ipaymu') ?? true;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: active ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  active ? 'Aktif' : 'Nonaktif',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: active ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
     );
   }
 
@@ -611,7 +441,7 @@ class _DompetScreenState extends State<DompetScreen> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Pendapatan pengiriman dan penarikan akan muncul di sini.',
+                        'Riwayat transaksi dan penarikan saldo akan muncul di sini.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
                       ),
