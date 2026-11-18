@@ -79,8 +79,6 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     _loadPaymentMethods();
   }
 
-  bool _ipaymuEnabled = true;
-  String? _ipaymuDisabledMessage;
   String? _remoteMethodsNotice;
 
   static bool _isLocalCheckoutMethod(String code) {
@@ -134,11 +132,6 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
 
       if (mounted) {
         setState(() {
-          _ipaymuEnabled = ipaymuEnabled;
-          _ipaymuDisabledMessage = ipaymuEnabled
-              ? null
-              : (trimmedResultMsg ??
-                    'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.');
           _remoteMethodsNotice = remoteNotice;
           paymentMethods = methods;
           if (!ipaymuEnabled &&
@@ -269,14 +262,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                             color: isDarkMode ? Colors.white : Colors.black87,
                           ),
                         ),
-                        if (!_ipaymuEnabled) ...[
-                          const SizedBox(height: 12),
-                          _buildCheckoutNoticeBanner(
-                            message:
-                                _ipaymuDisabledMessage ??
-                                'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.',
-                          ),
-                        ] else if (_remoteMethodsNotice != null) ...[
+                        if (_remoteMethodsNotice != null) ...[
                           const SizedBox(height: 12),
                           _buildCheckoutNoticeBanner(
                             message: _remoteMethodsNotice!,

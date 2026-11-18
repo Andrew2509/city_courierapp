@@ -204,6 +204,8 @@ void main() {
       expect(find.text('E-WALLET'), findsNothing);
       expect(find.text('BCA Virtual Account'), findsNothing);
       expect(find.text('QRIS'), findsNothing);
+      // Disabled banner text must NOT be shown to customers
+      expect(find.textContaining('dinonaktifkan'), findsNothing);
 
       // Local checkout methods remain available
       expect(find.textContaining('City Wallet'), findsOneWidget);
