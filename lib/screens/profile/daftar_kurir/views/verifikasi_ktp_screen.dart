@@ -93,7 +93,7 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
       title: 'Verifikasi KTP',
       currentStep: 4,
       totalSteps: 4,
-      transparentBottomAction: true,
+      transparentBottomAction: _imageFile == null,
       bottomAction: _imageFile == null
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -101,8 +101,8 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
                 GestureDetector(
                   onTap: _takePicture,
                   child: Container(
-                    width: 80,
-                    height: 80,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                       color: DaftarKurirColors.primary,
                       shape: BoxShape.circle,
@@ -116,8 +116,8 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
                     ),
                     child: Center(
                       child: Container(
-                        width: 64,
-                        height: 64,
+                        width: 58,
+                        height: 58,
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white, width: 2),
                           shape: BoxShape.circle,
@@ -125,22 +125,21 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
                         child: const Icon(
                           Icons.camera_alt,
                           color: Colors.white,
-                          size: 32,
+                          size: 28,
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const Text(
                   'Ambil Foto',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: DaftarKurirColors.textDark,
                   ),
                 ),
-                const SizedBox(height: 16),
               ],
             )
           : Column(
@@ -155,12 +154,11 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
                     Navigator.pop(context);
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 OutlineButton(
                   text: 'Foto Ulang',
                   onPressed: _retakePicture,
                 ),
-                const SizedBox(height: 24),
               ],
             ),
       child: Column(
@@ -373,16 +371,16 @@ class _VerifikasiKtpScreenState extends State<VerifikasiKtpScreen> {
           padding: EdgeInsets.only(top: 6, right: 8),
           child: CircleAvatar(
             radius: 3,
-            backgroundColor: DaftarKurirColors.textMuted,
+            backgroundColor: DaftarKurirColors.textSub,
           ),
         ),
         Expanded(
           child: Text(
             text,
             style: const TextStyle(
-              fontSize: 14,
-              color: DaftarKurirColors.textMuted,
-              height: 1.4,
+              fontSize: 13.5,
+              color: DaftarKurirColors.textSub,
+              height: 1.45,
             ),
           ),
         ),

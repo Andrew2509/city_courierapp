@@ -40,11 +40,7 @@ class _PilihKendaraanScreenState extends State<PilihKendaraanScreen> {
         children: [
           const Text(
             'Pilih jenis kendaraan yang akan Anda gunakan untuk melakukan pengiriman.',
-            style: TextStyle(
-              fontSize: 16,
-              color: DaftarKurirColors.textMuted,
-              height: 1.5,
-            ),
+            style: DaftarKurirTextStyles.subtitle,
           ),
           const SizedBox(height: 24),
           _buildVehicleCard(
@@ -114,18 +110,19 @@ class _PilihKendaraanScreenState extends State<PilihKendaraanScreen> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       color: DaftarKurirColors.textDark,
+                      height: 1.3,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
                     style: const TextStyle(
-                      fontSize: 14,
-                      color: DaftarKurirColors.textMuted,
-                      height: 1.4,
+                      fontSize: 13.5,
+                      color: DaftarKurirColors.textSub,
+                      height: 1.45,
                     ),
                   ),
                 ],

@@ -26,23 +26,14 @@ class KriteriaPersyaratanScreen extends StatelessWidget {
         children: [
           const Text(
             'Siapkan Dokumen Anda',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: DaftarKurirColors.textDark,
-              height: 1.25,
-            ),
+            style: DaftarKurirTextStyles.title,
           ),
           const SizedBox(height: 8),
           const Text(
             'Pastikan Anda telah memenuhi kriteria dasar dan menyiapkan dokumen berikut sebelum melanjutkan pendaftaran.',
-            style: TextStyle(
-              fontSize: 14,
-              color: DaftarKurirColors.textMuted,
-              height: 1.5,
-            ),
+            style: DaftarKurirTextStyles.subtitle,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           _buildRequirementItem('KTP Aktif', 'Kartu Tanda Penduduk yang masih berlaku (WNI).', Icons.badge_outlined),
           _buildRequirementItem('Nomor HP Aktif', 'Nomor yang dapat dihubungi dan terhubung ke WhatsApp.', Icons.smartphone_rounded),
           _buildRequirementItem('Kendaraan Layak', 'Motor atau mobil dalam kondisi prima untuk operasional.', Icons.two_wheeler_rounded),
@@ -57,11 +48,11 @@ class KriteriaPersyaratanScreen extends StatelessWidget {
 
   Widget _buildRequirementItem(String title, String description, IconData icon) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8.0),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10.0),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: DaftarKurirColors.border),
       ),
       child: Row(
@@ -76,10 +67,10 @@ class KriteriaPersyaratanScreen extends StatelessWidget {
             child: Icon(
               icon,
               color: DaftarKurirColors.primary,
-              size: 24,
+              size: 22,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,17 +78,19 @@ class KriteriaPersyaratanScreen extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                     color: DaftarKurirColors.textDark,
+                    height: 1.3,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   description,
                   style: const TextStyle(
-                    fontSize: 14,
-                    color: DaftarKurirColors.textMuted,
+                    fontSize: 13.5,
+                    color: DaftarKurirColors.textSub,
+                    height: 1.45,
                   ),
                 ),
               ],

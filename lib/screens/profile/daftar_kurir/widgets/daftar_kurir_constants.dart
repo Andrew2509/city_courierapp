@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 
 class DaftarKurirColors {
-  static const Color primary = Color(0xFFEC5B13);
-  static const Color primaryLight = Color(0xFFFFF0E5);
-  static const Color primaryHover = Color(0xFFE65100);
-  
+  static const Color primary = Color(0xFFFA880F);
+  static const Color primaryLight = Color(0xFFFFF4E8);
+  static const Color primaryHover = Color(0xFFE07306);
+
   static const Color bgLight = Color(0xFFF8FAFC);
   static const Color cardBg = Color(0xFFFFFFFF);
-  
-  static const Color textDark = Color(0xFF111827);
-  static const Color textSub = Color(0xFF4B5563);
-  static const Color textMuted = Color(0xFF9CA3AF);
-  
-  static const Color border = Color(0xFFE5E7EB);
+
+  static const Color textDark = Color(0xFF191B23);
+  static const Color textSub = Color(0xFF475569);
+  static const Color textMuted = Color(0xFF64748B);
+  static const Color textHint = Color(0xFF94A3B8);
+
+  static const Color border = Color(0xFFE8E8E8);
   
   static const Color success = Color(0xFF16A34A);
   static const Color successLight = Color(0xFFDCFCE7);
@@ -26,13 +27,15 @@ class DaftarKurirColors {
 
 class DaftarKurirTextStyles {
   static const TextStyle title = TextStyle(
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: FontWeight.w700,
     color: DaftarKurirColors.textDark,
+    height: 1.3,
   );
-  
+
   static const TextStyle subtitle = TextStyle(
-    fontSize: 14,
+    fontSize: 13.5,
+    fontWeight: FontWeight.w400,
     color: DaftarKurirColors.textSub,
     height: 1.5,
   );
@@ -49,8 +52,9 @@ class DaftarKurirTextStyles {
   );
   
   static const TextStyle buttonText = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
     color: Colors.white,
+    height: 1.25,
   );
 }

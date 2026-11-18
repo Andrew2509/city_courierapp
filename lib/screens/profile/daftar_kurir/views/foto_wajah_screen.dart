@@ -64,7 +64,9 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: DaftarKurirColors.textDark),
@@ -73,13 +75,16 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
         title: const Text(
           'Verifikasi Wajah',
           style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
             color: DaftarKurirColors.textDark,
+            height: 1.25,
           ),
         ),
       ),
       body: SafeArea(
+        top: true,
+        bottom: false,
         child: Column(
           children: [
             // Progress Indicator
@@ -90,28 +95,20 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
             
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
                 child: Column(
                   children: [
                     // Instructions
                     const Text(
                       'Posisikan wajah Anda di dalam lingkaran',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: DaftarKurirColors.textDark,
-                      ),
+                      style: DaftarKurirTextStyles.title,
                     ),
                     const SizedBox(height: 8),
                     const Text(
                       'Pastikan wajah terlihat jelas dan tidak memakai kacamata hitam atau masker.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: DaftarKurirColors.textSub,
-                        height: 1.4,
-                      ),
+                      style: DaftarKurirTextStyles.subtitle,
                     ),
                     const SizedBox(height: 32),
                     
@@ -232,19 +229,17 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
             // Bottom Action (Shutter Button)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.only(top: 16, bottom: 24),
-              decoration: BoxDecoration(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                14,
+                16,
+                MediaQuery.of(context).padding.bottom + 14,
+              ),
+              decoration: const BoxDecoration(
                 color: Colors.white,
                 border: Border(
-                  top: BorderSide(color: DaftarKurirColors.border),
+                  top: BorderSide(color: Color(0xFFF1F5F9)),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    offset: const Offset(0, -4),
-                    blurRadius: 12,
-                  ),
-                ],
               ),
               child: Center(
                 child: GestureDetector(

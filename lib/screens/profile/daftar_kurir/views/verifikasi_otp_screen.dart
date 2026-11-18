@@ -168,8 +168,8 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
             textAlign: TextAlign.center,
             text: TextSpan(
               style: const TextStyle(
-                fontSize: 16,
-                color: DaftarKurirColors.textMuted,
+                fontSize: 14,
+                color: DaftarKurirColors.textSub,
                 height: 1.5,
               ),
               children: [
@@ -184,67 +184,82 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
               6,
-              (index) => Container(
-                width: 48,
-                height: 56,
-                margin: EdgeInsets.only(right: index == 5 ? 0 : (index == 2 ? 16.0 : 8.0)),
-                child: TextField(
-                  controller: _controllers[index],
-                  focusNode: _focusNodes[index],
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(1),
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: DaftarKurirColors.textDark,
+              (index) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: index == 5 ? 0 : (index == 2 ? 12.0 : 6.0),
                   ),
-                  decoration: InputDecoration(
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: DaftarKurirColors.border),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 48,
+                      minHeight: 52,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: DaftarKurirColors.border),
+                    child: TextField(
+                      controller: _controllers[index],
+                      focusNode: _focusNodes[index],
+                      textAlign: TextAlign.center,
+                      textAlignVertical: TextAlignVertical.center,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(1),
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: DaftarKurirColors.textDark,
+                        height: 1.2,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: DaftarKurirColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: DaftarKurirColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: DaftarKurirColors.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      onChanged: (value) {
+                        if (value.isNotEmpty && index < 5) {
+                          _focusNodes[index + 1].requestFocus();
+                        }
+                        if (value.isEmpty && index > 0) {
+                          _focusNodes[index - 1].requestFocus();
+                        }
+                        setState(() {});
+                      },
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: DaftarKurirColors.primary, width: 1),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
                   ),
-                  onChanged: (value) {
-                    if (value.isNotEmpty && index < 5) {
-                      _focusNodes[index + 1].requestFocus();
-                    }
-                    if (value.isEmpty && index > 0) {
-                      _focusNodes[index - 1].requestFocus();
-                    }
-                    setState(() {});
-                  },
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           Center(
             child: RichText(
               textAlign: TextAlign.center,
               text: TextSpan(
                 style: const TextStyle(
                   fontSize: 14,
-                  color: DaftarKurirColors.textMuted,
+                  color: DaftarKurirColors.textSub,
+                  height: 1.4,
                 ),
                 children: [
                   const TextSpan(text: 'Belum menerima kode? '),
@@ -258,7 +273,7 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
                           fontWeight: FontWeight.w600,
                           color: _resendSeconds == 0
                               ? DaftarKurirColors.primary
-                              : DaftarKurirColors.textMuted,
+                              : DaftarKurirColors.textSub,
                         ),
                       ),
                     ),
@@ -269,7 +284,7 @@ class _VerifikasiOtpScreenState extends State<VerifikasiOtpScreen> {
                       fontWeight: FontWeight.w600,
                       color: _resendSeconds == 0
                           ? DaftarKurirColors.primary
-                          : DaftarKurirColors.textMuted,
+                          : DaftarKurirColors.textSub,
                     ),
                   ),
                 ],

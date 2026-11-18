@@ -18,19 +18,25 @@ class StatusPendaftaranScreen extends StatelessWidget {
         title: const Text(
           'Status Pendaftaran',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: DaftarKurirColors.primary,
+            color: DaftarKurirColors.textDark,
+            height: 1.25,
           ),
         ),
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: DaftarKurirColors.primary),
+          icon: const Icon(Icons.arrow_back, color: DaftarKurirColors.textDark),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
+        top: true,
+        bottom: false,
         child: Column(
           children: [
             Expanded(
@@ -162,39 +168,55 @@ class StatusPendaftaranScreen extends StatelessWidget {
             ),
 
             Container(
-              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.of(context).padding.bottom + 12,
+              ),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 border: Border(
-                  top: BorderSide(color: DaftarKurirColors.border),
+                  top: BorderSide(color: Color(0xFFF1F5F9)),
                 ),
               ),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: DaftarKurirColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: double.infinity,
+                  minHeight: 46,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.home, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Kembali ke Beranda',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: DaftarKurirColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
-                  ],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.home, size: 18),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Kembali ke Beranda',
+                          textAlign: TextAlign.center,
+                          style: DaftarKurirTextStyles.buttonText,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -283,9 +305,10 @@ class StatusPendaftaranScreen extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           subtitle,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: DaftarKurirColors.textSub.withOpacity(status == _TimelineStatus.pending ? 0.6 : 1),
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            color: DaftarKurirColors.textSub,
+                            height: 1.4,
                           ),
                         ),
                       ],

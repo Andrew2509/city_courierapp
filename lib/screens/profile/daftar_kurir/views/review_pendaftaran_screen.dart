@@ -12,6 +12,7 @@ class ReviewPendaftaranScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DaftarKurirData>();
     return ScreenLayout(
+      title: 'Review Pendaftaran',
       bottomAction: PrimaryButton(
         text: 'Lanjutkan ke Persetujuan',
         onPressed: () {
@@ -151,29 +152,33 @@ class ReviewPendaftaranScreen extends StatelessWidget {
   Widget _buildDocumentRow(String label, bool isUploaded) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
+        child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: DaftarKurirColors.textDark,
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: DaftarKurirColors.textDark,
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           Row(
             children: [
               Icon(
                 isUploaded ? Icons.check_circle_rounded : Icons.cancel_rounded,
                 size: 16,
-                color: isUploaded ? DaftarKurirColors.success : DaftarKurirColors.textMuted,
+                color: isUploaded ? DaftarKurirColors.success : DaftarKurirColors.textSub,
               ),
               const SizedBox(width: 4),
               Text(
                 isUploaded ? 'Terlampir' : 'Belum Terlampir',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: isUploaded ? DaftarKurirColors.success : DaftarKurirColors.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: isUploaded ? DaftarKurirColors.success : DaftarKurirColors.textSub,
                 ),
               ),
             ],

@@ -92,19 +92,12 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
           const SizedBox(height: 16),
           const Text(
             'Lengkapi Dokumen Anda',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: DaftarKurirColors.textDark,
-            ),
+            style: DaftarKurirTextStyles.title,
           ),
           const SizedBox(height: 8),
           const Text(
             'Unggah dokumen asli yang jelas dan terbaca untuk verifikasi akun kurir Anda.',
-            style: TextStyle(
-              fontSize: 14,
-              color: DaftarKurirColors.textSub,
-            ),
+            style: DaftarKurirTextStyles.subtitle,
           ),
           const SizedBox(height: 24),
           
@@ -169,7 +162,7 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                 ),
                 child: Icon(
                   icon,
-                  color: DaftarKurirColors.textMuted,
+                  color: DaftarKurirColors.primary,
                 ),
               ),
               const SizedBox(width: 16),
@@ -297,26 +290,30 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                   const SizedBox(height: 16),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     decoration: BoxDecoration(
                       color: DaftarKurirColors.primary,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          isKtp ? Icons.camera_alt : Icons.upload, 
-                          color: Colors.white, 
+                          isKtp ? Icons.camera_alt : Icons.upload,
+                          color: Colors.white,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          isKtp ? 'Ambil Foto' : 'Unggah $id',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                        Flexible(
+                          child: Text(
+                            isKtp ? 'Ambil Foto' : 'Unggah $id',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
                           ),
                         ),
                       ],

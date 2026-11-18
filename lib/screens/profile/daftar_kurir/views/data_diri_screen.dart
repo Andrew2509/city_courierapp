@@ -128,10 +128,9 @@ class _DataDiriScreenState extends State<DataDiriScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 16),
             const Text(
               'Mohon lengkapi data diri Anda dengan benar sesuai identitas resmi.',
-              style: TextStyle(fontSize: 16, color: DaftarKurirColors.textDark),
+              style: DaftarKurirTextStyles.subtitle,
             ),
             const SizedBox(height: 24),
 

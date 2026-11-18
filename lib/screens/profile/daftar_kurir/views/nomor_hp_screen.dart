@@ -78,36 +78,23 @@ class _NomorHpScreenState extends State<NomorHpScreen> {
         children: [
           const Text(
             'Masukkan Nomor HP',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: DaftarKurirColors.textDark,
-              height: 1.25,
-            ),
+            style: DaftarKurirTextStyles.title,
           ),
           const SizedBox(height: 8),
           const Text(
             'Kami akan mengirimkan kode OTP untuk verifikasi',
-            style: TextStyle(
-              fontSize: 16,
-              color: DaftarKurirColors.textMuted,
-              height: 1.5,
-            ),
+            style: DaftarKurirTextStyles.subtitle,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           const Text(
             'Nomor Handphone',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: DaftarKurirColors.textDark,
-            ),
+            style: DaftarKurirTextStyles.label,
           ),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: DaftarKurirColors.border),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
@@ -120,12 +107,12 @@ class _NomorHpScreenState extends State<NomorHpScreen> {
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   decoration: const BoxDecoration(
                     color: DaftarKurirColors.bgLight,
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8),
-                      bottomLeft: Radius.circular(8),
+                      topLeft: Radius.circular(10),
+                      bottomLeft: Radius.circular(10),
                     ),
                     border: Border(
                       right: BorderSide(color: DaftarKurirColors.border),
@@ -134,9 +121,10 @@ class _NomorHpScreenState extends State<NomorHpScreen> {
                   child: const Text(
                     '+62',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
                       color: DaftarKurirColors.textDark,
+                      height: 1.35,
                     ),
                   ),
                 ),
@@ -145,30 +133,38 @@ class _NomorHpScreenState extends State<NomorHpScreen> {
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
                       color: DaftarKurirColors.textDark,
+                      height: 1.35,
                     ),
                     onChanged: (value) => setState(() {}),
                     decoration: const InputDecoration(
                       hintText: '812 3456 7890',
                       hintStyle: TextStyle(
+                        fontSize: 14,
                         fontWeight: FontWeight.w400,
-                        color: DaftarKurirColors.textMuted,
+                        color: DaftarKurirColors.textHint,
                       ),
+                      isDense: true,
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           const Text(
             'Pastikan nomor aktif untuk menerima kode WhatsApp.',
             style: TextStyle(
-              fontSize: 12,
-              color: DaftarKurirColors.textMuted,
+              fontSize: 12.5,
+              color: DaftarKurirColors.textSub,
+              height: 1.35,
             ),
           ),
           const SizedBox(height: 24),

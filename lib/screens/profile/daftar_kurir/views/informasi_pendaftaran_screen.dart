@@ -41,25 +41,16 @@ class InformasiPendaftaranScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Mulai Perjalanan Anda Bersama CityCourier',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: DaftarKurirColors.textDark,
-              height: 1.25,
-            ),
+            style: DaftarKurirTextStyles.title,
           ),
-          const SizedBox(height: 12),
-          Text(
+          const SizedBox(height: 10),
+          const Text(
             'Proses pendaftaran yang mudah, cepat, dan transparan. Jadilah bagian dari jaringan pengiriman terpercaya.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              color: DaftarKurirColors.textMuted,
-              height: 1.5,
-            ),
+            style: DaftarKurirTextStyles.subtitle,
           ),
           const SizedBox(height: 32),
           
@@ -92,8 +83,8 @@ class InformasiPendaftaranScreen extends StatelessWidget {
             child: RichText(
               text: const TextSpan(
                 style: TextStyle(
-                  fontSize: 14,
-                  color: DaftarKurirColors.textMuted,
+                  fontSize: 13.5,
+                  color: DaftarKurirColors.textSub,
                   height: 1.5,
                 ),
                 children: [
@@ -151,14 +142,17 @@ class InformasiPendaftaranScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: DaftarKurirColors.primary, size: 24),
+              Icon(icon, color: DaftarKurirColors.primary, size: 22),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: DaftarKurirColors.textDark,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: DaftarKurirColors.textDark,
+                    height: 1.3,
+                  ),
                 ),
               ),
             ],
@@ -183,15 +177,15 @@ class InformasiPendaftaranScreen extends StatelessWidget {
                 padding: EdgeInsets.only(top: 8.0, right: 8.0),
                 child: CircleAvatar(
                   radius: 3,
-                  backgroundColor: DaftarKurirColors.textMuted,
+                  backgroundColor: DaftarKurirColors.textSub,
                 ),
               ),
               Expanded(
                 child: Text(
                   item,
                   style: const TextStyle(
-                    fontSize: 14,
-                    color: DaftarKurirColors.textMuted,
+                    fontSize: 13.5,
+                    color: DaftarKurirColors.textSub,
                     height: 1.5,
                   ),
                 ),

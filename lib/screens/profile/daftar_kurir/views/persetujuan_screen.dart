@@ -89,6 +89,7 @@ class _PersetujuanScreenState extends State<PersetujuanScreen> {
   @override
   Widget build(BuildContext context) {
     return ScreenLayout(
+      title: 'Persetujuan',
       bottomAction: PrimaryButton(
         text: _isSubmitting ? 'Mengirim...' : 'Kirim Pendaftaran',
         isLoading: _isSubmitting,

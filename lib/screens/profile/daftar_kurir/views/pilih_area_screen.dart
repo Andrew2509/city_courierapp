@@ -245,19 +245,29 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                     _searchQuery = value;
                   });
                 },
+                textAlignVertical: TextAlignVertical.center,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14.5,
                   color: DaftarKurirColors.textDark,
+                  height: 1.35,
                 ),
                 decoration: const InputDecoration(
                   hintText: 'Cari Kota',
                   hintStyle: TextStyle(
-                    color: DaftarKurirColors.textMuted,
-                    fontSize: 16,
+                    color: DaftarKurirColors.textHint,
+                    fontSize: 14,
                   ),
-                  prefixIcon: Icon(Icons.search, color: DaftarKurirColors.textMuted),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: DaftarKurirColors.textSub,
+                    size: 20,
+                  ),
+                  isDense: true,
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 14),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 13,
+                  ),
                 ),
               ),
             ),
@@ -321,8 +331,10 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                               child: Text(
                                 name,
                                 style: const TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w500,
                                   color: DaftarKurirColors.textDark,
+                                  height: 1.35,
                                 ),
                               ),
                             ),

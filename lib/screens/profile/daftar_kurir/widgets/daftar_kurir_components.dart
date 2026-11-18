@@ -16,29 +16,43 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
+    final bool isEnabled = !isLoading && onPressed != null;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: double.infinity,
+        minHeight: 46,
+      ),
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: DaftarKurirColors.primary,
-          disabledBackgroundColor: DaftarKurirColors.textMuted,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFF1F5F9),
+          disabledForegroundColor: DaftarKurirColors.textMuted,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
           ),
           elevation: 0,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: isLoading
             ? const SizedBox(
-                width: 24,
-                height: 24,
+                width: 22,
+                height: 22,
                 child: CircularProgressIndicator(
                   color: Colors.white,
-                  strokeWidth: 2.5,
+                  strokeWidth: 2.2,
                 ),
               )
-            : Text(text, style: DaftarKurirTextStyles.buttonText),
+            : Text(
+                text,
+                textAlign: TextAlign.center,
+                style: DaftarKurirTextStyles.buttonText.copyWith(
+                  color: isEnabled ? Colors.white : DaftarKurirColors.textMuted,
+                ),
+              ),
       ),
     );
   }
@@ -52,19 +66,26 @@ class OutlineButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: double.infinity,
+        minHeight: 46,
+      ),
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: DaftarKurirColors.textDark,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           side: const BorderSide(color: DaftarKurirColors.border),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
           ),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: Text(
           text,
+          textAlign: TextAlign.center,
           style: DaftarKurirTextStyles.buttonText.copyWith(
             color: DaftarKurirColors.textDark,
           ),
@@ -135,8 +156,10 @@ class ScreenLayout extends StatelessWidget {
       backgroundColor: DaftarKurirColors.bgLight,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
-        centerTitle: false,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: DaftarKurirColors.textDark),
           onPressed: onBackPressed ?? () => Navigator.of(context).pop(),
@@ -144,10 +167,13 @@ class ScreenLayout extends StatelessWidget {
         title: title != null
             ? Text(
                 title!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                   color: DaftarKurirColors.textDark,
+                  height: 1.25,
                 ),
               )
             : null,
@@ -169,24 +195,38 @@ class ScreenLayout extends StatelessWidget {
         ),
       ),
       body: SafeArea(
+        top: true,
+        bottom: false,
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  bottomAction != null
+                      ? 20
+                      : MediaQuery.of(context).padding.bottom + 20,
+                ),
                 child: child,
               ),
             ),
             if (bottomAction != null)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(20.0),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  12,
+                  16,
+                  MediaQuery.of(context).padding.bottom + 12,
+                ),
                 decoration: transparentBottomAction
                     ? null
                     : const BoxDecoration(
                         color: Colors.white,
                         border: Border(
-                          top: BorderSide(color: DaftarKurirColors.border),
+                          top: BorderSide(color: Color(0xFFF1F5F9)),
                         ),
                       ),
                 child: bottomAction,
@@ -252,15 +292,16 @@ class CustomTextField extends StatelessWidget {
         inputFormatters: inputFormatters,
         validator: validator,
         style: const TextStyle(
-          fontSize: 16,
+          fontSize: 14.5,
           fontWeight: FontWeight.w500,
           color: DaftarKurirColors.textDark,
+          height: 1.35,
         ),
         decoration: buildDaftarKurirFieldDecoration(
           hintText: hintText,
           helperText: helperText,
           prefixIcon: prefixIcon != null
-              ? Icon(prefixIcon, color: DaftarKurirColors.textMuted)
+              ? Icon(prefixIcon, color: DaftarKurirColors.textSub, size: 20)
               : null,
           suffixIcon: isValid
               ? const Icon(
@@ -328,19 +369,21 @@ class CustomDropdownField<T> extends StatelessWidget {
           isExpanded: true,
           isDense: false,
           icon: const Icon(
-            Icons.arrow_drop_down,
-            color: DaftarKurirColors.textMuted,
+            Icons.keyboard_arrow_down_rounded,
+            color: DaftarKurirColors.textSub,
           ),
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 14.5,
             fontWeight: FontWeight.w500,
             color: DaftarKurirColors.textDark,
+            height: 1.35,
           ),
           hint: Text(
             hintText,
             style: const TextStyle(
+              fontSize: 14,
               fontWeight: FontWeight.w400,
-              color: DaftarKurirColors.textMuted,
+              color: DaftarKurirColors.textHint,
             ),
           ),
           items: items,
@@ -439,40 +482,43 @@ InputDecoration buildDaftarKurirFieldDecoration({
   String? helperText,
 }) {
   final OutlineInputBorder defaultBorder = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(8),
+    borderRadius: BorderRadius.circular(10),
     borderSide: const BorderSide(color: DaftarKurirColors.border),
   );
 
   return InputDecoration(
     hintText: hintText,
     hintStyle: const TextStyle(
+      fontSize: 14,
       fontWeight: FontWeight.w400,
-      color: DaftarKurirColors.textMuted,
+      color: DaftarKurirColors.textHint,
     ),
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
     helperText: helperText,
     helperStyle: const TextStyle(
-      fontSize: 12,
-      height: 1.3,
+      fontSize: 12.5,
+      height: 1.35,
       color: DaftarKurirColors.textSub,
     ),
     helperMaxLines: 2,
     errorMaxLines: 2,
-    contentPadding: const EdgeInsets.all(16),
+    filled: true,
+    fillColor: Colors.white,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     border: defaultBorder,
     enabledBorder: defaultBorder,
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: DaftarKurirColors.primary, width: 2),
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: DaftarKurirColors.primary, width: 1.5),
     ),
     errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       borderSide: const BorderSide(color: DaftarKurirColors.error),
     ),
     focusedErrorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: DaftarKurirColors.error, width: 2),
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: DaftarKurirColors.error, width: 1.5),
     ),
   );
 }

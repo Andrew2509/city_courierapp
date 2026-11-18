@@ -29,6 +29,7 @@ class _DataKendaraanScreenState extends State<DataKendaraanScreen> {
   @override
   Widget build(BuildContext context) {
     return ScreenLayout(
+      title: 'Data Kendaraan',
       currentStep: 2,
       totalSteps: 5,
       bottomAction: PrimaryButton(
