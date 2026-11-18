@@ -30,23 +30,23 @@ void main() {
   });
 
   List<PaymentMethod> sampleIpaymuChannels() => [
-        PaymentMethod(
-          code: 'bca',
-          name: 'BCA Virtual Account',
-          group: 'virtual_account',
-          iconUrl: '',
-          fee: 4000,
-          isAvailable: true,
-        ),
-        PaymentMethod(
-          code: 'QRIS',
-          name: 'QRIS',
-          group: 'ewallet',
-          iconUrl: '',
-          fee: 0,
-          isAvailable: true,
-        ),
-      ];
+    PaymentMethod(
+      code: 'bca',
+      name: 'BCA Virtual Account',
+      group: 'virtual_account',
+      iconUrl: '',
+      fee: 4000,
+      isAvailable: true,
+    ),
+    PaymentMethod(
+      code: 'QRIS',
+      name: 'QRIS',
+      group: 'ewallet',
+      iconUrl: '',
+      fee: 0,
+      isAvailable: true,
+    ),
+  ];
 
   CustomerWalletService buildMockWalletService({
     required bool topupEnabled,
@@ -127,7 +127,7 @@ void main() {
                         'channel_code': 'BCA',
                         'label': 'BCA Virtual Account',
                         'fee_idr': 0,
-                      }
+                      },
                     ]
                   : [],
             },
@@ -188,7 +188,8 @@ void main() {
             methodsFetcher: () async => const CheckoutPaymentMethodsResult(
               methods: [],
               ipaymuEnabled: false,
-              message: 'Pembayaran iPaymu (VA & QRIS) sedang dinonaktifkan oleh Admin.',
+              message:
+                  'Pembayaran iPaymu (VA & QRIS) sedang dinonaktifkan oleh Admin.',
             ),
             settingsFetcher: () async => {
               'providers': {'ipaymu': false},
@@ -234,72 +235,143 @@ void main() {
     },
   );
 
-  testWidgets('TopupMethodScreen disables submission & explains when gateway is OFF', (tester) async {
-    final walletService = buildMockWalletService(topupEnabled: false);
+  testWidgets(
+    'TopupMethodScreen disables submission & explains when gateway is OFF',
+    (tester) async {
+      final walletService = buildMockWalletService(topupEnabled: false);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: TopupMethodScreen(
-          amount: 50000,
-          service: walletService,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TopupMethodScreen(amount: 50000, service: walletService),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Metode Top-Up Tidak Tersedia'), findsOneWidget);
-    expect(find.textContaining('dinonaktifkan oleh Admin'), findsOneWidget);
+      expect(find.text('Metode Top-Up Tidak Tersedia'), findsOneWidget);
+      expect(find.textContaining('dinonaktifkan oleh Admin'), findsOneWidget);
 
-    final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
-    expect(button.onPressed, isNull);
-  });
+      final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+      expect(button.onPressed, isNull);
+    },
+  );
 
-  testWidgets('CustomerWalletDashboardScreen disables Top-Up button when gateway is OFF', (tester) async {
-    final walletService = buildMockWalletService(topupEnabled: false);
+  testWidgets(
+    'CustomerWalletDashboardScreen disables Top-Up button when gateway is OFF',
+    (tester) async {
+      final walletService = buildMockWalletService(topupEnabled: false);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: CustomerWalletDashboardScreen(service: walletService),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CustomerWalletDashboardScreen(service: walletService),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Top-Up Dinonaktifkan Admin'), findsOneWidget);
-    final button = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'Top-Up Dinonaktifkan Admin'),
-    );
-    expect(button.onPressed, isNull);
-  });
+      expect(find.text('Top-Up Dinonaktifkan Admin'), findsOneWidget);
+      final button = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Top-Up Dinonaktifkan Admin'),
+      );
+      expect(button.onPressed, isNull);
+    },
+  );
 
-  test('Map & Routing providers halt immediately when Admin disables map provider', () async {
-    ProviderAvailabilityService.testSettingsFetcher = () async => {
-          'providers': {'map': false, 'ipaymu': false, 'xendit': false},
-        };
-    ProviderAvailabilityService.clearCache();
+  test(
+    'Map & Routing providers halt immediately when Admin disables map provider',
+    () async {
+      ProviderAvailabilityService.testSettingsFetcher = () async => {
+        'providers': {'map': false, 'ipaymu': false, 'xendit': false},
+      };
+      ProviderAvailabilityService.clearCache();
 
-    final repo = LocationRepository();
-    expect(await repo.searchAddress('Jakarta'), isEmpty);
-    expect(await repo.reverseGeocode(-6.2, 106.8), isNull);
+      final repo = LocationRepository();
+      expect(await repo.searchAddress('Jakarta'), isEmpty);
+      expect(await repo.reverseGeocode(-6.2, 106.8), isNull);
 
-    final routing = CityCourierRoutingService();
-    await expectLater(
-      () => routing.getRoute(
-        origin: const LatLng(-6.2, 106.8),
-        destination: const LatLng(-6.3, 106.9),
-      ),
-      throwsA(isA<RoutingException>()),
-    );
+      final routing = CityCourierRoutingService();
+      await expectLater(
+        () => routing.getRoute(
+          origin: const LatLng(-6.2, 106.8),
+          destination: const LatLng(-6.3, 106.9),
+        ),
+        throwsA(isA<RoutingException>()),
+      );
 
-    final disabledSnapshot = ProviderStatusSnapshot.fromSettingsData({
-      'providers': {'map': false, 'ipaymu': false, 'xendit': false},
-    });
-    expect(disabledSnapshot.isEnabled('map'), isFalse);
-    expect(disabledSnapshot.isEnabled('ipaymu'), isFalse);
-    expect(disabledSnapshot.isEnabled('xendit'), isFalse);
-    expect(disabledSnapshot.topupProviderEnabled, isFalse);
-    expect(
-      TopupMethodsBundle.fromJson({'provider_enabled': false, 'methods': []}).providerEnabled,
-      isFalse,
-    );
-  });
+      final disabledSnapshot = ProviderStatusSnapshot.fromSettingsData({
+        'providers': {'map': false, 'ipaymu': false, 'xendit': false},
+      });
+      expect(disabledSnapshot.isEnabled('map'), isFalse);
+      expect(disabledSnapshot.isEnabled('ipaymu'), isFalse);
+      expect(disabledSnapshot.isEnabled('xendit'), isFalse);
+      expect(disabledSnapshot.topupProviderEnabled, isFalse);
+      expect(
+        TopupMethodsBundle.fromJson({
+          'provider_enabled': false,
+          'methods': [],
+        }).providerEnabled,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets(
+    'Checkout shows diagnostic banner and Muat Ulang when iPaymu is ON but VA/QRIS fail to load',
+    (tester) async {
+      final walletService = buildMockWalletService(topupEnabled: true);
+      var callCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaymentMethodScreen(
+            totalAmount: 50000,
+            shipmentId: '103',
+            walletService: walletService,
+            methodsFetcher: () async {
+              callCount++;
+              if (callCount == 1) {
+                return const CheckoutPaymentMethodsResult(
+                  methods: [],
+                  ipaymuEnabled: true,
+                  hasError: true,
+                  message:
+                      'iPaymu belum terkonfigurasi. Isi VA & API Key iPaymu di Admin > Provider.',
+                );
+              }
+              return CheckoutPaymentMethodsResult(
+                methods: [
+                  PaymentMethod(
+                    code: 'QRIS',
+                    name: 'QRIS',
+                    group: 'qris',
+                    iconUrl: '',
+                    fee: 0,
+                    isAvailable: true,
+                  ),
+                ],
+                ipaymuEnabled: true,
+              );
+            },
+            settingsFetcher: () async => {
+              'providers': {'ipaymu': true},
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'iPaymu belum terkonfigurasi. Isi VA & API Key iPaymu di Admin > Provider.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Muat Ulang'), findsOneWidget);
+      expect(find.textContaining('City Wallet'), findsOneWidget);
+
+      await tester.tap(find.text('Muat Ulang'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('QRIS'), findsOneWidget);
+      expect(find.text('Muat Ulang'), findsNothing);
+    },
+  );
 }

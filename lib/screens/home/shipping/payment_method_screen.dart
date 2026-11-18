@@ -81,6 +81,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
 
   bool _ipaymuEnabled = true;
   String? _ipaymuDisabledMessage;
+  String? _remoteMethodsNotice;
 
   static bool _isLocalCheckoutMethod(String code) {
     final upper = code.toUpperCase();
@@ -108,21 +109,37 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       final providerSnapshot = results[1] as ProviderStatusSnapshot;
 
       final bool ipaymuEnabled =
-          methodResult.ipaymuEnabled && providerSnapshot.isEnabled('ipaymu', defaultValue: true);
+          methodResult.ipaymuEnabled &&
+          providerSnapshot.isEnabled('ipaymu', defaultValue: true);
 
       final List<PaymentMethod> methods = ipaymuEnabled
           ? List<PaymentMethod>.from(methodResult.methods)
           : methodResult.methods
-              .where((m) => _isLocalCheckoutMethod(m.code))
-              .toList();
+                .where((m) => _isLocalCheckoutMethod(m.code))
+                .toList();
+
+      final bool hasRemoteMethod = methods.any(
+        (m) => !_isLocalCheckoutMethod(m.code),
+      );
+      final String? trimmedResultMsg =
+          methodResult.message?.trim().isNotEmpty == true
+          ? methodResult.message!.trim()
+          : null;
+      final String? remoteNotice = !ipaymuEnabled || hasRemoteMethod
+          ? null
+          : (trimmedResultMsg ??
+                (methodResult.hasError
+                    ? 'Virtual Account & QRIS (iPaymu) gagal dimuat dari server.'
+                    : 'Saluran Virtual Account & QRIS (iPaymu) belum aktif di server.'));
 
       if (mounted) {
         setState(() {
           _ipaymuEnabled = ipaymuEnabled;
           _ipaymuDisabledMessage = ipaymuEnabled
               ? null
-              : (methodResult.message ??
-                  'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.');
+              : (trimmedResultMsg ??
+                    'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.');
+          _remoteMethodsNotice = remoteNotice;
           paymentMethods = methods;
           if (!ipaymuEnabled &&
               selectedMethodCode != null &&
@@ -136,35 +153,44 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             final walletLabel = walletSummary != null
                 ? 'City Wallet (Saldo ${_formatCurrency(walletSummary.availableBalance)})'
                 : 'City Wallet (Bayar Pakai Saldo)';
-            paymentMethods.insert(0, PaymentMethod(
-              code: 'WALLET',
-              name: walletLabel,
-              group: 'direct',
-              iconUrl: '',
-              fee: 0,
-              isAvailable: true,
-            ));
+            paymentMethods.insert(
+              0,
+              PaymentMethod(
+                code: 'WALLET',
+                name: walletLabel,
+                group: 'direct',
+                iconUrl: '',
+                fee: 0,
+                isAvailable: true,
+              ),
+            );
           }
           // Tambahkan metode pembayaran COD secara lokal jika tidak ada dari API
           if (!paymentMethods.any((m) => m.code.toUpperCase() == 'COD')) {
-            paymentMethods.insert(0, PaymentMethod(
-              code: 'COD',
-              name: 'Bayar di Tempat (COD)',
-              group: 'direct',
-              iconUrl: '',
-              fee: 0,
-              isAvailable: true,
-            ));
+            paymentMethods.insert(
+              0,
+              PaymentMethod(
+                code: 'COD',
+                name: 'Bayar di Tempat (COD)',
+                group: 'direct',
+                iconUrl: '',
+                fee: 0,
+                isAvailable: true,
+              ),
+            );
           }
           if (!paymentMethods.any((m) => m.code.toUpperCase() == 'TUNAI')) {
-            paymentMethods.insert(0, PaymentMethod(
-              code: 'TUNAI',
-              name: 'Pembayaran Tunai',
-              group: 'direct',
-              iconUrl: '',
-              fee: 0,
-              isAvailable: true,
-            ));
+            paymentMethods.insert(
+              0,
+              PaymentMethod(
+                code: 'TUNAI',
+                name: 'Pembayaran Tunai',
+                group: 'direct',
+                iconUrl: '',
+                fee: 0,
+                isAvailable: true,
+              ),
+            );
           }
           isLoading = false;
         });
@@ -245,43 +271,16 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                         ),
                         if (!_ipaymuEnabled) ...[
                           const SizedBox(height: 12),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isDarkMode
-                                  ? const Color(0xFF334155)
-                                  : const Color(0xFFFFF7ED),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isDarkMode
-                                    ? const Color(0xFF475569)
-                                    : const Color(0xFFFED7AA),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline_rounded,
-                                  size: 18,
-                                  color: primaryColor,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _ipaymuDisabledMessage ??
-                                        'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: isDarkMode
-                                          ? Colors.white70
-                                          : const Color(0xFF9A3412),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          _buildCheckoutNoticeBanner(
+                            message:
+                                _ipaymuDisabledMessage ??
+                                'Virtual Account & QRIS (iPaymu) sedang dinonaktifkan sementara. Gunakan City Wallet, COD, atau Tunai.',
+                          ),
+                        ] else if (_remoteMethodsNotice != null) ...[
+                          const SizedBox(height: 12),
+                          _buildCheckoutNoticeBanner(
+                            message: _remoteMethodsNotice!,
+                            showRetry: true,
                           ),
                         ],
                         const SizedBox(height: 16),
@@ -293,6 +292,62 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 _buildModernBottomBar(primaryColor),
               ],
             ),
+    );
+  }
+
+  Widget _buildCheckoutNoticeBanner({
+    required String message,
+    bool showRetry = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDarkMode ? const Color(0xFF334155) : const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDarkMode ? const Color(0xFF475569) : const Color(0xFFFED7AA),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            showRetry
+                ? Icons.warning_amber_rounded
+                : Icons.info_outline_rounded,
+            size: 18,
+            color: primaryColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDarkMode ? Colors.white70 : const Color(0xFF9A3412),
+              ),
+            ),
+          ),
+          if (showRetry) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _loadPaymentMethods,
+              style: TextButton.styleFrom(
+                foregroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Muat Ulang',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -341,7 +396,11 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.location_on_rounded, size: 14, color: Colors.grey.shade500),
+                    Icon(
+                      Icons.location_on_rounded,
+                      size: 14,
+                      color: Colors.grey.shade500,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${widget.senderCity ?? "Jakarta"} → ${widget.receiverCity ?? "Surabaya"}',
@@ -355,14 +414,14 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'ID: ${widget.trackingNumber ?? widget.shipmentId ?? "-"}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -390,14 +449,15 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         child: Column(
           children: [
             const SizedBox(height: 40),
-            Icon(Icons.credit_card_off, size: 64, color: Colors.grey.withValues(alpha: 0.2)),
+            Icon(
+              Icons.credit_card_off,
+              size: 64,
+              color: Colors.grey.withValues(alpha: 0.2),
+            ),
             const SizedBox(height: 16),
             Text(
               'Tidak ada metode tersedia',
-              style: TextStyle(
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),
             TextButton(
@@ -417,14 +477,22 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     }
 
     // Define priority groups to show in order
-    final priorityOrder = ['direct', 'ewallet', 'virtual_account', 'card'];
+    final priorityOrder = [
+      'direct',
+      'ewallet',
+      'virtual_account',
+      'qris',
+      'card',
+    ];
     final List<Widget> groupWidgets = [];
     final Set<String> renderedGroups = {};
 
     // 1. Add priority groups
     for (var groupKey in priorityOrder) {
       if (grouped.containsKey(groupKey)) {
-        groupWidgets.add(_renderGroup(groupKey, grouped[groupKey]!, primaryColor, cardColor));
+        groupWidgets.add(
+          _renderGroup(groupKey, grouped[groupKey]!, primaryColor, cardColor),
+        );
         renderedGroups.add(groupKey);
       }
     }
@@ -432,18 +500,27 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     // 2. Add remaining groups
     for (var entry in grouped.entries) {
       if (!renderedGroups.contains(entry.key)) {
-        groupWidgets.add(_renderGroup(entry.key, entry.value, primaryColor, cardColor));
+        groupWidgets.add(
+          _renderGroup(entry.key, entry.value, primaryColor, cardColor),
+        );
       }
     }
 
     return Column(children: groupWidgets);
   }
 
-  Widget _renderGroup(String groupKey, List<PaymentMethod> methods, Color primaryColor, Color cardColor) {
+  Widget _renderGroup(
+    String groupKey,
+    List<PaymentMethod> methods,
+    Color primaryColor,
+    Color cardColor,
+  ) {
     switch (groupKey) {
       case 'direct':
         return Column(
-          children: methods.map((m) => _buildDirectMethodTile(m, primaryColor, cardColor)).toList(),
+          children: methods
+              .map((m) => _buildDirectMethodTile(m, primaryColor, cardColor))
+              .toList(),
         );
       case 'ewallet':
         return Column(
@@ -469,6 +546,21 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
               Icons.account_balance_rounded,
               methods,
               'virtual_account',
+              primaryColor,
+              cardColor,
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      case 'qris':
+        return Column(
+          children: [
+            _buildAccordionGroup(
+              'QRIS',
+              'Scan QR dari e-wallet atau mobile banking',
+              Icons.qr_code_2_rounded,
+              methods,
+              'qris',
               primaryColor,
               cardColor,
             ),
@@ -510,7 +602,11 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     }
   }
 
-  Widget _buildDirectMethodTile(PaymentMethod method, Color primaryColor, Color cardColor) {
+  Widget _buildDirectMethodTile(
+    PaymentMethod method,
+    Color primaryColor,
+    Color cardColor,
+  ) {
     bool isSelected = selectedMethodCode == method.code;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -527,7 +623,11 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             color: cardColor,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? primaryColor : (isDarkMode ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+              color: isSelected
+                  ? primaryColor
+                  : (isDarkMode
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0)),
               width: isSelected ? 2 : 1,
             ),
             boxShadow: [
@@ -544,11 +644,18 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryColor.withValues(alpha: 0.1) : (isDarkMode ? Colors.orange.shade900.withValues(alpha: 0.2) : Colors.orange.shade50),
+                  color: isSelected
+                      ? primaryColor.withValues(alpha: 0.1)
+                      : (isDarkMode
+                            ? Colors.orange.shade900.withValues(alpha: 0.2)
+                            : Colors.orange.shade50),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  (method.code.toUpperCase().contains('COD') || method.code.toUpperCase().contains('TUNAI')) ? Icons.payments_outlined : Icons.account_balance_wallet_outlined,
+                  (method.code.toUpperCase().contains('COD') ||
+                          method.code.toUpperCase().contains('TUNAI'))
+                      ? Icons.payments_outlined
+                      : Icons.account_balance_wallet_outlined,
                   color: primaryColor,
                   size: 20,
                 ),
@@ -567,7 +674,11 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                       ),
                     ),
                     Text(
-                      method.code.toUpperCase().contains('COD') ? 'Bayar tunai saat paket sampai' : (method.code.toUpperCase().contains('TUNAI') ? 'Bayar tunai kepada kurir' : 'Bayar tunai di agen/drop point'),
+                      method.code.toUpperCase().contains('COD')
+                          ? 'Bayar tunai saat paket sampai'
+                          : (method.code.toUpperCase().contains('TUNAI')
+                                ? 'Bayar tunai kepada kurir'
+                                : 'Bayar tunai di agen/drop point'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -581,13 +692,13 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 value: method.code,
                 groupValue: selectedMethodCode,
                 activeColor: primaryColor,
-                  onChanged: (val) {
-                    setState(() {
-                      selectedMethod = method.name;
-                      selectedMethodCode = method.code;
-                      selectedMethodGroup = method.group;
-                    });
-                  },
+                onChanged: (val) {
+                  setState(() {
+                    selectedMethod = method.name;
+                    selectedMethodCode = method.code;
+                    selectedMethodGroup = method.group;
+                  });
+                },
               ),
             ],
           ),
@@ -635,7 +746,9 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: isDarkMode ? Colors.orange.shade900.withValues(alpha: 0.2) : Colors.orange.shade50,
+                      color: isDarkMode
+                          ? Colors.orange.shade900.withValues(alpha: 0.2)
+                          : Colors.orange.shade50,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icon, color: primaryColor, size: 20),
@@ -678,12 +791,16 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: isDarkMode ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                    color: isDarkMode
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFF1F5F9),
                   ),
                 ),
               ),
               child: Column(
-                children: methods.map((m) => _buildSubItemTile(m, primaryColor)).toList(),
+                children: methods
+                    .map((m) => _buildSubItemTile(m, primaryColor))
+                    .toList(),
               ),
             ),
         ],
@@ -702,12 +819,16 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? (isDarkMode ? primaryColor.withValues(alpha: 0.05) : const Color(0xFFF8FAFC))
+          color: isSelected
+              ? (isDarkMode
+                    ? primaryColor.withValues(alpha: 0.05)
+                    : const Color(0xFFF8FAFC))
               : Colors.transparent,
           border: Border(
             bottom: BorderSide(
-              color: isDarkMode ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              color: isDarkMode
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFF1F5F9),
             ),
           ),
         ),
@@ -730,10 +851,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                   ),
                   Text(
                     'Proses instan & aman',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade400,
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
                   ),
                 ],
               ),
@@ -786,10 +904,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             children: [
               Text(
                 'Total',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade500,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               ),
               Text(
                 _formatCurrency(widget.totalAmount),
@@ -805,23 +920,34 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           SizedBox(
             width: 160,
             child: ElevatedButton(
-              onPressed: isLoading || selectedMethodCode == null ? null : _handlePayment,
+              onPressed: isLoading || selectedMethodCode == null
+                  ? null
+                  : _handlePayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 elevation: 0,
               ),
               child: isLoading
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Text(
-                    'Bayar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      'Bayar',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
             ),
           ),
         ],
@@ -830,9 +956,9 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
   }
 
   Future<void> _handlePayment() async {
-    if (selectedMethodCode == null || 
-        selectedMethodGroup == null || 
-        selectedMethod == null || 
+    if (selectedMethodCode == null ||
+        selectedMethodGroup == null ||
+        selectedMethod == null ||
         widget.shipmentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Silakan pilih metode pembayaran')),
@@ -842,15 +968,18 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
 
     setState(() => isLoading = true);
     try {
-      debugPrint('DEBUG: Creating Payment - ShipmentId: ${widget.shipmentId}, Type: $selectedMethodGroup, Channel: $selectedMethodCode, Amount: ${widget.totalAmount}');
-      
+      debugPrint(
+        'DEBUG: Creating Payment - ShipmentId: ${widget.shipmentId}, Type: $selectedMethodGroup, Channel: $selectedMethodCode, Amount: ${widget.totalAmount}',
+      );
+
       // 0. WALLET: Pembayaran instan menggunakan saldo City Wallet
       if (selectedMethodCode!.toUpperCase() == 'WALLET') {
         final shipmentIntId = int.tryParse(widget.shipmentId ?? '');
         if (shipmentIntId == null) {
           throw Exception('ID pengiriman tidak valid untuk pembayaran wallet.');
         }
-        final walletSvc = widget.walletService ?? CustomerWalletService.instance;
+        final walletSvc =
+            widget.walletService ?? CustomerWalletService.instance;
         Map<String, dynamic> res;
         try {
           res = await walletSvc.payOrderWithWallet(shipmentId: shipmentIntId);
@@ -859,7 +988,8 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             setState(() => isLoading = false);
             final pin = await TransactionPinPromptSheet.show(
               context,
-              subtitle: 'Masukkan 6 digit PIN untuk menyelesaikan pembayaran City Wallet.',
+              subtitle:
+                  'Masukkan 6 digit PIN untuk menyelesaikan pembayaran City Wallet.',
             );
             if (pin == null || !mounted) return;
             setState(() => isLoading = true);
@@ -871,8 +1001,10 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             rethrow;
           }
         }
-        final txMap = (res['payment_transaction'] as Map?)?.cast<String, dynamic>() ?? {};
-        final remaining = (res['wallet_available_balance'] as num?)?.toInt() ?? 0;
+        final txMap =
+            (res['payment_transaction'] as Map?)?.cast<String, dynamic>() ?? {};
+        final remaining =
+            (res['wallet_available_balance'] as num?)?.toInt() ?? 0;
 
         if (mounted) {
           setState(() => isLoading = false);
@@ -880,10 +1012,22 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => WalletPaymentConfirmationScreen(
-                reference: (txMap['reference'] ?? widget.trackingNumber ?? widget.shipmentId!).toString(),
-                amount: (txMap['amount'] as num?)?.toInt() ?? widget.totalAmount,
+                reference:
+                    (txMap['reference'] ??
+                            widget.trackingNumber ??
+                            widget.shipmentId!)
+                        .toString(),
+                amount:
+                    (txMap['amount'] as num?)?.toInt() ?? widget.totalAmount,
                 remainingBalance: remaining,
                 mode: (txMap['mode'] ?? 'sandbox').toString(),
+                trackingNumber: widget.trackingNumber,
+                senderName: widget.senderName,
+                senderCity: widget.senderCity,
+                receiverName: widget.receiverName,
+                receiverCity: widget.receiverCity,
+                vehicle: widget.vehicle,
+                shipmentData: widget.shipmentData,
               ),
             ),
             (route) => false,
@@ -893,11 +1037,13 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       }
 
       // 1. COD & TUNAI: Konfirmasi pembayaran ke backend (status pending → confirmed)
-      if (selectedMethodCode!.toUpperCase() == 'COD' || selectedMethodCode!.toUpperCase() == 'TUNAI') {
+      if (selectedMethodCode!.toUpperCase() == 'COD' ||
+          selectedMethodCode!.toUpperCase() == 'TUNAI') {
         try {
-          await ApiService.post('/shipments/${widget.shipmentId}/confirm-payment', {
-            'payment_method': selectedMethodCode!.toUpperCase(),
-          });
+          await ApiService.post(
+            '/shipments/${widget.shipmentId}/confirm-payment',
+            {'payment_method': selectedMethodCode!.toUpperCase()},
+          );
         } catch (e) {
           debugPrint('DEBUG: COD/TUNAI confirmPayment error: $e');
         }
@@ -958,13 +1104,18 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           );
           return;
         }
-        
+
         // 1. Handle Virtual Accounts
-        if (result.vaNumber != null || upperCode.contains('VA') || upperCode.contains('VIRTUAL') || upperCode.contains('ACCOUNT')) {
+        if (result.vaNumber != null ||
+            upperCode.contains('VA') ||
+            upperCode.contains('VIRTUAL') ||
+            upperCode.contains('ACCOUNT')) {
           // Find the iconUrl for the selected method
           String? iconUrl;
           try {
-            final methodObj = paymentMethods.firstWhere((m) => m.code == selectedMethodCode);
+            final methodObj = paymentMethods.firstWhere(
+              (m) => m.code == selectedMethodCode,
+            );
             iconUrl = methodObj.iconUrl;
           } catch (_) {}
 
@@ -973,7 +1124,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             MaterialPageRoute(
               builder: (context) => VirtualAccountConfirmationScreen(
                 amount: widget.totalAmount,
-                method: selectedMethod!, 
+                method: selectedMethod!,
                 iconUrl: iconUrl,
                 result: result,
                 shipmentId: widget.shipmentId,
@@ -981,14 +1132,27 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             ),
           );
           return;
-        } 
-        
+        }
+
         // 2. Handle E-Wallets & QRIS
-        if (['GOPAY', 'OVO', 'DANA', 'QRIS', 'SHOPEE', 'LINKAJA', 'SPAY', 'WALLET', 'E_WALLET', 'EWALLET'].any((m) => upperCode.contains(m))) {
+        if ([
+          'GOPAY',
+          'OVO',
+          'DANA',
+          'QRIS',
+          'SHOPEE',
+          'LINKAJA',
+          'SPAY',
+          'WALLET',
+          'E_WALLET',
+          'EWALLET',
+        ].any((m) => upperCode.contains(m))) {
           // Find the iconUrl for the selected method
           String? iconUrl;
           try {
-            final methodObj = paymentMethods.firstWhere((m) => m.code == selectedMethodCode);
+            final methodObj = paymentMethods.firstWhere(
+              (m) => m.code == selectedMethodCode,
+            );
             iconUrl = methodObj.iconUrl;
           } catch (_) {}
 
@@ -1011,7 +1175,9 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         if (upperCode == 'COD' || upperCode == 'TUNAI' || upperCode == 'CASH') {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Pesanan berhasil dibuat dengan metode pembayaran COD'),
+              content: const Text(
+                'Pesanan berhasil dibuat dengan metode pembayaran COD',
+              ),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),

@@ -1,481 +1,4 @@
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    import 'dart:convert';
+import 'dart:convert';
 
 import 'package:city_courierapp/screens/courier/ci_word/wallet/add_bank_account_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/add_ewallet_account_screen.dart';
@@ -486,6 +9,7 @@ import 'package:city_courierapp/screens/wallet/topup_amount_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_instruction_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_method_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_status_screen.dart';
+import 'package:city_courierapp/screens/wallet/wallet_payment_confirmation_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transaction_detail_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transactions_screen.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
@@ -595,10 +119,7 @@ void main() {
         if (path.endsWith('/v1/customer/wallet/transactions/101') &&
             req.method == 'GET') {
           return http.Response(
-            jsonEncode({
-              'success': true,
-              'data': allTxs.first,
-            }),
+            jsonEncode({'success': true, 'data': allTxs.first}),
             200,
           );
         }
@@ -924,10 +445,7 @@ void main() {
           return http.Response(
             jsonEncode({
               'success': true,
-              'data': {
-                ...topupPayload,
-                'status': 'settled',
-              },
+              'data': {...topupPayload, 'status': 'settled'},
             }),
             200,
           );
@@ -1090,7 +608,8 @@ void main() {
                   'mode': 'sandbox',
                   'is_simulated': false,
                   'provider': 'mock',
-                  'message': 'Cek nama otomatis belum didukung. Isi nama secara manual.',
+                  'message':
+                      'Cek nama otomatis belum didukung. Isi nama secara manual.',
                 },
               }),
               200,
@@ -1102,7 +621,9 @@ void main() {
               'data': {
                 'supported': true,
                 'found': true,
-                'account_holder_name': isBank ? 'BUDI TERSIMPAN' : 'RINA PROFIL',
+                'account_holder_name': isBank
+                    ? 'BUDI TERSIMPAN'
+                    : 'RINA PROFIL',
                 'channel_code': body['channel_code'],
                 'account_number': accNum,
                 'mode': 'sandbox',
@@ -1221,6 +742,48 @@ void main() {
       await tester.pumpAndSettle();
       expect(submittedEwalletHolder, 'RINA PROFIL');
       expect(find.text('Push Ewallet'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Redesigned WalletPaymentConfirmationScreen renders clean receipt details, remaining balance, and side-by-side actions without overflow',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 760);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: WalletPaymentConfirmationScreen(
+            reference: 'WALPAY-140',
+            amount: 15800,
+            remainingBalance: 84200,
+            mode: 'sandbox',
+            trackingNumber: 'CC-RESI-140',
+            senderCity: 'Surabaya',
+            receiverCity: 'Sidoarjo',
+            vehicle: 'motor',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pembayaran City Wallet'), findsOneWidget);
+      expect(find.text('Pembayaran Berhasil'), findsOneWidget);
+      expect(find.text('Rp 15.800'), findsOneWidget);
+      expect(find.text('City Wallet'), findsOneWidget);
+      expect(find.text('Lunas'), findsOneWidget);
+      expect(find.text('WALPAY-140'), findsOneWidget);
+      expect(find.text('CC-RESI-140'), findsOneWidget);
+      expect(find.text('Surabaya → Sidoarjo'), findsOneWidget);
+      expect(find.text('Motor'), findsOneWidget);
+      expect(find.text('Sandbox'), findsOneWidget);
+      expect(find.text('Sisa Saldo'), findsOneWidget);
+      expect(find.text('Rp 84.200'), findsOneWidget);
+      expect(find.text('Lacak Pesanan'), findsOneWidget);
+      expect(find.text('Kembali ke Beranda'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     },
   );
 }

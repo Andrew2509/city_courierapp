@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:city_courierapp/models/payment/payment_method.dart';
 import 'package:city_courierapp/models/payment/payment_result.dart';
@@ -40,63 +42,102 @@ class PaymentService {
   }
 
   /// Get list of available payment methods
-  static Future<CheckoutPaymentMethodsResult> fetchCheckoutPaymentMethods() async {
+  static Future<CheckoutPaymentMethodsResult>
+  fetchCheckoutPaymentMethods() async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/payment/methods'),
-        headers: await _getHeaders(),
-      );
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/payment/methods'),
+            headers: await _getHeaders(),
+          )
+          .timeout(const Duration(seconds: 20));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final bool ipaymuEnabled =
-              data['ipaymu_enabled'] != false && data['disabled'] != true;
-          if (!ipaymuEnabled) {
-            return CheckoutPaymentMethodsResult(
-              methods: const [],
-              ipaymuEnabled: false,
-              hasError: false,
-              message: data['message']?.toString(),
-            );
-          }
+      final dynamic decoded = _tryDecodeJson(response.body);
+      final Map<String, dynamic>? data = decoded is Map<String, dynamic>
+          ? decoded
+          : (decoded is Map ? Map<String, dynamic>.from(decoded) : null);
 
-          final List methods = data['data'] is List ? data['data'] as List : const [];
+      if (response.statusCode == 200 &&
+          data != null &&
+          data['success'] == true) {
+        final bool ipaymuEnabled =
+            data['ipaymu_enabled'] != false && data['disabled'] != true;
+        final String? message = _nonEmptyString(data['message']);
+
+        if (!ipaymuEnabled) {
           return CheckoutPaymentMethodsResult(
-            methods: methods.map((m) => PaymentMethod.fromJson(m)).toList(),
-            ipaymuEnabled: true,
+            methods: const [],
+            ipaymuEnabled: false,
+            hasError: false,
+            message: message,
           );
         }
+
+        final List methods = data['data'] is List
+            ? data['data'] as List
+            : const [];
+        return CheckoutPaymentMethodsResult(
+          methods: methods.map((m) => PaymentMethod.fromJson(m)).toList(),
+          ipaymuEnabled: true,
+          hasError: false,
+          message: message,
+        );
       }
 
-      if (response.statusCode == 403 || response.statusCode == 503) {
-        try {
-          final data = jsonDecode(response.body);
-          if (data is Map && data['error_code'] == 'PROVIDER_DISABLED') {
-            return CheckoutPaymentMethodsResult(
-              methods: const [],
-              ipaymuEnabled: false,
-              hasError: false,
-              message: data['message']?.toString(),
-            );
-          }
-        } catch (_) {}
+      if ((response.statusCode == 403 || response.statusCode == 503) &&
+          data != null &&
+          data['error_code'] == 'PROVIDER_DISABLED') {
+        return CheckoutPaymentMethodsResult(
+          methods: const [],
+          ipaymuEnabled: false,
+          hasError: false,
+          message: _nonEmptyString(data['message']),
+        );
       }
 
-      return const CheckoutPaymentMethodsResult(
-        methods: [],
-        ipaymuEnabled: true,
-        hasError: true,
-      );
-    } catch (e) {
-      print('PaymentService Error (getPaymentMethods): $e');
+      final String? serverMsg = data != null
+          ? _nonEmptyString(data['message'])
+          : null;
+      final String fallbackMsg = response.statusCode == 401
+          ? 'Sesi login berakhir. Silakan login ulang untuk memuat Virtual Account & QRIS.'
+          : 'Gagal memuat Virtual Account & QRIS (HTTP ${response.statusCode}).';
+
       return CheckoutPaymentMethodsResult(
         methods: const [],
         ipaymuEnabled: true,
         hasError: true,
-        message: e.toString(),
+        message: serverMsg ?? fallbackMsg,
+      );
+    } on TimeoutException {
+      return const CheckoutPaymentMethodsResult(
+        methods: [],
+        ipaymuEnabled: true,
+        hasError: true,
+        message: 'Waktu muat metode pembayaran habis. Ketuk Muat Ulang.',
+      );
+    } catch (e) {
+      debugPrint('PaymentService Error (getPaymentMethods): $e');
+      return const CheckoutPaymentMethodsResult(
+        methods: [],
+        ipaymuEnabled: true,
+        hasError: true,
+        message: 'Tidak dapat memuat Virtual Account & QRIS dari server.',
       );
     }
+  }
+
+  static dynamic _tryDecodeJson(String body) {
+    if (body.trim().isEmpty) return null;
+    try {
+      return jsonDecode(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? _nonEmptyString(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   static Future<List<PaymentMethod>> getPaymentMethods() async {
@@ -134,7 +175,9 @@ class PaymentService {
         // Tampilkan body lengkap (termasuk blok `debug` dari backend) supaya
         // penolakan provider seperti "Suspicious buyer" bisa didiagnosis dari
         // console tanpa menebak-nebak.
-        print('PaymentService: createPayment gagal (${response.statusCode}) body=${response.body}');
+        print(
+          'PaymentService: createPayment gagal (${response.statusCode}) body=${response.body}',
+        );
         final data = jsonDecode(response.body);
         String msg = data['message'] ?? 'Error ${response.statusCode}';
         if (data is Map && data['error_code'] == 'PROVIDER_DISABLED') {
@@ -173,7 +216,9 @@ class PaymentService {
       }
 
       // Jangan diam: 401/404 di sini membuat tombol "Cek Status" terlihat mati.
-      print('PaymentService: getStatus gagal (${response.statusCode}) body=${response.body}');
+      print(
+        'PaymentService: getStatus gagal (${response.statusCode}) body=${response.body}',
+      );
       return null;
     } catch (e) {
       print('PaymentService Error (getStatus): $e');
@@ -197,10 +242,13 @@ class PaymentService {
           .timeout(const Duration(seconds: 30));
 
       final dynamic data = jsonDecode(response.body);
-      if (response.statusCode == 200 && data is Map && data['success'] == true) {
+      if (response.statusCode == 200 &&
+          data is Map &&
+          data['success'] == true) {
         return {
           'success': true,
-          'message': data['message']?.toString() ?? 'Pembayaran berhasil dibatalkan',
+          'message':
+              data['message']?.toString() ?? 'Pembayaran berhasil dibatalkan',
           'payment': data['payment'],
         };
       }
@@ -215,10 +263,7 @@ class PaymentService {
       };
     } catch (e) {
       print('PaymentService Error (cancelPayment): $e');
-      return {
-        'success': false,
-        'message': 'Gagal membatalkan pembayaran: $e',
-      };
+      return {'success': false, 'message': 'Gagal membatalkan pembayaran: $e'};
     }
   }
 
@@ -238,7 +283,9 @@ class PaymentService {
       if (response.statusCode == 200) {
         return data['success'] == true;
       } else {
-        throw Exception(data['message'] ?? 'Gagal mengonfirmasi metode pembayaran');
+        throw Exception(
+          data['message'] ?? 'Gagal mengonfirmasi metode pembayaran',
+        );
       }
     } catch (e) {
       print('PaymentService Error (confirmCodPayment): $e');
