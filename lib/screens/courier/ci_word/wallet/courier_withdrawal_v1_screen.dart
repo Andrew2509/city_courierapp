@@ -334,6 +334,7 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
 
   Widget _buildBalanceCard(CourierWalletV1Summary? summary) {
     final available = summary?.availableBalance ?? 0;
+    final pending = summary?.pendingBalance ?? 0;
     final reserved = summary?.reservedBalance ?? 0;
 
     return Container(
@@ -371,14 +372,23 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
               letterSpacing: -0.4,
             ),
           ),
-          if (reserved > 0) ...[
+          if (pending > 0 || reserved > 0) ...[
             const SizedBox(height: 8),
             Container(height: 1, color: Colors.white24),
-            const SizedBox(height: 8),
-            Text(
-              'Dalam proses pencairan: ${formatRupiah(reserved)}',
-              style: const TextStyle(fontSize: 11.5, color: Colors.white70),
-            ),
+            if (pending > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Dalam proses settlement: ${formatRupiah(pending)}',
+                style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+              ),
+            ],
+            if (reserved > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Dalam proses pencairan: ${formatRupiah(reserved)}',
+                style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+              ),
+            ],
           ],
         ],
       ),
