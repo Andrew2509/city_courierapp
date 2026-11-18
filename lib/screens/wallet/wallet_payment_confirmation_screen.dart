@@ -149,7 +149,6 @@ class _WalletPaymentConfirmationScreenState
     final rawVehicle =
         widget.vehicle ?? widget.shipmentData?['vehicle']?.toString() ?? '';
     final vehicleLabel = _formatVehicleLabel(rawVehicle);
-    final isSandbox = widget.mode.toLowerCase() != 'production';
 
     return PopScope(
       canPop: Navigator.canPop(context),
@@ -287,15 +286,6 @@ class _WalletPaymentConfirmationScreenState
                           if (vehicleLabel.isNotEmpty) ...[
                             const SizedBox(height: 11),
                             _detailRow('Armada', value: vehicleLabel),
-                          ],
-                          if (isSandbox) ...[
-                            const SizedBox(height: 11),
-                            _detailRow(
-                              'Mode',
-                              value: 'Sandbox',
-                              valueColor: CityWalletUi.inkSecondary,
-                              valueWeight: FontWeight.w500,
-                            ),
                           ],
                           const SizedBox(height: 14),
                           const Divider(

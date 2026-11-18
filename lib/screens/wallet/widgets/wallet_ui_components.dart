@@ -238,23 +238,12 @@ class EnvironmentModeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lower = mode.toLowerCase();
-    final Color bg;
-    final Color fg;
-    final String label;
-
-    if (lower == 'production') {
-      bg = const Color(0xFFDCFCE7);
-      fg = const Color(0xFF166534);
-      label = 'LIVE PRODUCTION';
-    } else if (lower == 'demo' || isSimulated) {
-      bg = const Color(0xFFF3E8FF);
-      fg = const Color(0xFF6B21A8);
-      label = lower == 'demo' ? 'DEMO MODE' : 'SANDBOX (SIMULASI)';
-    } else {
-      bg = const Color(0xFFFEF3C7);
-      fg = const Color(0xFF92400E);
-      label = 'SANDBOX MODE';
+    if (lower != 'production') {
+      return const SizedBox.shrink();
     }
+
+    const bg = Color(0xFFDCFCE7);
+    const fg = Color(0xFF166534);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -263,8 +252,8 @@ class EnvironmentModeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: fg.withValues(alpha: 0.25)),
       ),
-      child: Text(
-        label,
+      child: const Text(
+        'LIVE PRODUCTION',
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,

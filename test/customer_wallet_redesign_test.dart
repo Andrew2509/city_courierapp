@@ -484,7 +484,8 @@ void main() {
       expect(find.text('Instruksi Top-Up'), findsOneWidget);
       expect(find.text('88001234999'), findsOneWidget);
 
-      await tester.tap(find.text('Simulasikan Pembayaran Berhasil (Sandbox)'));
+      expect(find.text('Simulasikan Pembayaran Berhasil (Sandbox)'), findsNothing);
+      await tester.tap(find.text('Simulasikan Pembayaran Berhasil'));
       await tester.pumpAndSettle();
 
       expect(find.byType(TopupStatusScreen), findsOneWidget);
@@ -778,7 +779,7 @@ void main() {
       expect(find.text('CC-RESI-140'), findsOneWidget);
       expect(find.text('Surabaya → Sidoarjo'), findsOneWidget);
       expect(find.text('Motor'), findsOneWidget);
-      expect(find.text('Sandbox'), findsOneWidget);
+      expect(find.text('Sandbox'), findsNothing);
       expect(find.text('Sisa Saldo'), findsOneWidget);
       expect(find.text('Rp 84.200'), findsOneWidget);
       expect(find.text('Lacak Pesanan'), findsOneWidget);

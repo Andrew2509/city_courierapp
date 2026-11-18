@@ -229,8 +229,9 @@ void main() {
       expect(find.text('DANA'), findsNothing);
       expect(find.textContaining('Metode pencairan saldo penghasilan'), findsNothing);
 
-      // Sandbox badge & Tarik Saldo remain visible
-      expect(find.text('SANDBOX (SIMULASI)'), findsOneWidget);
+      // Sandbox badge hidden; Tarik Saldo remains visible
+      expect(find.text('SANDBOX (SIMULASI)'), findsNothing);
+      expect(find.textContaining('SANDBOX'), findsNothing);
       expect(find.text('Tarik Saldo'), findsOneWidget);
 
       // Tap Tarik Saldo -> opens CourierWithdrawalV1Screen directly
@@ -238,7 +239,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ajukan Penarikan'), findsOneWidget);
-      expect(find.text('SANDBOX (SIMULASI)'), findsOneWidget);
+      expect(find.text('SANDBOX (SIMULASI)'), findsNothing);
       expect(find.textContaining('Bank BCA'), findsWidgets);
 
       // Enter nominal 50000 and submit

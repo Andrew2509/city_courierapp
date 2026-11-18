@@ -274,7 +274,8 @@ void main() {
       expect(find.text('Rp 250.000'), findsOneWidget);
       expect(find.textContaining('Wallet Dibekukan: Review keamanan'), findsOneWidget);
       expect(find.text('Top-up QRIS berhasil'), findsOneWidget);
-      expect(find.text('SANDBOX (SIMULASI)'), findsOneWidget);
+      expect(find.text('SANDBOX (SIMULASI)'), findsNothing);
+      expect(find.textContaining('SANDBOX'), findsNothing);
     });
 
     testWidgets('CustomerWithdrawalScreen shows production regulatory lock warning when disabled', (tester) async {
@@ -341,7 +342,7 @@ void main() {
 
       expect(find.text('88800112233'), findsOneWidget);
       expect(find.text('LIVE PRODUCTION'), findsOneWidget);
-      expect(find.text('Simulasikan Pembayaran Berhasil (Sandbox)'), findsNothing);
+      expect(find.text('Simulasikan Pembayaran Berhasil'), findsNothing);
     });
 
     testWidgets('CourierEarningsOverviewScreen and AutoPayoutStatusScreen render real data', (tester) async {

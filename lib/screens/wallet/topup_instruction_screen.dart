@@ -342,7 +342,7 @@ class _TopupInstructionScreenState extends State<TopupInstructionScreen> {
                               )
                             : const Icon(Icons.bolt_rounded, size: 18),
                         label: const Text(
-                          'Simulasikan Pembayaran Berhasil (Sandbox)',
+                          'Simulasikan Pembayaran Berhasil',
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
