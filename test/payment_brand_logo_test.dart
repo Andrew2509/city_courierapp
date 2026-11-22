@@ -36,6 +36,13 @@ void main() {
       'assets/images/payment/bsi.png',
       'assets/images/payment/btn.png',
       'assets/images/payment/danamon.png',
+      'assets/images/payment/dana.png',
+      'assets/images/payment/ovo.png',
+      'assets/images/payment/gopay.png',
+      'assets/images/payment/shopeepay.png',
+      'assets/images/payment/linkaja.png',
+      'assets/images/payment/alfamart.png',
+      'assets/images/payment/indomaret.png',
     ];
 
     for (final path in paths) {
@@ -60,8 +67,25 @@ void main() {
       PaymentBrandLogo.assetFor('QRIS BCA'),
       'assets/images/payment/qris.png',
     );
-    // Brand tanpa berkas logo tetap punya fallback bergambar teks.
-    expect(PaymentBrandLogo.assetFor('OVO'), isNull);
+    // E-wallet dan ritel juga memakai berkas logo lokal.
+    expect(PaymentBrandLogo.assetFor('OVO'), 'assets/images/payment/ovo.png');
+    expect(PaymentBrandLogo.assetFor('DANA'), 'assets/images/payment/dana.png');
+    expect(PaymentBrandLogo.assetFor('GoPay'), 'assets/images/payment/gopay.png');
+    expect(
+      PaymentBrandLogo.assetFor('ShopeePay'),
+      'assets/images/payment/shopeepay.png',
+    );
+    expect(
+      PaymentBrandLogo.assetFor('LinkAja'),
+      'assets/images/payment/linkaja.png',
+    );
+    // Bank Danamon tetap memakai danamon.png (bukan dana.png).
+    expect(
+      PaymentBrandLogo.assetFor('DANAMON'),
+      'assets/images/payment/danamon.png',
+    );
+    // Brand tanpa berkas logo tetap memakai fallback teks.
+    expect(PaymentBrandLogo.assetFor('Sakuku'), isNull);
   });
 
   testWidgets('tidak memakai gambar jaringan', (tester) async {

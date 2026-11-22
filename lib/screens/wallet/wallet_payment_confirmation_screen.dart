@@ -1,4 +1,4 @@
-import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_detail_screen.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
@@ -19,6 +19,12 @@ class WalletPaymentConfirmationScreen extends StatefulWidget {
   final String? receiverCity;
   final String? vehicle;
   final Map<String, dynamic>? shipmentData;
+  final bool isDropoff;
+  final Map<String, dynamic>? dropPointData;
+  final String? itemDescription;
+  final double? packageWeight;
+  final String? receiverPhone;
+  final String? receiverAddress;
 
   const WalletPaymentConfirmationScreen({
     super.key,
@@ -33,6 +39,12 @@ class WalletPaymentConfirmationScreen extends StatefulWidget {
     this.receiverCity,
     this.vehicle,
     this.shipmentData,
+    this.isDropoff = false,
+    this.dropPointData,
+    this.itemDescription,
+    this.packageWeight,
+    this.receiverPhone,
+    this.receiverAddress,
   });
 
   @override
@@ -42,6 +54,21 @@ class WalletPaymentConfirmationScreen extends StatefulWidget {
 
 class _WalletPaymentConfirmationScreenState
     extends State<WalletPaymentConfirmationScreen> {
+  bool get _isDropoffOrder =>
+      widget.isDropoff ||
+      widget.shipmentData?['delivery_method']?.toString().toLowerCase() ==
+          'dropoff' ||
+      widget.shipmentData?['shipping_method']?.toString().toLowerCase() ==
+          'dropoff';
+
+  String? get _resolvedDropPointName =>
+      widget.dropPointData?['name']?.toString() ??
+      widget.shipmentData?['drop_point_name']?.toString();
+
+  String? get _resolvedDropPointAddress =>
+      widget.dropPointData?['address']?.toString() ??
+      widget.shipmentData?['drop_point_address']?.toString();
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +86,32 @@ class _WalletPaymentConfirmationScreenState
           widget.receiverCity ??
           widget.shipmentData?['destination_name']?.toString() ??
           '-';
+      final isDropoff = _isDropoffOrder;
+      final dropPointName = _resolvedDropPointName;
+
+      if (isDropoff) {
+        await ActiveOrderService.saveActiveOrder({
+          'order_id': orderKey,
+          'status': 'Menunggu Diantar ke Drop Point',
+          'status_raw': 'waiting_dropoff',
+          'estimated_time': 'Antar paket ke Drop Point',
+          'courier_name': dropPointName ?? 'Drop Point City Courier',
+          'courier_vehicle':
+              widget.vehicle ??
+              widget.shipmentData?['service_name']?.toString() ??
+              'Dropoff',
+          'courier_phone': widget.dropPointData?['phone']?.toString() ?? '',
+          'destination': destCity,
+          'status_message':
+              'Pembayaran City Wallet berhasil. Silakan antar paket Anda ke ${dropPointName ?? 'Drop Point pilihan'}.',
+          'step': 0,
+          'has_courier': false,
+          'is_delivered': false,
+          'shipment_data': widget.shipmentData,
+        });
+        return;
+      }
+
       final vRaw =
           (widget.vehicle ??
                   widget.shipmentData?['vehicle'] ??
@@ -108,12 +161,7 @@ class _WalletPaymentConfirmationScreenState
 
   void _copyValue(BuildContext context, String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label disalin ke clipboard'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    CityWalletUi.showSnackBar(context, '$label disalin ke clipboard');
   }
 
   String _resolvedRouteLabel() {
@@ -158,291 +206,287 @@ class _WalletPaymentConfirmationScreenState
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.backgroundColor,
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              Container(
-                height: 52,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                color: Colors.white,
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => _handleBack(context),
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        size: 22,
-                        color: CityWalletUi.inkPrimary,
-                      ),
+        backgroundColor: CityWalletUi.scaffoldBg(context),
+        appBar: CityWalletUi.buildAppBar(
+          context,
+          title: 'Pembayaran City Wallet',
+          onBack: () => _handleBack(context),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                    decoration: CityWalletUi.cardDecoration(
+                      context,
+                      radius: 16,
                     ),
-                    const Expanded(
-                      child: Text(
-                        'Pembayaran City Wallet',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: CityWalletUi.inkPrimary,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFFDCFCE7),
+                              border: Border.all(
+                                color: const Color(0xFFBBF7D0),
+                                width: 5,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.check_rounded,
+                              size: 28,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: CityWalletUi.dividerColor),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: CityWalletUi.borderColor),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF16A34A),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.check_rounded,
-                                size: 24,
-                                color: Colors.white,
-                              ),
-                            ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Pembayaran Berhasil',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.titleLarge.copyWith(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: CityWalletUi.ink(context),
                           ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Pembayaran Berhasil',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: CityWalletUi.inkPrimary,
-                            ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Saldo City Wallet telah terpotong',
+                          textAlign: TextAlign.center,
+                          style: CityWalletUi.bodyStyle(context).copyWith(
+                            fontSize: 12.5,
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Saldo City Wallet telah terpotong',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: CityWalletUi.inkSecondary,
-                            ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          formatRupiah(widget.amount),
+                          textAlign: TextAlign.center,
+                          style: AppTypography.headline1.copyWith(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: CityWalletUi.ink(context),
+                            letterSpacing: -0.5,
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            formatRupiah(widget.amount),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w700,
-                              color: CityWalletUi.inkPrimary,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          const Divider(
-                            height: 1,
-                            color: CityWalletUi.dividerColor,
-                          ),
-                          const SizedBox(height: 14),
-                          _detailRow(
-                            'Status',
-                            value: 'Lunas',
-                            valueColor: const Color(0xFF15803D),
-                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Divider(
+                          height: 1,
+                          color: CityWalletUi.divider(context),
+                        ),
+                        const SizedBox(height: 14),
+                        _detailRow(
+                          context,
+                          'Status',
+                          value: 'Lunas',
+                          valueColor: const Color(0xFF15803D),
+                        ),
+                        if (_isDropoffOrder) ...[
                           const SizedBox(height: 11),
-                          _detailRow('Metode', value: 'City Wallet'),
+                          _detailRow(
+                            context,
+                            'Status Pengiriman',
+                            value: 'Menunggu Diantar ke Drop Point',
+                            valueColor: Colors.orange,
+                          ),
+                        ],
+                        const SizedBox(height: 11),
+                        _detailRow(context, 'Metode', value: 'City Wallet'),
+                        const SizedBox(height: 11),
+                        _copyableRow(
+                          context,
+                          label: 'Referensi',
+                          value: widget.reference,
+                        ),
+                        if (hasTracking) ...[
                           const SizedBox(height: 11),
                           _copyableRow(
                             context,
-                            label: 'Referensi',
-                            value: widget.reference,
-                          ),
-                          if (hasTracking) ...[
-                            const SizedBox(height: 11),
-                            _copyableRow(
-                              context,
-                              label: 'No. Resi',
-                              value: widget.trackingNumber!,
-                            ),
-                          ],
-                          if (routeLabel.isNotEmpty) ...[
-                            const SizedBox(height: 11),
-                            _detailRow('Rute', value: routeLabel),
-                          ],
-                          if (vehicleLabel.isNotEmpty) ...[
-                            const SizedBox(height: 11),
-                            _detailRow('Armada', value: vehicleLabel),
-                          ],
-                          const SizedBox(height: 14),
-                          const Divider(
-                            height: 1,
-                            color: CityWalletUi.dividerColor,
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              const Text(
-                                'Sisa Saldo',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: CityWalletUi.inkSecondary,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  formatRupiah(widget.remainingBalance),
-                                  textAlign: TextAlign.right,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: CityWalletUi.inkPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            label: 'No. Resi',
+                            value: widget.trackingNumber!,
                           ),
                         ],
-                      ),
+                        if (_isDropoffOrder &&
+                            _resolvedDropPointName != null &&
+                            _resolvedDropPointName!.isNotEmpty) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(
+                            context,
+                            'Drop Point',
+                            value: _resolvedDropPointName!,
+                          ),
+                        ],
+                        if (_isDropoffOrder &&
+                            _resolvedDropPointAddress != null &&
+                            _resolvedDropPointAddress!.isNotEmpty) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(
+                            context,
+                            'Alamat Drop Point',
+                            value: _resolvedDropPointAddress!,
+                          ),
+                        ],
+                        if (_isDropoffOrder &&
+                            widget.receiverName != null &&
+                            widget.receiverName!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(
+                            context,
+                            'Penerima',
+                            value:
+                                '${widget.receiverName!}${widget.receiverPhone != null && widget.receiverPhone!.isNotEmpty ? ' (${widget.receiverPhone})' : ''}',
+                          ),
+                        ],
+                        if (_isDropoffOrder &&
+                            widget.receiverAddress != null &&
+                            widget.receiverAddress!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(
+                            context,
+                            'Alamat Tujuan',
+                            value: widget.receiverAddress!,
+                          ),
+                        ],
+                        if (_isDropoffOrder &&
+                            ((widget.itemDescription != null &&
+                                    widget.itemDescription!.trim().isNotEmpty) ||
+                                widget.packageWeight != null)) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(
+                            context,
+                            'Paket',
+                            value: [
+                              if (widget.itemDescription != null &&
+                                  widget.itemDescription!.trim().isNotEmpty)
+                                widget.itemDescription!.trim(),
+                              if (widget.packageWeight != null)
+                                '${widget.packageWeight!.toStringAsFixed(widget.packageWeight! % 1 == 0 ? 0 : 1)} kg',
+                            ].join(' • '),
+                          ),
+                        ],
+                        if (routeLabel.isNotEmpty) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(context, 'Rute', value: routeLabel),
+                        ],
+                        if (vehicleLabel.isNotEmpty) ...[
+                          const SizedBox(height: 11),
+                          _detailRow(
+                            context,
+                            _isDropoffOrder ? 'Layanan' : 'Armada',
+                            value: vehicleLabel,
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        Divider(
+                          height: 1,
+                          color: CityWalletUi.divider(context),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Text(
+                              'Sisa Saldo',
+                              style: CityWalletUi.bodyStyle(context).copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                formatRupiah(widget.remainingBalance),
+                                textAlign: TextAlign.right,
+                                style: CityWalletUi.cardTitleStyle(context)
+                                    .copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              CityWalletUi.stickyBottomBar(
-                context,
-                child: hasTracking
-                    ? Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 46,
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => TrackingDetailScreen(
-                                        trackingNumber: widget.trackingNumber!,
-                                        shipmentData: widget.shipmentData,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: CityWalletUi.inkPrimary,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
-                                  minimumSize: const Size(0, 46),
-                                  side: const BorderSide(
-                                    color: CityWalletUi.borderColor,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+            ),
+            CityWalletUi.stickyBottomBar(
+              context,
+              child: hasTracking
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => TrackingDetailScreen(
+                                    trackingNumber: widget.trackingNumber!,
+                                    shipmentData: widget.shipmentData,
                                   ),
                                 ),
-                                child: const FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    'Lacak Pesanan',
-                                    maxLines: 1,
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
+                              );
+                            },
+                            style: CityWalletUi.secondaryButtonStyle(
+                              context: context,
+                            ).copyWith(
+                              padding: const WidgetStatePropertyAll(
+                                EdgeInsets.symmetric(horizontal: 10),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SizedBox(
-                              height: 46,
-                              child: ElevatedButton(
-                                onPressed: () => _goHome(context),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryOrange,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
-                                  minimumSize: const Size(0, 46),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: const FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    'Kembali ke Beranda',
-                                    maxLines: 1,
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : SizedBox(
-                        width: double.infinity,
-                        height: 46,
-                        child: ElevatedButton(
-                          onPressed: () => _goHome(context),
-                          style: CityWalletUi.primaryButtonStyle(),
-                          child: const Text(
-                            'Kembali ke Beranda',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Lacak Pesanan', maxLines: 1),
                             ),
                           ),
                         ),
-                      ),
-              ),
-            ],
-          ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _goHome(context),
+                            style: CityWalletUi.primaryButtonStyle(
+                              context: context,
+                            ).copyWith(
+                              padding: const WidgetStatePropertyAll(
+                                EdgeInsets.symmetric(horizontal: 10),
+                              ),
+                            ),
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Kembali ke Beranda', maxLines: 1),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton(
+                      onPressed: () => _goHome(context),
+                      style: CityWalletUi.primaryButtonStyle(context: context),
+                      child: const Text('Kembali ke Beranda'),
+                    ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _detailRow(
+    BuildContext context,
     String label, {
     required String value,
-    Color valueColor = CityWalletUi.inkPrimary,
+    Color? valueColor,
     FontWeight valueWeight = FontWeight.w600,
   }) {
     return Row(
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: CityWalletUi.inkSecondary,
-          ),
+          style: CityWalletUi.bodyStyle(context),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -450,10 +494,10 @@ class _WalletPaymentConfirmationScreenState
             value,
             textAlign: TextAlign.right,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: AppTypography.bodySmall.copyWith(
               fontSize: 13,
               fontWeight: valueWeight,
-              color: valueColor,
+              color: valueColor ?? CityWalletUi.ink(context),
             ),
           ),
         ),
@@ -470,41 +514,37 @@ class _WalletPaymentConfirmationScreenState
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: CityWalletUi.inkSecondary,
-          ),
+          style: CityWalletUi.bodyStyle(context),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Flexible(
-                child: Text(
-                  value,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: CityWalletUi.inkPrimary,
+          child: InkWell(
+            onTap: () => _copyValue(context, label, value),
+            borderRadius: BorderRadius.circular(6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    style: CityWalletUi.cardTitleStyle(context).copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: () => _copyValue(context, label, value),
-                borderRadius: BorderRadius.circular(6),
-                child: const Padding(
-                  padding: EdgeInsets.all(2),
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.all(2),
                   child: Icon(
                     Icons.copy_rounded,
                     size: 15,
-                    color: CityWalletUi.inkSecondary,
+                    color: CityWalletUi.secondaryInk(context),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

@@ -26,6 +26,8 @@ class PaymentBrandLogo extends StatelessWidget {
   });
 
   /// Berkas logo per brand. Kunci = potongan nama metode (uppercase).
+  /// Urutan penting: `'DANAMON'` harus dicek sebelum `'DANA'` karena `'DANAMON'`
+  /// mengandung substring `'DANA'`.
   static const Map<String, String> _assets = {
     'QRIS': 'assets/images/payment/qris.png',
     'BNI': 'assets/images/payment/bni.png',
@@ -37,6 +39,14 @@ class PaymentBrandLogo extends StatelessWidget {
     'BSI': 'assets/images/payment/bsi.png',
     'BTN': 'assets/images/payment/btn.png',
     'DANAMON': 'assets/images/payment/danamon.png',
+    'DANA': 'assets/images/payment/dana.png',
+    'OVO': 'assets/images/payment/ovo.png',
+    'GOPAY': 'assets/images/payment/gopay.png',
+    'SHOPEE': 'assets/images/payment/shopeepay.png',
+    'SPAY': 'assets/images/payment/shopeepay.png',
+    'LINKAJA': 'assets/images/payment/linkaja.png',
+    'ALFAMART': 'assets/images/payment/alfamart.png',
+    'INDOMARET': 'assets/images/payment/indomaret.png',
   };
 
   /// Cocokkan nama metode ke berkas logo; null bila belum tersedia.
@@ -73,7 +83,7 @@ class PaymentBrandLogo extends StatelessWidget {
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.medium,
                 // Berkas hilang / gagal dimuat → tetap ada penanda brand.
-                errorBuilder: (_, __, ___) => _fallbackLabel(),
+                errorBuilder: (_, _, _) => _fallbackLabel(),
               ),
       ),
     );

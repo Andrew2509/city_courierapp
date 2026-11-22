@@ -52,6 +52,13 @@ class ConfirmationScreen extends StatefulWidget {
   final String? pickupTimeText;
   final String? deliveryTimeText;
   final bool isDeliveryCrossDay;
+  final bool isDropoff;
+  final Map<String, dynamic>? dropPointData;
+  final String? itemCatatan;
+  final Future<Map<String, dynamic>?> Function(
+    String endpoint,
+    Map<String, dynamic> body,
+  )? postShipmentFn;
 
   const ConfirmationScreen({
     super.key,
@@ -77,6 +84,10 @@ class ConfirmationScreen extends StatefulWidget {
     this.pickupTimeText,
     this.deliveryTimeText,
     this.isDeliveryCrossDay = false,
+    this.isDropoff = false,
+    this.dropPointData,
+    this.itemCatatan,
+    this.postShipmentFn,
   });
 
   @override
@@ -135,8 +146,17 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       final rawEtd = (courier?['etd'] ?? '').toString().trim();
       final cleanEtd = rawEtd.isNotEmpty ? rawEtd : (courier?['duration'] ?? '');
 
-      final originId = sender?['subdistrict_id'] ?? sender?['city_id'];
-      final destId = receiver?['subdistrict_id'] ?? receiver?['city_id'];
+      final originId = (widget.isDropoff
+              ? (widget.dropPointData?['kecamatan_id'] ??
+                    widget.dropPointData?['subdistrict_id'] ??
+                    widget.dropPointData?['city_id'])
+              : null) ??
+          sender?['kecamatan_id'] ??
+          sender?['subdistrict_id'] ??
+          sender?['city_id'];
+      final destId = receiver?['kecamatan_id'] ??
+          receiver?['subdistrict_id'] ??
+          receiver?['city_id'];
 
       final body = {
         'customer_name': sender?['name'] ?? 'Pengirim',
@@ -207,8 +227,23 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         'insurance': widget.asuransiPengiriman,
         'wood_packing': widget.packingKayu,
         'total_cost': totalPrice,
-        'scheduled_pickup': widget.isScheduledPickup,
-        if (widget.isScheduledPickup && widget.pickupScheduledAt != null) ...{
+        'scheduled_pickup': widget.isDropoff ? false : widget.isScheduledPickup,
+        if (widget.isDropoff) ...{
+          'shipping_method': 'dropoff',
+          'service_type': 'dropoff',
+          'delivery_method': 'dropoff',
+          if (widget.dropPointData?['id'] != null)
+            'drop_point_id': widget.dropPointData!['id'],
+          if (widget.dropPointData?['name'] != null)
+            'drop_point_name': widget.dropPointData!['name'],
+          if (widget.dropPointData?['address'] != null)
+            'drop_point_address': widget.dropPointData!['address'],
+        },
+        if (widget.itemCatatan != null && widget.itemCatatan!.trim().isNotEmpty)
+          'notes': widget.itemCatatan!.trim(),
+        if (!widget.isDropoff &&
+            widget.isScheduledPickup &&
+            widget.pickupScheduledAt != null) ...{
           'pickup_scheduled_at': widget.pickupScheduledAt!.toIso8601String(),
           'pickup_date': widget.pickupScheduledAt!.toIso8601String().substring(0, 10),
           if (widget.pickupTimeText != null) 'pickup_time': widget.pickupTimeText,
@@ -224,11 +259,13 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       debugPrint('DEBUG: Shipment Payload: $body');
 
       // Gunakan timeout 60 detik untuk operasi pembuatan shipment di backend
-      final response = await ApiService.post(
-        '/shipments',
-        body,
-        timeout: const Duration(seconds: 60),
-      );
+      final response = await (widget.postShipmentFn != null
+          ? widget.postShipmentFn!('/shipments', body)
+          : ApiService.post(
+              '/shipments',
+              body,
+              timeout: const Duration(seconds: 60),
+            ));
 
       if (!mounted) return;
 
@@ -251,6 +288,22 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                            
         final barcodeUrl = response['data']?['barcode_url'] ?? 
                           response['data']?['qr_url'];
+
+        final Map<String, dynamic> enrichedShipment = {
+          if (response['data'] is Map)
+            ...Map<String, dynamic>.from(response['data'] as Map),
+          if (widget.isDropoff) 'shipping_method': 'dropoff',
+          if (widget.dropPointData?['name'] != null)
+            'drop_point_name': widget.dropPointData!['name'],
+          if (widget.dropPointData?['address'] != null)
+            'drop_point_address': widget.dropPointData!['address'],
+          if (widget.itemDeskripsi.isNotEmpty)
+            'package_description': widget.itemDeskripsi,
+          'package_weight': shippingWeight,
+          if (receiver?['phone'] != null) 'receiver_phone': receiver!['phone'],
+          if (receiver?['address'] != null)
+            'receiver_address': receiver!['address'],
+        };
                               
         if (!context.mounted) return;
         Navigator.push(
@@ -266,9 +319,17 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               senderCity: widget.senderData?['kecamatan_name'] ?? widget.senderData?['city_name'],
               receiverName: widget.receiverData?['name'],
               receiverCity: widget.receiverData?['kecamatan_name'] ?? widget.receiverData?['city_name'],
-              vehicle: widget.selectedVehicle,
+              vehicle: widget.isDropoff
+                  ? '${courier?['name'] ?? 'Kurir'} ${courier?['service'] ?? ''}'.trim()
+                  : widget.selectedVehicle,
               trackingUrl: response['data']?['tracking_url']?.toString(),
-              shipmentData: response['data'] is Map<String, dynamic> ? (response['data'] as Map<String, dynamic>) : null,
+              shipmentData: enrichedShipment,
+              isDropoff: widget.isDropoff,
+              dropPointData: widget.dropPointData,
+              itemDescription: widget.itemDeskripsi,
+              packageWeight: shippingWeight,
+              receiverPhone: widget.receiverData?['phone']?.toString(),
+              receiverAddress: widget.receiverData?['address']?.toString(),
             ),
           ),
         );
@@ -310,6 +371,11 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
                 final shipmentId = matched.id.toString();
                 final trackingNumber = matched.trackingNumber ?? matched.orderNumber;
+                final recCourier = widget.selectedCourier;
+                final recShipWeight = double.tryParse(
+                      widget.itemBerat.toString().replaceAll(',', '.'),
+                    ) ??
+                    1.0;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -318,8 +384,19 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                       shipmentId: shipmentId,
                       trackingNumber: trackingNumber,
                       barcodeData: trackingNumber,
+                      senderName: widget.senderData?['name'],
                       senderCity: widget.senderData?['city_name'],
+                      receiverName: widget.receiverData?['name'],
                       receiverCity: widget.receiverData?['city_name'],
+                      vehicle: widget.isDropoff
+                          ? '${recCourier?['name'] ?? 'Kurir'} ${recCourier?['service'] ?? ''}'.trim()
+                          : widget.selectedVehicle,
+                      isDropoff: widget.isDropoff,
+                      dropPointData: widget.dropPointData,
+                      itemDescription: widget.itemDeskripsi,
+                      packageWeight: recShipWeight,
+                      receiverPhone: widget.receiverData?['phone']?.toString(),
+                      receiverAddress: widget.receiverData?['address']?.toString(),
                     ),
                   ),
                 );
@@ -435,9 +512,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             size: 20,
           ),
         ),
-        title: const Text(
-          'Konfirmasi Pesanan',
-          style: TextStyle(
+        title: Text(
+          widget.isDropoff ? 'Ringkasan Dropoff' : 'Konfirmasi Pesanan',
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -458,9 +535,13 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               children: [
                 _buildInformasiPengiriman(isDarkMode, primaryColor),
                 const SizedBox(height: 16),
-                _buildJadwalPengirimanCard(isDarkMode, primaryColor),
-                const SizedBox(height: 16),
-                _buildKendaraanCard(isDarkMode, primaryColor),
+                if (widget.isDropoff)
+                  _buildDropPointSummaryCard(isDarkMode, primaryColor)
+                else ...[
+                  _buildJadwalPengirimanCard(isDarkMode, primaryColor),
+                  const SizedBox(height: 16),
+                  _buildKendaraanCard(isDarkMode, primaryColor),
+                ],
                 const SizedBox(height: 16),
                 _buildDetailBarang(isDarkMode, primaryColor),
                 const SizedBox(height: 16),
@@ -485,6 +566,114 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     );
   }
 
+
+  Widget _buildDropPointSummaryCard(bool isDarkMode, Color primaryColor) {
+    final dpName =
+        (widget.dropPointData?['name'] ?? 'Drop Point Terpilih').toString();
+    final dpAddress =
+        (widget.dropPointData?['address'] ?? '-').toString();
+    final dpSchedule =
+        (widget.dropPointData?['schedule'] ?? '').toString();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'LOKASI DROP POINT',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400,
+                  letterSpacing: 1,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0095FC).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Antar Mandiri',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0095FC),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade100,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.store_rounded, color: primaryColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      dpName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      dpAddress,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
+                    ),
+                    if (dpSchedule.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Jam operasional: $dpSchedule',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildJadwalPengirimanCard(bool isDarkMode, Color primaryColor) {
     final bool isScheduled = widget.isScheduledPickup;
@@ -1126,6 +1315,20 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ],
+                        if (widget.itemCatatan != null &&
+                            widget.itemCatatan!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Catatan: ${widget.itemCatatan!.trim()}',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontStyle: FontStyle.italic,
+                              color: isDarkMode
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
                           ),
                         ],
                       ],

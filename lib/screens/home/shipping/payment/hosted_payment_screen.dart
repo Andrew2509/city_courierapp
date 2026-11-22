@@ -11,16 +11,14 @@ import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
 import 'package:city_courierapp/services/shipping/shipment_service.dart';
 
-/// Pembayaran lewat halaman iPaymu (Redirect Payment), dibuka DI DALAM aplikasi.
+/// Pembayaran lewat halaman checkout Xendit (Redirect Payment), dibuka DI DALAM aplikasi.
 ///
-/// Nomor VA/QRIS hanya dibuat iPaymu setelah pelanggan memilih bank di halaman
-/// mereka (`POST /api/v2/payment` hanya mengembalikan SessionID + Url), jadi
-/// halaman itu yang ditampilkan. Gayanya dibuat satu keluarga dengan layar
-/// Virtual Account: kartu bergaris tipis, hitung mundur amber, catatan
+/// Halaman ini menampilkan instruksi/redirect Xendit dengan gaya satu keluarga
+/// dengan layar Virtual Account: kartu bergaris tipis, hitung mundur amber, catatan
 /// keamanan biru, dan aksi tetap di bawah.
 ///
 /// Status pembayaran TIDAK PERNAH disimpulkan dari URL — hanya dari backend
-/// (webhook ber-signature + inquiry iPaymu).
+/// (webhook `x-callback-token` + inquiry Payment Requests v3 Xendit).
 class HostedPaymentScreen extends StatefulWidget {
   final int amount;
   final String method;
@@ -183,7 +181,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
     final target = request.url;
 
-    // iPaymu memanggil returnUrl/cancelUrl setelah pelanggan selesai.
+    // Xendit memanggil returnUrl/cancelUrl setelah pelanggan selesai.
     if (_matchesUrl(target, widget.result.returnUrl)) {
       _finishSession(canceled: false);
       return NavigationDecision.prevent;
@@ -247,7 +245,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
       setState(() => _status = latest.status);
       if (_status == 'paid') {
         _pollTimer?.cancel();
-        _snack('Pembayaran dikonfirmasi iPaymu.');
+        _snack('Pembayaran dikonfirmasi Xendit.');
       }
     }
   }
@@ -288,7 +286,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: inkColor),
         ),
         content: Text(
-          'Pesanan akan dibatalkan dan status pembayaran diperiksa ke iPaymu. '
+          'Pesanan akan dibatalkan dan status pembayaran diperiksa ke Xendit. '
           'Bila pembayaran sudah diterima, pembatalan diproses sebagai pengembalian dana.',
           style: TextStyle(fontSize: 12.5, height: 1.5, color: mutedColor),
         ),
@@ -317,7 +315,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
     );
 
     // Satu pintu: batalkan PESANAN-nya, bukan hanya transaksi pembayaran.
-    // Backend menutup transaksi iPaymu lalu mengubah status pesanan sekaligus.
+    // Backend membatalkan transaksi Xendit lalu mengubah status pesanan sekaligus.
     final result = shipmentId.isNotEmpty
         ? await ShipmentService.cancelShipment(shipmentId)
         : await PaymentService.cancelPayment(paymentId);
@@ -345,7 +343,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
     final (title, message, color, icon) = switch (_status) {
       'paid' => (
           'Pembayaran berhasil',
-          'Pembayaran sudah dikonfirmasi iPaymu. Pesanan Anda akan diproses.',
+          'Pembayaran sudah dikonfirmasi Xendit. Pesanan Anda akan diproses.',
           Colors.green.shade600,
           Icons.check_circle_rounded,
         ),
@@ -363,7 +361,7 @@ class _HostedPaymentScreenState extends State<HostedPaymentScreen> {
         ),
       _ => (
           'Pembayaran sedang diverifikasi',
-          'iPaymu belum mengirim konfirmasi. Status akan diperbarui otomatis '
+          'Xendit belum mengirim konfirmasi. Status akan diperbarui otomatis '
               'begitu pembayaran diterima — jangan membayar ulang.',
           Colors.orange.shade700,
           Icons.hourglass_top_rounded,

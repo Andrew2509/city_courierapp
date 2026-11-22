@@ -2,13 +2,19 @@ import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/courier_wallet_ui.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AddBankAccountScreen extends StatefulWidget {
   final CourierWalletV1Service? service;
+  final List<(String, String)>? supportedChannels;
 
-  const AddBankAccountScreen({super.key, this.service});
+  const AddBankAccountScreen({
+    super.key,
+    this.service,
+    this.supportedChannels,
+  });
 
   @override
   State<AddBankAccountScreen> createState() => _AddBankAccountScreenState();
@@ -21,11 +27,14 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   final TextEditingController _holderCtrl = TextEditingController();
   late final DestinationNameInquiryController _inquiry =
       DestinationNameInquiryController(inquireFn: _service.inquireDestination);
-  String _channelCode = 'ID_BCA';
+  late List<(String, String)> _banks =
+      widget.supportedChannels ?? _defaultBanks;
+  late String _channelCode =
+      _banks.isNotEmpty ? _banks.first.$1 : 'ID_BCA';
   bool _setAsDefault = true;
   bool _saving = false;
 
-  static const _banks = [
+  static const _defaultBanks = [
     ('ID_BCA', 'Bank BCA'),
     ('ID_BRI', 'Bank BRI'),
     ('ID_BNI', 'Bank BNI'),
@@ -39,6 +48,25 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   void initState() {
     super.initState();
     _inquiry.addListener(_onInquiryUpdated);
+    if (widget.supportedChannels == null) {
+      _loadSupportedChannels();
+    }
+  }
+
+  Future<void> _loadSupportedChannels() async {
+    try {
+      final bundle = await _service.getDestinationsBundle();
+      if (!mounted || !bundle.hasServerChannels) return;
+      setState(() {
+        _banks = bundle.bankChannels;
+        if (_banks.isNotEmpty &&
+            !_banks.any((b) => b.$1 == _channelCode)) {
+          _channelCode = _banks.first.$1;
+        }
+      });
+    } catch (_) {
+      // Tetap gunakan katalog default Xendit saat fetch kanal belum terjangkau.
+    }
   }
 
   void _onInquiryUpdated() {
@@ -129,32 +157,33 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                     ),
                     decoration: CourierWalletUi.inputDecoration(
                       hintText: 'Pilih Bank',
-                      prefixIcon: Container(
-                        margin: const EdgeInsets.only(left: 10, right: 8),
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryOrange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.account_balance_outlined,
-                          size: 18,
-                          color: AppColors.primaryOrange,
-                        ),
-                      ),
                     ),
                     items: _banks
                         .map(
                           (b) => DropdownMenuItem(
                             value: b.$1,
-                            child: Text(
-                              b.$2,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: CourierWalletUi.inkPrimary,
-                              ),
+                            child: Row(
+                              children: [
+                                PaymentBrandLogo(
+                                  method: b.$2,
+                                  size: 26,
+                                  width: 40,
+                                  borderRadius: 6,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    b.$2,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: CourierWalletUi.inkPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         )
@@ -199,16 +228,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                   const SizedBox(height: 18),
                   CourierWalletUi.fieldLabel(
                     'Nama Pemilik Rekening',
-                    trailing: _inquiry.hasAutoFilled
-                        ? const Text(
-                            'Terisi otomatis',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF15803D),
-                            ),
-                          )
-                        : null,
+                    trailing: WalletStatusChip(
+                      status: _inquiry.hasAutoFilled
+                          ? 'auto_verified'
+                          : (_inquiry.result?.verificationStatus ??
+                              'unverified'),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(

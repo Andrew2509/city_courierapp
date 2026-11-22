@@ -160,13 +160,13 @@ class CustomerWalletService {
     return _decodeData(res);
   }
 
-  Future<List<PayoutDestinationV1>> getDestinations() async {
+  Future<PayoutDestinationsBundle> getDestinationsBundle() async {
     final res = await _client.get(_v1('/destinations'), headers: await _headers());
-    final data = _decodeData(res);
-    return (data['items'] as List? ?? [])
-        .whereType<Map>()
-        .map((e) => PayoutDestinationV1.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
+    return PayoutDestinationsBundle.fromJson(_decodeData(res));
+  }
+
+  Future<List<PayoutDestinationV1>> getDestinations() async {
+    return (await getDestinationsBundle()).items;
   }
 
   Future<DestinationInquiryResult> inquireDestination({

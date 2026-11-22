@@ -844,15 +844,15 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
       } else {
         final errorCode = result['error_code']?.toString();
 
-        // Pembayaran sudah diterima iPaymu: pembatalan = refund manual.
+        // Pembayaran sudah diterima Xendit: pembatalan memerlukan refund.
         if (errorCode == 'payment_already_paid') {
           await _fetchTracking();
           if (!mounted) return;
           await _showCancellationNoticeDialog(
             title: 'Pesanan Sudah Dibayar',
             message: result['message']?.toString() ??
-                'Pesanan sudah dibayar. Pembatalan pesanan memerlukan proses '
-                    'pengembalian dana sesuai ketentuan iPaymu.',
+                'Pesanan sudah dibayar melalui Xendit. Pembatalan pesanan '
+                    'memerlukan proses pengembalian dana sesuai kebijakan layanan.',
             icon: Icons.receipt_long_rounded,
             color: const Color(0xFF2563EB),
             offerSupport: true,

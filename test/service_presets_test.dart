@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:city_courierapp/screens/home/feature_under_development_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/item_info_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/pickup_screen.dart';
 import 'package:city_courierapp/screens/widgets/home/services_section.dart';
@@ -99,5 +100,50 @@ void main() {
     );
 
     expect(mobilLabel, findsOneWidget);
+  });
+
+  testWidgets('tombol Ci-Food dan Ci-Ride membuka halaman Dalam Pengembangan',
+      (tester) async {
+    tester.view.physicalSize = const Size(520, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    for (final label in ['Ci-Food', 'Ci-Ride']) {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: ServicesSection())),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(ValueKey('service_item_$label')));
+      await tester.pumpAndSettle();
+
+      final devScreen = tester.widget<FeatureUnderDevelopmentScreen>(
+        find.byType(FeatureUnderDevelopmentScreen),
+      );
+      expect(devScreen.featureName, label);
+      expect(find.text('Dalam Pengembangan'), findsOneWidget);
+      expect(find.text('Fitur Sedang\nDalam Pengembangan'), findsOneWidget);
+      expect(find.text('Segera Hadir'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Kembali'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Kembali'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FeatureUnderDevelopmentScreen), findsNothing);
+    }
+  });
+
+  testWidgets('FeatureUnderDevelopmentScreen menyesuaikan mode gelap',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: const FeatureUnderDevelopmentScreen(featureName: 'Ci-Ride'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, const Color(0xFF0F172A));
+    expect(find.text('Dalam Pengembangan'), findsOneWidget);
   });
 }

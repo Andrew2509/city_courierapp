@@ -500,6 +500,28 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
                     });
                   },
           ),
+        if (_selectedDest != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              WalletStatusChip(
+                status: _selectedDest!.normalizedVerificationStatus,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _selectedDest!.accountHolderName,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: CourierWalletUi.inkSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

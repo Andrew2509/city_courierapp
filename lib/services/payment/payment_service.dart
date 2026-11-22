@@ -17,16 +17,19 @@ class PaymentProviderDisabledException implements Exception {
 
 class CheckoutPaymentMethodsResult {
   final List<PaymentMethod> methods;
-  final bool ipaymuEnabled;
+  final bool xenditEnabled;
   final bool hasError;
   final String? message;
 
   const CheckoutPaymentMethodsResult({
     required this.methods,
-    required this.ipaymuEnabled,
+    required this.xenditEnabled,
     this.hasError = false,
     this.message,
   });
+
+  // Alias kompatibilitas bila pemanggil lama membaca properti ini.
+  bool get ipaymuEnabled => xenditEnabled;
 }
 
 class PaymentService {
@@ -60,14 +63,15 @@ class PaymentService {
       if (response.statusCode == 200 &&
           data != null &&
           data['success'] == true) {
-        final bool ipaymuEnabled =
-            data['ipaymu_enabled'] != false && data['disabled'] != true;
+        final bool xenditEnabled =
+            (data['xendit_enabled'] ?? data['ipaymu_enabled']) != false &&
+            data['disabled'] != true;
         final String? message = _nonEmptyString(data['message']);
 
-        if (!ipaymuEnabled) {
+        if (!xenditEnabled) {
           return CheckoutPaymentMethodsResult(
             methods: const [],
-            ipaymuEnabled: false,
+            xenditEnabled: false,
             hasError: false,
             message: message,
           );
@@ -78,7 +82,7 @@ class PaymentService {
             : const [];
         return CheckoutPaymentMethodsResult(
           methods: methods.map((m) => PaymentMethod.fromJson(m)).toList(),
-          ipaymuEnabled: true,
+          xenditEnabled: true,
           hasError: false,
           message: message,
         );
@@ -89,7 +93,7 @@ class PaymentService {
           data['error_code'] == 'PROVIDER_DISABLED') {
         return CheckoutPaymentMethodsResult(
           methods: const [],
-          ipaymuEnabled: false,
+          xenditEnabled: false,
           hasError: false,
           message: _nonEmptyString(data['message']),
         );
@@ -99,19 +103,19 @@ class PaymentService {
           ? _nonEmptyString(data['message'])
           : null;
       final String fallbackMsg = response.statusCode == 401
-          ? 'Sesi login berakhir. Silakan login ulang untuk memuat Virtual Account & QRIS.'
-          : 'Gagal memuat Virtual Account & QRIS (HTTP ${response.statusCode}).';
+          ? 'Sesi login berakhir. Silakan login ulang untuk memuat metode pembayaran Xendit.'
+          : 'Gagal memuat metode pembayaran Xendit (HTTP ${response.statusCode}).';
 
       return CheckoutPaymentMethodsResult(
         methods: const [],
-        ipaymuEnabled: true,
+        xenditEnabled: true,
         hasError: true,
         message: serverMsg ?? fallbackMsg,
       );
     } on TimeoutException {
       return const CheckoutPaymentMethodsResult(
         methods: [],
-        ipaymuEnabled: true,
+        xenditEnabled: true,
         hasError: true,
         message: 'Waktu muat metode pembayaran habis. Ketuk Muat Ulang.',
       );
@@ -119,9 +123,9 @@ class PaymentService {
       debugPrint('PaymentService Error (getPaymentMethods): $e');
       return const CheckoutPaymentMethodsResult(
         methods: [],
-        ipaymuEnabled: true,
+        xenditEnabled: true,
         hasError: true,
-        message: 'Tidak dapat memuat Virtual Account & QRIS dari server.',
+        message: 'Tidak dapat memuat metode pembayaran Xendit dari server.',
       );
     }
   }
@@ -157,8 +161,8 @@ class PaymentService {
         Uri.parse('$_baseUrl/payment/create'),
         headers: await _getHeaders(),
         body: jsonEncode({
-          if (orderId != null) 'order_id': orderId,
-          if (shipmentId != null) 'shipment_id': shipmentId,
+          'order_id': ?orderId,
+          'shipment_id': ?shipmentId,
           'payment_type': paymentType,
           'channel_code': channelCode,
           'amount': amount,
@@ -172,10 +176,7 @@ class PaymentService {
         }
         throw Exception(data['message'] ?? 'Gagal membuat pembayaran');
       } else {
-        // Tampilkan body lengkap (termasuk blok `debug` dari backend) supaya
-        // penolakan provider seperti "Suspicious buyer" bisa didiagnosis dari
-        // console tanpa menebak-nebak.
-        print(
+        debugPrint(
           'PaymentService: createPayment gagal (${response.statusCode}) body=${response.body}',
         );
         final data = jsonDecode(response.body);
@@ -184,12 +185,12 @@ class PaymentService {
           throw PaymentProviderDisabledException(msg);
         }
         if (data['errors'] != null) {
-          msg += ': ' + data['errors'].toString();
+          msg += ': ${data['errors']}';
         }
         throw Exception(msg);
       }
     } catch (e) {
-      print('PaymentService Error (createPayment): $e');
+      debugPrint('PaymentService Error (createPayment): $e');
       rethrow;
     }
   }
@@ -211,26 +212,24 @@ class PaymentService {
         if (data['success'] == true) {
           return PaymentResult.fromJson(data['data']);
         }
-        print('PaymentService: getStatus ditolak body=${response.body}');
+        debugPrint('PaymentService: getStatus ditolak body=${response.body}');
         return null;
       }
 
       // Jangan diam: 401/404 di sini membuat tombol "Cek Status" terlihat mati.
-      print(
+      debugPrint(
         'PaymentService: getStatus gagal (${response.statusCode}) body=${response.body}',
       );
       return null;
     } catch (e) {
-      print('PaymentService Error (getStatus): $e');
+      debugPrint('PaymentService Error (getStatus): $e');
       return null;
     }
   }
 
   /// Batalkan pembayaran yang masih menunggu.
   ///
-  /// Backend menanyakan status resmi ke iPaymu lebih dulu: bila transaksi masih
-  /// pending, pembayaran ditutup lokal (iPaymu tanpa API pembatalan); bila sudah
-  /// dibayar, pembatalan ditolak dan harus lewat refund manual.
+  /// Backend memeriksa status ke Xendit dan membatalkan Payment Request v3 yang masih pending.
   static Future<Map<String, dynamic>> cancelPayment(String paymentId) async {
     try {
       final response = await http
@@ -262,7 +261,7 @@ class PaymentService {
             : 'Gagal membatalkan pembayaran (HTTP ${response.statusCode})',
       };
     } catch (e) {
-      print('PaymentService Error (cancelPayment): $e');
+      debugPrint('PaymentService Error (cancelPayment): $e');
       return {'success': false, 'message': 'Gagal membatalkan pembayaran: $e'};
     }
   }
@@ -288,7 +287,7 @@ class PaymentService {
         );
       }
     } catch (e) {
-      print('PaymentService Error (confirmCodPayment): $e');
+      debugPrint('PaymentService Error (confirmCodPayment): $e');
       rethrow;
     }
   }

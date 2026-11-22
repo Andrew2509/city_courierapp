@@ -60,6 +60,17 @@ class ShipmentModel {
   final String? vehicleType;
   final bool? scheduledPickup;
   final String? pickupTime;
+  final String? shippingMethod;
+  final int? dropPointId;
+  final String? dropPointName;
+  final String? dropPointAddress;
+
+  bool get isDropoff {
+    final m = (shippingMethod ?? '').toLowerCase();
+    return m.contains('dropoff') ||
+        dropPointId != null ||
+        (dropPointName != null && dropPointName!.trim().isNotEmpty);
+  }
 
   ShipmentModel({
     required this.id,
@@ -102,6 +113,10 @@ class ShipmentModel {
     this.vehicleType,
     this.scheduledPickup,
     this.pickupTime,
+    this.shippingMethod,
+    this.dropPointId,
+    this.dropPointName,
+    this.dropPointAddress,
   });
 
   factory ShipmentModel.fromJson(Map<String, dynamic> json) {
@@ -111,6 +126,14 @@ class ShipmentModel {
       if (value is String) return double.tryParse(value) ?? 0.0;
       return 0.0;
     }
+
+    final dropPointMap = json['drop_point'] is Map
+        ? Map<String, dynamic>.from(json['drop_point'] as Map)
+        : null;
+    final dynamic rawDropPointId = json['drop_point_id'] ?? dropPointMap?['id'];
+    final int? parsedDropPointId = rawDropPointId is int
+        ? rawDropPointId
+        : int.tryParse(rawDropPointId?.toString() ?? '');
 
     return ShipmentModel(
       id: json['id'] ?? 0,
@@ -196,6 +219,15 @@ class ShipmentModel {
           json['is_scheduled_pickup'] == true ||
           json['scheduled_pickup'] == 1,
       pickupTime: json['pickup_time']?.toString(),
+      shippingMethod: (json['shipping_method'] ??
+              json['delivery_method'] ??
+              json['service_type'])
+          ?.toString(),
+      dropPointId: parsedDropPointId,
+      dropPointName:
+          (json['drop_point_name'] ?? dropPointMap?['name'])?.toString(),
+      dropPointAddress:
+          (json['drop_point_address'] ?? dropPointMap?['address'])?.toString(),
     );
   }
 
@@ -244,12 +276,16 @@ class ShipmentModel {
       'updated_at': updatedAt.toIso8601String(),
       'payment_info': paymentInfo?.toJson(),
       'vehicle_type': vehicleType,
+      if (shippingMethod != null) 'shipping_method': shippingMethod,
+      if (dropPointId != null) 'drop_point_id': dropPointId,
+      if (dropPointName != null) 'drop_point_name': dropPointName,
+      if (dropPointAddress != null) 'drop_point_address': dropPointAddress,
     };
   }
 }
 
 class PaymentInfo {
-  /// ID transaksi iPaymu. Dipakai layar pembayaran untuk "Cek Status" dan
+  /// ID transaksi Xendit. Dipakai layar pembayaran untuk "Cek Status" dan
   /// "Batalkan Pesanan" saat pesanan dibuka ulang dari daftar belum dibayar.
   final String? paymentId;
   final String? vaNumber;

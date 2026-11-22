@@ -19,12 +19,8 @@ class ProviderStatusSnapshot {
   static const Map<String, bool> defaultProviders = {
     'whatsapp': true,
     'map': true,
-    'dana': true,
-    'ovo': false,
-    'ipaymu': true,
     'rajaongkir': true,
     'xendit': true,
-    'doku': true,
   };
 
   factory ProviderStatusSnapshot.defaults() {
@@ -62,7 +58,11 @@ class ProviderStatusSnapshot {
 
   bool isEnabled(String providerCode, {bool? defaultValue}) {
     final code = providerCode.toLowerCase();
-    return providers[code] ?? defaultValue ?? (defaultProviders[code] ?? true);
+    final canonical = code == 'ipaymu' ? 'xendit' : code;
+    if (canonical == 'doku') return false;
+    return providers[canonical] ??
+        defaultValue ??
+        (defaultProviders[canonical] ?? false);
   }
 }
 

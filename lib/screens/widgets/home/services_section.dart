@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
+import 'package:city_courierapp/screens/home/feature_under_development_screen.dart';
 import 'package:city_courierapp/screens/home/shipping/pickup_screen.dart';
 
 class ServicesSection extends StatelessWidget {
-  const ServicesSection({Key? key}) : super(key: key);
+  const ServicesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +79,10 @@ class ServicesSection extends StatelessWidget {
                 context,
                 'Ci-Food',
                 assetPath: 'assets/images/Ci-food.png',
+                onTap: () => _openUnderDevelopment(
+                  context,
+                  featureName: 'Ci-Food',
+                ),
                 accentColor: Colors.redAccent,
                 isDarkMode: isDarkMode,
               ),
@@ -85,12 +90,30 @@ class ServicesSection extends StatelessWidget {
                 context,
                 'Ci-Ride',
                 assetPath: 'assets/images/Ci-ride.png',
+                onTap: () => _openUnderDevelopment(
+                  context,
+                  featureName: 'Ci-Ride',
+                ),
                 accentColor: AppColors.primaryTeal,
                 isDarkMode: isDarkMode,
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Buka halaman status pengembangan untuk fitur yang belum dirilis.
+  void _openUnderDevelopment(
+    BuildContext context, {
+    required String featureName,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            FeatureUnderDevelopmentScreen(featureName: featureName),
       ),
     );
   }
@@ -125,18 +148,19 @@ class ServicesSection extends StatelessWidget {
     required bool isDarkMode,
     VoidCallback? onTap,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          key: ValueKey('service_item_$title'),
-          onTap: onTap,
-          child: Container(
+    return GestureDetector(
+      key: ValueKey('service_item_$title'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
             width: 60,
             height: 60,
             decoration: BoxDecoration(
               color: isDarkMode
-                  ? Colors.white.withOpacity(0.05)
+                  ? Colors.white.withValues(alpha: 0.05)
                   : AppColors.cardBackground,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
@@ -145,7 +169,7 @@ class ServicesSection extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -162,18 +186,18 @@ class ServicesSection extends StatelessWidget {
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          title,
-          style: AppTypography.caption.copyWith(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade800,
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: AppTypography.caption.copyWith(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isDarkMode ? Colors.grey.shade300 : Colors.grey.shade800,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

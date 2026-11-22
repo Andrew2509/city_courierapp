@@ -1,11 +1,12 @@
-import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/profile/keamanan_akun/widgets/transaction_pin_prompt_sheet.dart';
-import 'package:city_courierapp/screens/wallet/payout_destinations_screen.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class CustomerWithdrawalScreen extends StatefulWidget {
   final CustomerWalletSummary wallet;
@@ -23,12 +24,42 @@ class CustomerWithdrawalScreen extends StatefulWidget {
 }
 
 class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
+  static const List<(String, String)> _defaultBankChannels = [
+    ('ID_BCA', 'Bank BCA'),
+    ('ID_BRI', 'Bank BRI'),
+    ('ID_BNI', 'Bank BNI'),
+    ('ID_MANDIRI', 'Bank Mandiri'),
+    ('ID_PERMATA', 'Bank Permata'),
+    ('ID_CIMB', 'Bank CIMB Niaga'),
+    ('ID_BSI', 'Bank Syariah Indonesia (BSI)'),
+  ];
+
+  static const List<(String, String)> _defaultEwalletChannels = [
+    ('ID_DANA', 'DANA'),
+    ('ID_OVO', 'OVO'),
+    ('ID_GOPAY', 'GoPay'),
+    ('ID_SHOPEEPAY', 'ShopeePay'),
+    ('ID_LINKAJA', 'LinkAja'),
+  ];
+
   late final CustomerWalletService _service =
       widget.service ?? CustomerWalletService.instance;
+  final TextEditingController _numberCtrl = TextEditingController();
+  final TextEditingController _holderCtrl = TextEditingController();
   final TextEditingController _amountCtrl = TextEditingController();
+  late final DestinationNameInquiryController _inquiry =
+      DestinationNameInquiryController(
+    inquireFn: _service.inquireDestination,
+  );
+
+  List<(String, String)> _bankChannels = _defaultBankChannels;
+  List<(String, String)> _ewalletChannels = _defaultEwalletChannels;
   List<PayoutDestinationV1> _destinations = [];
   List<PayoutTransactionV1> _history = [];
-  PayoutDestinationV1? _selectedDest;
+  PayoutDestinationV1? _selectedSavedDest;
+  String _selectedType = 'bank';
+  String _selectedChannelCode = _defaultBankChannels.first.$1;
+  bool _showManualNameField = false;
   bool _loading = true;
   bool _submitting = false;
   String? _error;
@@ -36,18 +67,71 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
   @override
   void initState() {
     super.initState();
+    _inquiry.addListener(_onInquiryUpdated);
     _load();
   }
 
   @override
   void dispose() {
+    _inquiry.removeListener(_onInquiryUpdated);
+    _inquiry.dispose();
+    _numberCtrl.dispose();
+    _holderCtrl.dispose();
     _amountCtrl.dispose();
     super.dispose();
   }
 
+  void _onInquiryUpdated() {
+    if (mounted) setState(() {});
+  }
+
+  bool _isEwallet(PayoutDestinationV1 d) =>
+      d.destinationType.toLowerCase().contains('wallet');
+
+  List<(String, String)> get _activeChannels =>
+      _selectedType == 'ewallet' ? _ewalletChannels : _bankChannels;
+
+  List<PayoutDestinationV1> get _savedForCurrentType => _destinations
+      .where(
+        (d) => _selectedType == 'ewallet' ? _isEwallet(d) : !_isEwallet(d),
+      )
+      .toList();
+
+  String get _selectedChannelLabel {
+    for (final c in _activeChannels) {
+      if (c.$1 == _selectedChannelCode) return c.$2;
+    }
+    return _selectedSavedDest?.channelName.isNotEmpty == true
+        ? _selectedSavedDest!.channelName
+        : _selectedChannelCode;
+  }
+
+  String get _accountDigits =>
+      _numberCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
+
   int get _parsedAmount {
     final digits = _amountCtrl.text.replaceAll(RegExp(r'[^\d]'), '');
     return int.tryParse(digits) ?? 0;
+  }
+
+  String? _matchChannelCode(String rawCode, String type) {
+    final channels = type == 'ewallet' ? _ewalletChannels : _bankChannels;
+    final norm = rawCode.trim().toUpperCase();
+    for (final c in channels) {
+      if (c.$1 == norm || c.$1.replaceFirst('ID_', '') == norm) {
+        return c.$1;
+      }
+    }
+    return null;
+  }
+
+  void _scheduleInquiry() {
+    _inquiry.schedule(
+      destinationType: _selectedType,
+      channelCode: _selectedChannelCode,
+      rawNumber: _numberCtrl.text,
+      holderController: _holderCtrl,
+    );
   }
 
   Future<void> _load() async {
@@ -57,16 +141,50 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     });
     try {
       final results = await Future.wait([
-        _service.getDestinations(),
+        _service.getDestinationsBundle(),
         _service.getWithdrawals(),
       ]);
       if (!mounted) return;
-      final dests = results[0] as List<PayoutDestinationV1>;
+      final bundle = results[0] as PayoutDestinationsBundle;
+      final nextBanks =
+          bundle.hasServerChannels ? bundle.bankChannels : _defaultBankChannels;
+      final nextEwallets = bundle.hasServerChannels
+          ? bundle.ewalletChannels
+          : _defaultEwalletChannels;
+      final dests = bundle.items;
+      final defaultDest = dests.isNotEmpty
+          ? dests.firstWhere((d) => d.isDefault, orElse: () => dests.first)
+          : null;
+      final resolvedType = defaultDest != null
+          ? (_isEwallet(defaultDest) ? 'ewallet' : 'bank')
+          : _selectedType;
+      final matching = dests
+          .where(
+            (d) => resolvedType == 'ewallet' ? _isEwallet(d) : !_isEwallet(d),
+          )
+          .toList();
+      final savedDest = matching.isNotEmpty
+          ? matching.firstWhere(
+              (d) => d.isDefault,
+              orElse: () => matching.first,
+            )
+          : null;
+      final channels = resolvedType == 'ewallet' ? nextEwallets : nextBanks;
+
       setState(() {
+        _bankChannels = nextBanks;
+        _ewalletChannels = nextEwallets;
         _destinations = dests;
-        _selectedDest = dests.isNotEmpty
-            ? dests.firstWhere((d) => d.isDefault, orElse: () => dests.first)
+        _selectedType = resolvedType;
+        _selectedSavedDest = savedDest;
+        final matchedCode = savedDest != null
+            ? _matchChannelCode(savedDest.channelCode, resolvedType)
             : null;
+        _selectedChannelCode =
+            matchedCode ?? (channels.isNotEmpty ? channels.first.$1 : '');
+        if (savedDest != null && _numberCtrl.text.trim().isEmpty) {
+          _holderCtrl.text = savedDest.accountHolderName;
+        }
         _history = results[1] as List<PayoutTransactionV1>;
         _loading = false;
       });
@@ -79,13 +197,55 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     }
   }
 
+  void _selectType(String type) {
+    if (_selectedType == type) return;
+    final channels = type == 'ewallet' ? _ewalletChannels : _bankChannels;
+    final matching = _destinations
+        .where((d) => type == 'ewallet' ? _isEwallet(d) : !_isEwallet(d))
+        .toList();
+    final savedDest = matching.isNotEmpty
+        ? matching.firstWhere((d) => d.isDefault, orElse: () => matching.first)
+        : null;
+    final matchedCode =
+        savedDest != null ? _matchChannelCode(savedDest.channelCode, type) : null;
+
+    setState(() {
+      _selectedType = type;
+      _selectedSavedDest = savedDest;
+      _selectedChannelCode =
+          matchedCode ?? (channels.isNotEmpty ? channels.first.$1 : '');
+      _numberCtrl.clear();
+      _holderCtrl.text = savedDest?.accountHolderName ?? '';
+      _showManualNameField = false;
+      _inquiry.reset();
+    });
+  }
+
+  void _applySavedDestination(PayoutDestinationV1 dest) {
+    final matchedCode = _matchChannelCode(dest.channelCode, _selectedType);
+    setState(() {
+      _selectedSavedDest = dest;
+      if (matchedCode != null) {
+        _selectedChannelCode = matchedCode;
+      }
+      _numberCtrl.clear();
+      _holderCtrl.text = dest.accountHolderName;
+      _showManualNameField = false;
+      _inquiry.reset();
+    });
+  }
+
   String? get _validationError {
     if (!widget.wallet.withdrawalEnabled) {
       return widget.wallet.withdrawalBlockedReason ??
           'Penarikan dana saat ini tidak tersedia.';
     }
-    if (_selectedDest == null) {
-      return 'Tambahkan rekening atau e-wallet tujuan terlebih dahulu.';
+    final usingSaved =
+        _selectedSavedDest != null && _accountDigits.isEmpty;
+    if (!usingSaved && _accountDigits.length < 6) {
+      return _selectedType == 'ewallet'
+          ? 'Masukkan nomor telepon e-wallet minimal 6 digit.'
+          : 'Masukkan nomor rekening bank minimal 6 digit.';
     }
     final amount = _parsedAmount;
     if (amount <= 0) return 'Masukkan nominal penarikan.';
@@ -107,37 +267,57 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     });
   }
 
-  Future<void> _openDestinations() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PayoutDestinationsScreen(service: _service),
-      ),
-    );
-    if (mounted) await _load();
-  }
-
   Future<void> _submit() async {
-    final dest = _selectedDest;
+    final digits = _accountDigits;
+    final usingSaved = _selectedSavedDest != null && digits.isEmpty;
     final amount = _parsedAmount;
-    if (dest == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tambahkan rekening/e-wallet tujuan terlebih dahulu.'),
-        ),
+    final isEwallet = _selectedType == 'ewallet';
+
+    if (!usingSaved && digits.length < 6) {
+      CityWalletUi.showSnackBar(
+        context,
+        isEwallet
+            ? 'Masukkan nomor telepon e-wallet dengan valid.'
+            : 'Masukkan nomor rekening tujuan dengan valid.',
       );
       return;
     }
+
     if (amount < widget.wallet.withdrawalMinIdr ||
+        amount > widget.wallet.withdrawalMaxIdr ||
         amount > widget.wallet.availableBalance) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Nominal harus minimal ${formatRupiah(widget.wallet.withdrawalMinIdr)} dan tidak melebihi saldo tersedia.',
-          ),
-        ),
+      CityWalletUi.showSnackBar(
+        context,
+        'Nominal harus minimal ${formatRupiah(widget.wallet.withdrawalMinIdr)} dan tidak melebihi saldo tersedia.',
       );
       return;
+    }
+
+    String resolvedHolder = _holderCtrl.text.trim();
+    if (!usingSaved && resolvedHolder.isEmpty) {
+      try {
+        final inquiry = await _service.inquireDestination(
+          destinationType: _selectedType,
+          channelCode: _selectedChannelCode,
+          accountNumber: digits,
+        );
+        if (!mounted) return;
+        if (inquiry.found && inquiry.accountHolderName != null) {
+          resolvedHolder = inquiry.accountHolderName!.trim();
+          _holderCtrl.text = resolvedHolder;
+        }
+      } catch (_) {
+        // Biarkan pengguna mengisi nama secara manual bila inquiry gagal.
+      }
+      if (!mounted) return;
+      if (resolvedHolder.isEmpty) {
+        setState(() => _showManualNameField = true);
+        CityWalletUi.showSnackBar(
+          context,
+          'Masukkan nama pemilik akun terlebih dahulu.',
+        );
+        return;
+      }
     }
 
     String? pin;
@@ -151,23 +331,42 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     }
 
     setState(() => _submitting = true);
+    int? resolvedDestId;
     try {
+      if (usingSaved) {
+        resolvedDestId = _selectedSavedDest!.id;
+      } else {
+        final created = await _service.addDestination(
+          destinationType: _selectedType,
+          channelCode: _selectedChannelCode,
+          accountNumber: digits,
+          accountHolderName: resolvedHolder,
+          isDefault: true,
+        );
+        resolvedDestId = created.id;
+      }
+
       await _service.requestWithdrawal(
         amount: amount,
-        destinationId: dest.id,
+        destinationId: resolvedDestId,
         transactionPin: pin,
       );
       if (!mounted) return;
       _amountCtrl.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permintaan penarikan dana berhasil dikirim.'),
-          backgroundColor: Color(0xFF16A34A),
-        ),
+      _numberCtrl.clear();
+      _holderCtrl.clear();
+      _inquiry.reset();
+      _showManualNameField = false;
+      CityWalletUi.showSnackBar(
+        context,
+        'Permintaan penarikan dana berhasil dikirim.',
+        backgroundColor: CityWalletUi.successGreen,
       );
       _load();
     } on WalletApiException catch (e) {
-      if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' && mounted) {
+      if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' &&
+          mounted &&
+          resolvedDestId != null) {
         setState(() => _submitting = false);
         final prompted = await TransactionPinPromptSheet.show(
           context,
@@ -179,44 +378,44 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
         try {
           await _service.requestWithdrawal(
             amount: amount,
-            destinationId: dest.id,
+            destinationId: resolvedDestId,
             transactionPin: prompted,
           );
           if (!mounted) return;
           _amountCtrl.clear();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan penarikan dana berhasil dikirim.'),
-              backgroundColor: Color(0xFF16A34A),
-            ),
+          _numberCtrl.clear();
+          _holderCtrl.clear();
+          _inquiry.reset();
+          _showManualNameField = false;
+          CityWalletUi.showSnackBar(
+            context,
+            'Permintaan penarikan dana berhasil dikirim.',
+            backgroundColor: CityWalletUi.successGreen,
           );
           _load();
           return;
         } catch (err) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(err.toString()),
-              backgroundColor: CityWalletUi.errorRed,
-            ),
+          CityWalletUi.showSnackBar(
+            context,
+            err.toString(),
+            backgroundColor: CityWalletUi.errorRed,
           );
           return;
         }
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: CityWalletUi.errorRed,
-        ),
+      CityWalletUi.showSnackBar(
+        context,
+        e.toString(),
+        backgroundColor: CityWalletUi.errorRed,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: CityWalletUi.errorRed,
-        ),
+      CityWalletUi.showSnackBar(
+        context,
+        e.toString(),
+        backgroundColor: CityWalletUi.errorRed,
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -228,89 +427,123 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     final locked = !widget.wallet.withdrawalEnabled;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            CityWalletUi.buildHeader(
-              context,
-              title: 'Tarik Dana',
-            ),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primaryOrange,
-                      ),
-                    )
-                  : _error != null
-                      ? WalletErrorState(message: _error!, onRetry: _load)
-                      : RefreshIndicator(
-                          color: AppColors.primaryOrange,
-                          onRefresh: _load,
-                          child: ListView(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      backgroundColor: CityWalletUi.scaffoldBg(context),
+      appBar: CityWalletUi.buildAppBar(context, title: 'Tarik Dana'),
+      body: Column(
+        children: [
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: CityWalletUi.primaryColor,
+                    ),
+                  )
+                : _error != null
+                    ? WalletErrorState(message: _error!, onRetry: _load)
+                    : RefreshIndicator(
+                        color: CityWalletUi.primaryColor,
+                        onRefresh: _load,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (locked) _buildLockedBanner(),
                               _buildBalanceCard(),
-                              const SizedBox(height: 20),
-                              _buildDestinationSection(locked),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 16),
+                              _buildDestinationTypeSection(),
+                              const SizedBox(height: 16),
+                              _buildDestinationInfoSection(locked),
+                              const SizedBox(height: 16),
                               _buildAmountSection(locked),
+                              const SizedBox(height: 16),
+                              _buildSummarySection(),
                               const SizedBox(height: 20),
-                              _buildSummaryCard(),
-                              const SizedBox(height: 24),
                               _buildHistorySection(),
                             ],
                           ),
                         ),
-            ),
-            if (!_loading && _error == null)
-              CityWalletUi.stickyBottomBar(
-                context,
-                securityNote:
-                    'Dana ditarik ke rekening/e-wallet terverifikasi sesuai kebijakan layanan.',
-                child: ElevatedButton(
-                  onPressed: (locked || _submitting) ? null : _submit,
-                  style: CityWalletUi.primaryButtonStyle(
-                    enabled: !locked && !_submitting,
-                  ),
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          locked
-                              ? (!widget.wallet.withdrawalProviderEnabled
-                                  ? 'Gateway Pencairan Dinonaktifkan'
-                                  : 'Tidak Tersedia di Production')
-                              : 'Ajukan Penarikan',
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                      ),
+          ),
+          if (!_loading && _error == null)
+            CityWalletUi.stickyBottomBar(
+              context,
+              securityIcon: Icons.verified_user_outlined,
+              securityNote:
+                  'Dana akan ditarik ke rekening/e-wallet atas nama Anda sesuai kebijakan layanan.',
+              child: ElevatedButton(
+                onPressed: (locked || _submitting) ? null : _submit,
+                style: CityWalletUi.primaryButtonStyle(
+                  enabled: !locked && !_submitting,
+                  context: context,
                 ),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        locked
+                            ? (!widget.wallet.withdrawalProviderEnabled
+                                ? 'Gateway Pencairan Dinonaktifkan'
+                                : 'Tidak Tersedia di Production')
+                            : 'Ajukan Penarikan',
+                      ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
+    );
+  }
+
+  Widget _stepHeader(String step, String title) {
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            color: CityWalletUi.primaryColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            step,
+            style: AppTypography.caption.copyWith(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              height: 1.0,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: AppTypography.titleSmall.copyWith(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+              color: CityWalletUi.ink(context),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildLockedBanner() {
     return Container(
       padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: const Color(0xFFFEF3C7),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFF59E0B)),
       ),
       child: Row(
@@ -326,17 +559,21 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
                   !widget.wallet.withdrawalProviderEnabled
                       ? 'Gateway Pencairan Dinonaktifkan'
                       : 'Fitur Penarikan Terkunci di Production',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: Color(0xFF92400E),
+                  style: AppTypography.titleSmall.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                    color: const Color(0xFF92400E),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   widget.wallet.withdrawalBlockedReason ??
                       'Penarikan wallet pelanggan menunggu persetujuan regulasi & penyedia pembayaran.',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF78350F)),
+                  style: AppTypography.bodySmall.copyWith(
+                    fontSize: 12,
+                    color: const Color(0xFF78350F),
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -349,152 +586,462 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
   Widget _buildBalanceCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
       decoration: BoxDecoration(
-        color: AppColors.primaryOrange,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Saldo tersedia',
-                  style: TextStyle(fontSize: 12, color: Colors.white70),
-                ),
-              ),
-              EnvironmentModeBadge(
-                mode: widget.wallet.mode,
-                isSimulated: widget.wallet.isSandboxOrDemo,
-              ),
-            ],
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFFF832B),
+            Color(0xFFEC5B13),
+            Color(0xFFE04808),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: CityWalletUi.primaryColor.withValues(alpha: 0.24),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          const SizedBox(height: 4),
-          Text(
-            formatRupiah(widget.wallet.availableBalance),
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: -0.4,
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Saldo tersedia',
+                        style: AppTypography.caption.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    EnvironmentModeBadge(
+                      mode: widget.wallet.mode,
+                      isSimulated: widget.wallet.isSandboxOrDemo,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    formatRupiah(widget.wallet.availableBalance),
+                    style: AppTypography.headline1.copyWith(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 10),
+          const WalletHeroIllustration(),
         ],
       ),
     );
   }
 
-  Widget _buildDestinationSection(bool locked) {
+  Widget _buildDestinationTypeSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CityWalletUi.fieldLabel(
-          'Rekening Tujuan',
-          trailing: TextButton(
-            onPressed: _openDestinations,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primaryOrange,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        _stepHeader('1', 'Pilih Tujuan Penarikan'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _typeOptionCard(
+                label: 'Rekening Bank',
+                icon: Icons.account_balance_rounded,
+                selected: _selectedType == 'bank',
+                onTap: () => _selectType('bank'),
+              ),
             ),
-            child: const Text(
-              'Kelola Rekening',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _typeOptionCard(
+                label: 'E-Wallet',
+                icon: Icons.account_balance_wallet_rounded,
+                selected: _selectedType == 'ewallet',
+                onTap: () => _selectType('ewallet'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _typeOptionCard({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final dark = CityWalletUi.isDark(context);
+    return Material(
+      color: selected
+          ? (dark
+              ? CityWalletUi.primaryColor.withValues(alpha: 0.16)
+              : const Color(0xFFFFF5EE))
+          : CityWalletUi.cardBg(context),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? CityWalletUi.primaryColor
+                  : CityWalletUi.lineColor(context),
+              width: selected ? 1.5 : 1,
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        if (_destinations.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: CityWalletUi.borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Belum ada rekening bank atau e-wallet tujuan.',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: CityWalletUi.inkSecondary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: _openDestinations,
-                  style: CityWalletUi.secondaryButtonStyle(
-                    borderTint: AppColors.primaryOrange.withValues(alpha: 0.45),
-                    fgColor: AppColors.primaryOrange,
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text(
-                    'Tambah Rekening / E-Wallet',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          DropdownButtonFormField<int>(
-            initialValue: _selectedDest?.id,
-            isExpanded: true,
-            icon: const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: CityWalletUi.inkSecondary,
-            ),
-            decoration: CityWalletUi.inputDecoration(
-              hintText: 'Pilih rekening tujuan',
-              prefixIcon: Container(
-                margin: const EdgeInsets.only(left: 10, right: 8),
-                width: 34,
-                height: 34,
+          child: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                  color: CityWalletUi.primaryColor.withValues(
+                    alpha: selected ? 0.14 : 0.1,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  _selectedDest?.destinationType == 'ewallet'
-                      ? Icons.account_balance_wallet_outlined
-                      : Icons.account_balance_outlined,
-                  size: 18,
-                  color: AppColors.primaryOrange,
+                  icon,
+                  size: 17,
+                  color: CityWalletUi.primaryColor,
                 ),
               ),
-            ),
-            items: _destinations
-                .map(
-                  (d) => DropdownMenuItem(
-                    value: d.id,
-                    child: Text(
-                      '${d.channelName} • ${d.accountNumberMasked}',
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: CityWalletUi.inkPrimary,
-                      ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: CityWalletUi.ink(context),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: selected
+                        ? CityWalletUi.primaryColor
+                        : CityWalletUi.mutedInk(context),
+                    width: 1.6,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: selected
+                    ? Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: CityWalletUi.primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                      )
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDestinationInfoSection(bool locked) {
+    final isEwallet = _selectedType == 'ewallet';
+    final channels = _activeChannels;
+    final savedList = _savedForCurrentType;
+    final shouldShowNameInput = _showManualNameField ||
+        _accountDigits.length >= 6 ||
+        (_inquiry.result != null && !_inquiry.result!.found) ||
+        _inquiry.errorMessage != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _stepHeader('2', 'Masukkan Informasi Tujuan'),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: CityWalletUi.cardDecoration(context, radius: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (savedList.isNotEmpty) ...[
+                Text(
+                  'Tujuan terakhir digunakan',
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: CityWalletUi.secondaryInk(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: savedList.map((d) {
+                      final isActiveSaved =
+                          _selectedSavedDest?.id == d.id &&
+                          _accountDigits.isEmpty;
+                      final numLabel = d.accountNumberMasked.isNotEmpty
+                          ? ' • ${d.accountNumberMasked}'
+                          : '';
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(
+                            '${d.channelName.isNotEmpty ? d.channelName : d.channelCode}$numLabel',
+                            style: AppTypography.caption.copyWith(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: isActiveSaved
+                                  ? CityWalletUi.primaryColor
+                                  : CityWalletUi.ink(context),
+                            ),
+                          ),
+                          selected: isActiveSaved,
+                          showCheckmark: false,
+                          selectedColor:
+                              CityWalletUi.primaryColor.withValues(alpha: 0.1),
+                          backgroundColor: CityWalletUi.subtleBg(context),
+                          side: BorderSide(
+                            color: isActiveSaved
+                                ? CityWalletUi.primaryColor
+                                : CityWalletUi.lineColor(context),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          onSelected: locked
+                              ? null
+                              : (_) => _applySavedDestination(d),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text(
+                isEwallet ? 'Pilih E-Wallet' : 'Pilih Bank',
+                style: AppTypography.caption.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: CityWalletUi.secondaryInk(context),
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (channels.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: CityWalletUi.subtleBg(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: CityWalletUi.lineColor(context)),
+                  ),
+                  child: Text(
+                    isEwallet
+                        ? 'Tidak tersedia — tidak ada saluran e-wallet Xendit yang didukung saat ini.'
+                        : 'Tidak tersedia — tidak ada bank tujuan Xendit yang didukung saat ini.',
+                    style: CityWalletUi.captionStyle(context).copyWith(
+                      fontSize: 12,
+                      color: CityWalletUi.secondaryInk(context),
                     ),
                   ),
                 )
-                .toList(),
-            onChanged: locked
-                ? null
-                : (id) {
-                    if (id == null) return;
-                    setState(() {
-                      _selectedDest =
-                          _destinations.firstWhere((d) => d.id == id);
-                    });
-                  },
+              else
+                DropdownButtonFormField<String>(
+                  key: ValueKey('chan_${_selectedType}_$_selectedChannelCode'),
+                  initialValue: channels.any((c) => c.$1 == _selectedChannelCode)
+                      ? _selectedChannelCode
+                      : channels.first.$1,
+                  isExpanded: true,
+                  dropdownColor: CityWalletUi.cardBg(context),
+                  icon: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: CityWalletUi.secondaryInk(context),
+                  ),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: CityWalletUi.cardBg(context),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: CityWalletUi.lineColor(context),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: CityWalletUi.lineColor(context),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: CityWalletUi.primaryColor,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  items: channels
+                      .map(
+                        (c) => DropdownMenuItem<String>(
+                          value: c.$1,
+                          child: Row(
+                            children: [
+                              PaymentBrandLogo(
+                                method: c.$2,
+                                size: 28,
+                                width: 44,
+                                borderRadius: 6,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  c.$2,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: CityWalletUi.cardTitleStyle(context)
+                                      .copyWith(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: locked
+                      ? null
+                      : (val) {
+                          if (val == null) return;
+                          setState(() {
+                            _selectedChannelCode = val;
+                            if (_selectedSavedDest != null &&
+                                _matchChannelCode(
+                                      _selectedSavedDest!.channelCode,
+                                      _selectedType,
+                                    ) !=
+                                    val) {
+                              _selectedSavedDest = null;
+                            }
+                          });
+                          _scheduleInquiry();
+                        },
+                ),
+              const SizedBox(height: 12),
+              Text(
+                isEwallet ? 'Nomor Telepon E-Wallet' : 'Nomor Rekening',
+                style: AppTypography.caption.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: CityWalletUi.secondaryInk(context),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _numberCtrl,
+                enabled: !locked,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (val) {
+                  setState(() {
+                    if (val.trim().isNotEmpty) {
+                      _selectedSavedDest = null;
+                    }
+                  });
+                  _scheduleInquiry();
+                },
+                style: AppTypography.bodyMedium.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: CityWalletUi.ink(context),
+                ),
+                decoration: CityWalletUi.inputDecoration(
+                  context: context,
+                  hintText: _selectedSavedDest != null &&
+                          _selectedSavedDest!.accountNumberMasked.isNotEmpty
+                      ? 'Tersimpan: ${_selectedSavedDest!.accountNumberMasked} (atau ketik baru)'
+                      : (isEwallet
+                          ? 'Masukkan nomor telepon e-wallet'
+                          : 'Masukkan nomor rekening'),
+                ),
+              ),
+              DestinationInquiryStatusBanner(
+                controller: _inquiry,
+                onUseDetectedName: () => _inquiry.restoreAutoFill(_holderCtrl),
+              ),
+              if (shouldShowNameInput) ...[
+                const SizedBox(height: 12),
+                CityWalletUi.fieldLabel(
+                  isEwallet ? 'Nama Pemilik Akun' : 'Nama Pemilik Rekening',
+                  context: context,
+                  trailing: WalletStatusChip(
+                    status: _inquiry.hasAutoFilled
+                        ? 'auto_verified'
+                        : (_inquiry.result?.verificationStatus ?? 'unverified'),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _holderCtrl,
+                  enabled: !locked,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (val) => _inquiry.onManualNameEdited(val),
+                  style: AppTypography.bodySmall.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: CityWalletUi.ink(context),
+                  ),
+                  decoration: CityWalletUi.inputDecoration(
+                    context: context,
+                    hintText: 'Nama pemilik sesuai akun',
+                  ),
+                ),
+              ],
+            ],
           ),
+        ),
       ],
     );
   }
@@ -507,28 +1054,79 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CityWalletUi.fieldLabel('Nominal Penarikan (IDR)'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _amountCtrl,
-          enabled: !locked,
-          keyboardType: TextInputType.number,
-          inputFormatters: const [RupiahDigitsInputFormatter()],
-          onChanged: (_) => setState(() {}),
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: CityWalletUi.inkPrimary,
+        _stepHeader('3', 'Nominal Penarikan'),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: CityWalletUi.cardBg(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: CityWalletUi.lineColor(context)),
           ),
-          decoration: CityWalletUi.inputDecoration(
-            hintText: '0',
-            prefixText: 'Rp ',
-            prefixStyle: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: CityWalletUi.inkMuted,
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: CityWalletUi.subtleBg(context),
+                    border: Border(
+                      right: BorderSide(
+                        color: CityWalletUi.lineColor(context),
+                      ),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Rp',
+                    style: AppTypography.titleSmall.copyWith(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: CityWalletUi.secondaryInk(context),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _amountCtrl,
+                    enabled: !locked,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: const [RupiahDigitsInputFormatter()],
+                    onChanged: (_) => setState(() {}),
+                    style: AppTypography.titleMedium.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: CityWalletUi.ink(context),
+                    ),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      hintText: 'Masukkan nominal penarikan',
+                      hintStyle: AppTypography.bodyMedium.copyWith(
+                        fontSize: 14,
+                        color: CityWalletUi.mutedInk(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Minimal ${formatRupiah(min)} • Maksimal ${formatRupiah(max)}',
+          style: CityWalletUi.captionStyle(context).copyWith(fontSize: 11.5),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -541,11 +1139,6 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
             if (avail >= 500000) _quickChip('Rp 500.000', 500000, locked),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Minimal ${formatRupiah(min)} • Maksimal ${formatRupiah(max)}',
-          style: const TextStyle(fontSize: 11.5, color: CityWalletUi.inkMuted),
-        ),
       ],
     );
   }
@@ -556,79 +1149,130 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     return ActionChip(
       label: Text(
         label,
-        style: TextStyle(
-          fontSize: 11.5,
+        style: AppTypography.caption.copyWith(
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           color: !enabled
-              ? const Color(0xFFCBD5E1)
-              : (selected ? AppColors.primaryOrange : CityWalletUi.inkSecondary),
+              ? CityWalletUi.mutedInk(context)
+              : (selected
+                  ? CityWalletUi.primaryColor
+                  : CityWalletUi.secondaryInk(context)),
         ),
       ),
-      backgroundColor:
-          selected ? AppColors.primaryOrange.withValues(alpha: 0.08) : Colors.white,
+      backgroundColor: selected
+          ? CityWalletUi.primaryColor.withValues(alpha: 0.10)
+          : CityWalletUi.cardBg(context),
       side: BorderSide(
-        color: selected ? AppColors.primaryOrange : CityWalletUi.borderColor,
+        color: selected
+            ? CityWalletUi.primaryColor
+            : CityWalletUi.lineColor(context),
+        width: selected ? 1.5 : 1,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onPressed: enabled ? () => _setQuickAmount(value) : null,
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummarySection() {
     final amount = _parsedAmount;
-    final destText = _selectedDest == null
-        ? 'Belum dipilih'
-        : '${_selectedDest!.channelName} (${_selectedDest!.accountNumberMasked})';
+    final isEwallet = _selectedType == 'ewallet';
+    final displayNumber = _accountDigits.isNotEmpty
+        ? _accountDigits
+        : (_selectedSavedDest != null &&
+                _selectedSavedDest!.accountNumberMasked.isNotEmpty
+            ? _selectedSavedDest!.accountNumberMasked
+            : '-');
+    final holderName = _holderCtrl.text.trim().isNotEmpty
+        ? _holderCtrl.text.trim()
+        : (_selectedSavedDest?.accountHolderName ?? '');
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: CityWalletUi.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Rincian',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: CityWalletUi.inkPrimary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _summaryRow('Nominal penarikan', formatRupiah(amount)),
-          _summaryRow('Tujuan', destText),
-          if (amount > 0 && _validationError != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _validationError!,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: CityWalletUi.errorRed,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _stepHeader('4', 'Konfirmasi Penarikan'),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: CityWalletUi.cardDecoration(context, radius: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _summaryRow(
+                'Tujuan Penarikan',
+                isEwallet ? 'E-Wallet' : 'Rekening Bank',
               ),
-            ),
-          ],
-        ],
-      ),
+              _summaryRow(
+                isEwallet ? 'E-Wallet' : 'Bank',
+                _selectedChannelLabel,
+              ),
+              _summaryRow(
+                isEwallet ? 'Nomor Telepon' : 'Nomor Rekening',
+                displayNumber,
+              ),
+              if (holderName.isNotEmpty) _summaryRow('Atas Nama', holderName),
+              if (amount > 0 && _validationError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _validationError!,
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 11.5,
+                    color: CityWalletUi.errorRed,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: CityWalletUi.isDark(context)
+                      ? CityWalletUi.primaryColor.withValues(alpha: 0.16)
+                      : const Color(0xFFFFF3E8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Nominal Penarikan',
+                        style: AppTypography.titleSmall.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: CityWalletUi.primaryColor,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      formatRupiah(amount),
+                      style: AppTypography.headline2.copyWith(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: CityWalletUi.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _summaryRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: CityWalletUi.inkSecondary,
-              ),
+              style: CityWalletUi.bodyStyle(context).copyWith(fontSize: 12.5),
             ),
           ),
           Flexible(
@@ -636,10 +1280,9 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
               value,
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: CityWalletUi.inkPrimary,
+              style: CityWalletUi.cardTitleStyle(context).copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -652,37 +1295,28 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Riwayat Penarikan',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: CityWalletUi.inkPrimary,
-          ),
+          style: CityWalletUi.sectionTitleStyle(context),
         ),
         const SizedBox(height: 10),
         if (_history.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: CityWalletUi.borderColor),
-            ),
-            child: const Column(
+            decoration: CityWalletUi.cardDecoration(context, radius: 16),
+            child: Column(
               children: [
                 Icon(
                   Icons.receipt_long_outlined,
-                  size: 30,
-                  color: Color(0xFFCBD5E1),
+                  size: 34,
+                  color: CityWalletUi.mutedInk(context),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   'Belum ada riwayat penarikan.',
-                  style: TextStyle(
+                  style: CityWalletUi.bodyStyle(context).copyWith(
                     fontSize: 12.5,
-                    color: CityWalletUi.inkSecondary,
                   ),
                 ),
               ],
@@ -691,13 +1325,9 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
         else
           ..._history.map(
             (w) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
+              margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: CityWalletUi.borderColor),
-              ),
+              decoration: CityWalletUi.cardDecoration(context, radius: 14),
               child: Row(
                 children: [
                   Expanded(
@@ -706,18 +1336,13 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
                       children: [
                         Text(
                           formatRupiah(w.amount),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: CityWalletUi.inkPrimary,
-                          ),
+                          style: CityWalletUi.cardTitleStyle(context),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Text(
                           '${w.channelCode} • ${w.accountNumberMasked}\n${w.reference}',
-                          style: const TextStyle(
+                          style: CityWalletUi.bodyStyle(context).copyWith(
                             fontSize: 12,
-                            color: CityWalletUi.inkSecondary,
                           ),
                         ),
                       ],

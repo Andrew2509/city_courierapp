@@ -2,13 +2,19 @@ import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/courier_wallet_ui.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
+import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AddEwalletAccountScreen extends StatefulWidget {
   final CourierWalletV1Service? service;
+  final List<(String, String)>? supportedChannels;
 
-  const AddEwalletAccountScreen({super.key, this.service});
+  const AddEwalletAccountScreen({
+    super.key,
+    this.service,
+    this.supportedChannels,
+  });
 
   @override
   State<AddEwalletAccountScreen> createState() =>
@@ -22,22 +28,44 @@ class _AddEwalletAccountScreenState extends State<AddEwalletAccountScreen> {
   final TextEditingController _holderCtrl = TextEditingController();
   late final DestinationNameInquiryController _inquiry =
       DestinationNameInquiryController(inquireFn: _service.inquireDestination);
-  String _channelCode = 'ID_DANA';
+  late List<(String, String)> _ewallets =
+      widget.supportedChannels ?? _defaultEwallets;
+  late String _channelCode =
+      _ewallets.isNotEmpty ? _ewallets.first.$1 : 'ID_DANA';
   bool _setAsDefault = true;
   bool _saving = false;
 
-  static const _ewallets = [
-    ('ID_DANA', 'DANA', Color(0xFF118EEA)),
-    ('ID_OVO', 'OVO', Color(0xFF4C3494)),
-    ('ID_GOPAY', 'GoPay', Color(0xFF00AED6)),
-    ('ID_SHOPEEPAY', 'ShopeePay', Color(0xFFEE4D2D)),
-    ('ID_LINKAJA', 'LinkAja', Color(0xFFE31E24)),
+  static const _defaultEwallets = [
+    ('ID_GOPAY', 'GoPay'),
+    ('ID_DANA', 'DANA'),
+    ('ID_OVO', 'OVO'),
+    ('ID_SHOPEEPAY', 'ShopeePay'),
+    ('ID_LINKAJA', 'LinkAja'),
   ];
 
   @override
   void initState() {
     super.initState();
     _inquiry.addListener(_onInquiryUpdated);
+    if (widget.supportedChannels == null) {
+      _loadSupportedChannels();
+    }
+  }
+
+  Future<void> _loadSupportedChannels() async {
+    try {
+      final bundle = await _service.getDestinationsBundle();
+      if (!mounted || !bundle.hasServerChannels) return;
+      setState(() {
+        _ewallets = bundle.ewalletChannels;
+        if (_ewallets.isNotEmpty &&
+            !_ewallets.any((e) => e.$1 == _channelCode)) {
+          _channelCode = _ewallets.first.$1;
+        }
+      });
+    } catch (_) {
+      // Tetap gunakan katalog default Xendit saat fetch kanal belum terjangkau.
+    }
   }
 
   void _onInquiryUpdated() {
@@ -125,23 +153,11 @@ class _AddEwalletAccountScreenState extends State<AddEwalletAccountScreen> {
                     children: _ewallets.map((item) {
                       final selected = _channelCode == item.$1;
                       return ChoiceChip(
-                        avatar: Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: item.$3,
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Center(
-                            child: Text(
-                              item.$2.substring(0, 1),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+                        avatar: PaymentBrandLogo(
+                          method: item.$2,
+                          size: 22,
+                          width: 30,
+                          borderRadius: 5,
                         ),
                         label: Text(
                           item.$2,
@@ -222,16 +238,12 @@ class _AddEwalletAccountScreenState extends State<AddEwalletAccountScreen> {
                   const SizedBox(height: 18),
                   CourierWalletUi.fieldLabel(
                     'Nama Pemilik Akun E-Wallet',
-                    trailing: _inquiry.hasAutoFilled
-                        ? const Text(
-                            'Terisi otomatis',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF15803D),
-                            ),
-                          )
-                        : null,
+                    trailing: WalletStatusChip(
+                      status: _inquiry.hasAutoFilled
+                          ? 'auto_verified'
+                          : (_inquiry.result?.verificationStatus ??
+                              'unverified'),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(

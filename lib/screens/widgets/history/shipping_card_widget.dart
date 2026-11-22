@@ -1,3 +1,4 @@
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:flutter/material.dart';
 
 class ShippingCardWidget extends StatelessWidget {
@@ -13,7 +14,7 @@ class ShippingCardWidget extends StatelessWidget {
   final VoidCallback onTrackPressed;
 
   const ShippingCardWidget({
-    Key? key,
+    super.key,
     required this.orderId,
     required this.status,
     required this.senderName,
@@ -24,24 +25,33 @@ class ShippingCardWidget extends StatelessWidget {
     required this.primaryColor,
     required this.isDarkMode,
     required this.onTrackPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    final Color labelColor = isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B); // slate-500
-    final Color borderColor = isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0); // slate-200
-    final Color cardBg = isDarkMode ? const Color(0xFF0F172A) : Colors.white; // dark:bg-slate-900
+    final Color inkPrimary =
+        isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final Color labelColor =
+        isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B);
+    final Color borderColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.08)
+        : const Color(0xFFE2E8F0);
+    final Color dividerColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFFF1F5F9);
+    final Color cardBg =
+        isDarkMode ? const Color(0xFF1E293B) : Colors.white;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor),
         boxShadow: [
           if (!isDarkMode)
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -49,42 +59,45 @@ class ShippingCardWidget extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header: ID and Status
+          // Header: No. Resi dan Status
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'No. Resi',
-                      style: TextStyle(
-                        color: labelColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.5,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No. Resi',
+                        style: AppTypography.caption.copyWith(
+                          color: labelColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      orderId,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: isDarkMode ? Colors.white : const Color(0xFF0F172A),
+                      const SizedBox(height: 2),
+                      Text(
+                        orderId,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.titleSmall.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: inkPrimary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 _buildStatusBadge(),
               ],
             ),
           ),
-          Divider(height: 1, color: isDarkMode ? Colors.white.withOpacity(0.05) : const Color(0xFFF1F5F9)), // slate-100
-          
-          // Content: Sender and Receiver
+          Divider(height: 1, color: dividerColor),
+
+          // Rute Pengirim dan Penerima
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -94,14 +107,22 @@ class ShippingCardWidget extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Column(
                     children: [
-                      Icon(Icons.radio_button_checked, color: primaryColor, size: 14),
+                      Icon(
+                        Icons.radio_button_checked,
+                        color: primaryColor,
+                        size: 14,
+                      ),
                       Container(
                         width: 1,
                         height: 32,
                         margin: const EdgeInsets.symmetric(vertical: 4),
-                        color: isDarkMode ? Colors.white.withOpacity(0.1) : const Color(0xFFE2E8F0), // slate-200
+                        color: borderColor,
                       ),
-                      const Icon(Icons.location_on, color: Color(0xFF94A3B8), size: 16), // slate-400
+                      const Icon(
+                        Icons.location_on,
+                        color: Color(0xFF94A3B8),
+                        size: 16,
+                      ),
                     ],
                   ),
                 ),
@@ -110,54 +131,76 @@ class ShippingCardWidget extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLocationInfo('Pengirim', '$senderName ($senderLoc)'),
-                      const SizedBox(height: 16),
-                      _buildLocationInfo('Penerima', '$receiverName ($receiverLoc)'),
+                      _buildLocationInfo(
+                        'Pengirim',
+                        '$senderName ($senderLoc)',
+                        inkPrimary,
+                        labelColor,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildLocationInfo(
+                        'Penerima',
+                        '$receiverName ($receiverLoc)',
+                        inkPrimary,
+                        labelColor,
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          
-          // Footer: Date and Track Button
+
+          // Footer: Tanggal dan Tombol Lacak
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today, color: labelColor, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      dateTime,
-                      style: TextStyle(
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
                         color: labelColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
+                        size: 14,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          dateTime,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption.copyWith(
+                            color: labelColor,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 10),
                 ElevatedButton(
                   onPressed: onTrackPressed,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
                     ),
-                  ),
-                  child: const Text(
-                    'Lacak',
-                    style: TextStyle(
+                    textStyle: AppTypography.titleSmall.copyWith(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                  child: const Text('Lacak'),
                 ),
               ],
             ),
@@ -170,63 +213,81 @@ class ShippingCardWidget extends StatelessWidget {
   Widget _buildStatusBadge() {
     Color bgColor;
     Color textColor;
-    
+
     switch (status) {
       case 'Dalam Perjalanan':
-        bgColor = primaryColor.withOpacity(0.1);
+        bgColor = primaryColor.withValues(alpha: 0.12);
         textColor = primaryColor;
         break;
       case 'Sedang Dijemput':
-        bgColor = isDarkMode ? Colors.white.withOpacity(0.05) : const Color(0xFFF1F5F9); // slate-100
-        textColor = isDarkMode ? Colors.grey.shade300 : const Color(0xFF475569); // slate-600
+        bgColor = isDarkMode
+            ? Colors.white.withValues(alpha: 0.08)
+            : const Color(0xFFF1F5F9);
+        textColor =
+            isDarkMode ? Colors.grey.shade300 : const Color(0xFF475569);
         break;
       case 'Tiba di Transit':
-        bgColor = Colors.amber.withOpacity(0.1);
-        textColor = const Color(0xFFB45309); // amber-700
+        bgColor = isDarkMode
+            ? const Color(0xFFF59E0B).withValues(alpha: 0.16)
+            : const Color(0xFFFEF3C7);
+        textColor =
+            isDarkMode ? const Color(0xFFFCD34D) : const Color(0xFFB45309);
         break;
       case 'Selesai':
-        bgColor = Colors.green.withOpacity(0.1);
-        textColor = Colors.green.shade700;
+        bgColor = isDarkMode
+            ? const Color(0xFF16A34A).withValues(alpha: 0.16)
+            : const Color(0xFFDCFCE7);
+        textColor =
+            isDarkMode ? const Color(0xFF86EFAC) : const Color(0xFF15803D);
         break;
       default:
-        bgColor = Colors.grey.withOpacity(0.1);
-        textColor = Colors.grey;
+        bgColor = isDarkMode
+            ? Colors.white.withValues(alpha: 0.08)
+            : const Color(0xFFF1F5F9);
+        textColor =
+            isDarkMode ? Colors.grey.shade300 : const Color(0xFF64748B);
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         status,
-        style: TextStyle(
+        style: AppTypography.caption.copyWith(
           color: textColor,
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 
-  Widget _buildLocationInfo(String label, String value) {
+  Widget _buildLocationInfo(
+    String label,
+    String value,
+    Color inkPrimary,
+    Color labelColor,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: isDarkMode ? Colors.grey.shade500 : const Color(0xFF64748B), // slate-500
-            fontSize: 11,
+          style: AppTypography.caption.copyWith(
+            color: labelColor,
+            fontSize: 11.5,
           ),
         ),
-        const SizedBox(height: 1),
+        const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(
+          style: AppTypography.bodySmall.copyWith(
             fontSize: 13,
             fontWeight: FontWeight.w600,
+            color: inkPrimary,
           ),
         ),
       ],

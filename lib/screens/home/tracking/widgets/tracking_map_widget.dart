@@ -42,13 +42,17 @@ class _TrackingMapWidgetState extends State<TrackingMapWidget> {
     switch (widget.tracking.status) {
       case TrackingStatus.pending:
       case TrackingStatus.confirmed:
+      case TrackingStatus.awaitingDropoff:
         return _ShipmentPhase.created;
       case TrackingStatus.assigned:
       case TrackingStatus.pickingUp:
+      case TrackingStatus.droppedOff:
+      case TrackingStatus.processing:
         return _ShipmentPhase.pickup;
       case TrackingStatus.pickedUp:
       case TrackingStatus.delivering:
       case TrackingStatus.inTransit:
+      case TrackingStatus.arrivedAtDestination:
         return _ShipmentPhase.transit;
       case TrackingStatus.delivered:
         return _ShipmentPhase.delivered;

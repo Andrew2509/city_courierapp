@@ -588,14 +588,13 @@ class WalletService {
     return '$cc${subscriber.substring(0, keep)}****${subscriber.substring(subscriber.length - 4)}';
   }
 
-  /// Preview nama pemilik akun DANA tujuan.
+  /// Preview nama pemilik akun e-wallet tujuan.
   ///
   /// GET /api/courier/withdrawals/destination-inquiry?phone=…
-  /// Sumber kebenaran = penyedia payout (iPaymu). Selama layanan payout
-  /// belum aktif / spec inquiry belum tersedia, backend membalas
-  /// { available: false, status: … } — service mengembalikan available
-  /// false TANPA menganggapnya gagal. 404 (server lama) = unavailable.
-  /// Mengembalikan null hanya saat jaringan error (kirim ulang nanti ok).
+  /// Sumber kebenaran = backend Xendit & Data Services Validator. Bila Name
+  /// Validator belum aktif, backend membalas { available: false,
+  /// verification_status: 'unverified' } — service mengembalikan available false
+  /// TANPA menganggapnya gagal. Mengembalikan null hanya saat jaringan error.
   static Future<Map<String, dynamic>?> fetchDestinationName(String phone) async {
     try {
       final uri = Uri.parse('$_baseUrl/courier/withdrawals/destination-inquiry')

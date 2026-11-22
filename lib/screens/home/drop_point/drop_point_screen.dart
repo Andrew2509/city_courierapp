@@ -8,7 +8,18 @@ import 'package:city_courierapp/models/drop_point.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DropPointScreen extends StatefulWidget {
-  const DropPointScreen({super.key});
+  final bool selectionMode;
+  final int? initialSelectedId;
+  final Future<List<dynamic>> Function()? dropPointsFetcher;
+  final Future<LatLng?> Function()? locationProvider;
+
+  const DropPointScreen({
+    super.key,
+    this.selectionMode = false,
+    this.initialSelectedId,
+    this.dropPointsFetcher,
+    this.locationProvider,
+  });
 
   @override
   State<DropPointScreen> createState() => _DropPointScreenState();
@@ -16,12 +27,15 @@ class DropPointScreen extends StatefulWidget {
 
 class _DropPointScreenState extends State<DropPointScreen> {
   final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
   LatLng? _currentLocation;
   bool _isLoadingLocation = false;
 
   bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
-  String selectedView = 'map'; // 'map' or 'list'
+  late String selectedView = widget.selectionMode ? 'list' : 'map';
   String selectedFilter = 'Semua';
+  String _searchQuery = '';
+  String? _loadError;
 
   @override
   void initState() {
@@ -30,29 +44,51 @@ class _DropPointScreenState extends State<DropPointScreen> {
     _fetchDropPoints();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   List<DropPoint> _dropPoints = [];
   bool _isLoadingPoints = false;
 
   Future<void> _fetchDropPoints() async {
-    setState(() => _isLoadingPoints = true);
+    setState(() {
+      _isLoadingPoints = true;
+      _loadError = null;
+    });
     try {
-      final data = await ApiService.getDropPoints();
+      final fetcher = widget.dropPointsFetcher ?? ApiService.getDropPoints;
+      final data = await fetcher();
       if (mounted) {
+        final parsed = data
+            .whereType<Map>()
+            .map((e) => DropPoint.fromJson(Map<String, dynamic>.from(e)))
+            .where((p) => !widget.selectionMode || p.isActive)
+            .toList();
         setState(() {
-          _dropPoints = data.map((e) => DropPoint.fromJson(e)).toList();
+          _dropPoints = parsed;
           _isLoadingPoints = false;
         });
 
         // Auto-center on first drop point if found
         if (_dropPoints.isNotEmpty) {
-          _mapController.move(
-            LatLng(_dropPoints[0].latitude, _dropPoints[0].longitude),
-            13.0,
-          );
+          try {
+            _mapController.move(
+              LatLng(_dropPoints[0].latitude, _dropPoints[0].longitude),
+              13.0,
+            );
+          } catch (_) {}
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoadingPoints = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingPoints = false;
+          _loadError = 'Gagal memuat lokasi Drop Point. Silakan coba lagi.';
+        });
+      }
     }
   }
 
@@ -60,7 +96,17 @@ class _DropPointScreenState extends State<DropPointScreen> {
     List<DropPoint> filtered = List.from(_dropPoints);
 
     // Apply Search
-    // Note: Implementation of search can be added here if needed
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      filtered = filtered
+          .where(
+            (p) =>
+                p.name.toLowerCase().contains(q) ||
+                p.address.toLowerCase().contains(q) ||
+                (p.cityName ?? '').toLowerCase().contains(q),
+          )
+          .toList();
+    }
 
     // Apply Category Filter
     if (selectedFilter == '24 Jam') {
@@ -112,19 +158,40 @@ class _DropPointScreenState extends State<DropPointScreen> {
   }
 
   Future<void> _determinePosition() async {
+    if (widget.locationProvider != null) {
+      setState(() => _isLoadingLocation = true);
+      try {
+        final loc = await widget.locationProvider!();
+        if (mounted) {
+          setState(() {
+            _currentLocation = loc;
+            _isLoadingLocation = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isLoadingLocation = false);
+      }
+      return;
+    }
+
     setState(() => _isLoadingLocation = true);
 
     bool serviceEnabled;
     LocationPermission permission;
 
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Layanan lokasi tidak aktif.')),
-        );
+    try {
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Layanan lokasi tidak aktif.')),
+          );
+        }
+        setState(() => _isLoadingLocation = false);
+        return;
       }
-      setState(() => _isLoadingLocation = false);
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingLocation = false);
       return;
     }
 
@@ -329,11 +396,11 @@ class _DropPointScreenState extends State<DropPointScreen> {
               color: isDarkMode ? Colors.white : Colors.black87,
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Drop Point',
+              widget.selectionMode ? 'Pilih Lokasi Drop Point' : 'Drop Point',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -394,15 +461,26 @@ class _DropPointScreenState extends State<DropPointScreen> {
                 const SizedBox(width: 16),
                 Icon(Icons.search, color: primaryColor, size: 24),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Find by location or name',
+                    key: const Key('drop_point_search_field'),
+                    controller: _searchController,
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                    decoration: const InputDecoration(
+                      hintText: 'Cari nama atau alamat Drop Point',
                       border: InputBorder.none,
                       hintStyle: TextStyle(fontSize: 14),
                     ),
                   ),
                 ),
+                if (_searchQuery.isNotEmpty)
+                  IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
                 Container(
                   height: 30,
                   width: 1,
@@ -530,6 +608,89 @@ class _DropPointScreenState extends State<DropPointScreen> {
     );
   }
 
+  Map<String, dynamic> _pointWithDistance(DropPoint point) {
+    final pointMap = point.toMap();
+    if (_currentLocation != null) {
+      final double distanceInMeters = Geolocator.distanceBetween(
+        _currentLocation!.latitude,
+        _currentLocation!.longitude,
+        point.latitude,
+        point.longitude,
+      );
+      pointMap['distance_km'] = distanceInMeters / 1000.0;
+      pointMap['distance'] = distanceInMeters > 1000
+          ? '${(distanceInMeters / 1000).toStringAsFixed(1)} km'
+          : '${distanceInMeters.round()} m';
+    }
+    return pointMap;
+  }
+
+  void _handlePointTap(Map<String, dynamic> pointMap) {
+    if (widget.selectionMode) {
+      Navigator.pop(context, pointMap);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DropPointDetailScreen(point: pointMap),
+      ),
+    );
+  }
+
+  Widget _buildEmptyOrErrorState(
+    Color primaryColor,
+    bool isDarkMode, {
+    bool compact = false,
+  }) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(compact ? 14 : 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _loadError != null
+                  ? Icons.wifi_off_rounded
+                  : Icons.store_mall_directory_outlined,
+              size: compact ? 32 : 48,
+              color: isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400,
+            ),
+            SizedBox(height: compact ? 8 : 12),
+            Text(
+              _loadError ?? 'Tidak ada lokasi Drop Point ditemukan',
+              textAlign: TextAlign.center,
+              maxLines: compact ? 2 : 4,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: compact ? 12.5 : 14,
+                fontWeight: FontWeight.w600,
+                color: isDarkMode ? Colors.white70 : Colors.black87,
+              ),
+            ),
+            SizedBox(height: compact ? 8 : 12),
+            ElevatedButton.icon(
+              onPressed: _fetchDropPoints,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Muat Ulang'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                visualDensity: compact
+                    ? VisualDensity.compact
+                    : VisualDensity.standard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildNearbyCarousel(Color primaryColor, bool isDarkMode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,7 +704,7 @@ class _DropPointScreenState extends State<DropPointScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Text(
-              'Nearby Drop Points',
+              'Drop Point Terdekat',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -554,139 +715,151 @@ class _DropPointScreenState extends State<DropPointScreen> {
         const SizedBox(height: 12),
         SizedBox(
           height: 180, // Increased height to prevent overflow
-          child: _isLoadingPoints 
-            ? const Center(child: CircularProgressIndicator())
-            : _filteredPoints.isEmpty
-              ? Center(child: Text('Tidak ada drop point ditemukan', style: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54)))
-              : ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _filteredPoints.length,
-            itemBuilder: (context, index) {
-              final point = _filteredPoints[index];
-              final pointMap = point.toMap();
-              
-              // Calculate real distance if location is available
-              if (_currentLocation != null) {
-                double distanceInMeters = Geolocator.distanceBetween(
-                  _currentLocation!.latitude,
-                  _currentLocation!.longitude,
-                  point.latitude,
-                  point.longitude,
-                );
-                pointMap['distance'] = distanceInMeters > 1000 
-                  ? '${(distanceInMeters / 1000).toStringAsFixed(1)} km'
-                  : '${distanceInMeters.round()} m';
-              }
-
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DropPointDetailScreen(point: pointMap),
-                    ),
-                  );
-                },
-                child: Container(
-                  width: MediaQuery.of(context).size.width * 0.85,
-                  margin: const EdgeInsets.only(right: 16, bottom: 8),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: primaryColor.withValues(alpha: 0.1)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 15,
-                        offset: const Offset(0, 5),
+          child: _isLoadingPoints
+              ? const Center(child: CircularProgressIndicator())
+              : (_loadError != null || _filteredPoints.isEmpty)
+                  ? Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ],
-                  ),
-                  child: _buildPointCardContent(pointMap, primaryColor, isDarkMode, isCarousel: true),
-                ),
-              );
-            },
-          ),
+                      child: _buildEmptyOrErrorState(
+                        primaryColor,
+                        isDarkMode,
+                        compact: true,
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _filteredPoints.length,
+                      itemBuilder: (context, index) {
+                        final point = _filteredPoints[index];
+                        final pointMap = _pointWithDistance(point);
+                        final isSelected = widget.initialSelectedId != null &&
+                            widget.initialSelectedId == point.id;
+
+                        return GestureDetector(
+                          onTap: () => _handlePointTap(pointMap),
+                          child: Container(
+                            width: MediaQuery.of(context).size.width * 0.85,
+                            margin: const EdgeInsets.only(right: 16, bottom: 8),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isDarkMode
+                                  ? const Color(0xFF1E293B)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? primaryColor
+                                    : primaryColor.withValues(alpha: 0.1),
+                                width: isSelected ? 2 : 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: _buildPointCardContent(
+                              pointMap,
+                              primaryColor,
+                              isDarkMode,
+                              isCarousel: true,
+                              isSelected: isSelected,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
         ),
       ],
     );
   }
 
   Widget _buildListView(Color primaryColor, bool isDarkMode) {
-    return _isLoadingPoints 
-      ? const Center(child: CircularProgressIndicator())
-      : _filteredPoints.isEmpty
-        ? Center(child: Text('Tidak ada drop point ditemukan', style: TextStyle(color: isDarkMode ? Colors.white70 : Colors.black54)))
-        : RefreshIndicator(
-            onRefresh: _fetchDropPoints,
-            color: primaryColor,
-            child: ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _filteredPoints.length + 1, // +1 for the header text
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return const Padding(
-            padding: EdgeInsets.only(top: 8, bottom: 16),
-            child: Text(
-              'Nearby Drop Points',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        }
-        final point = _filteredPoints[index - 1];
-        final pointMap = point.toMap();
+    return _isLoadingPoints
+        ? const Center(child: CircularProgressIndicator())
+        : (_loadError != null || _filteredPoints.isEmpty)
+            ? _buildEmptyOrErrorState(primaryColor, isDarkMode)
+            : RefreshIndicator(
+                onRefresh: _fetchDropPoints,
+                color: primaryColor,
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _filteredPoints.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 16),
+                        child: Text(
+                          widget.selectionMode
+                              ? 'Pilih Lokasi Drop Point Terdekat'
+                              : 'Nearby Drop Points',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    }
+                    final point = _filteredPoints[index - 1];
+                    final pointMap = _pointWithDistance(point);
+                    final isSelected = widget.initialSelectedId != null &&
+                        widget.initialSelectedId == point.id;
 
-        // Calculate real distance if location is available
-        if (_currentLocation != null) {
-          double distanceInMeters = Geolocator.distanceBetween(
-            _currentLocation!.latitude,
-            _currentLocation!.longitude,
-            point.latitude,
-            point.longitude,
-          );
-          pointMap['distance'] = distanceInMeters > 1000 
-            ? '${(distanceInMeters / 1000).toStringAsFixed(1)} km'
-            : '${distanceInMeters.round()} m';
-        }
-
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DropPointDetailScreen(point: pointMap),
-              ),
-            );
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: isDarkMode ? Colors.white10 : Colors.grey.shade100),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                    return GestureDetector(
+                      onTap: () => _handlePointTap(pointMap),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? primaryColor
+                                : (isDarkMode
+                                    ? Colors.white10
+                                    : Colors.grey.shade100),
+                            width: isSelected ? 2 : 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: _buildPointCardContent(
+                          pointMap,
+                          primaryColor,
+                          isDarkMode,
+                          isCarousel: false,
+                          isSelected: isSelected,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ],
-            ),
-            child: _buildPointCardContent(pointMap, primaryColor, isDarkMode, isCarousel: false),
-          ),
-        );
-      },
-            ),
-          );
+              );
   }
 
-  Widget _buildPointCardContent(Map<String, dynamic> point, Color primaryColor, bool isDarkMode, {required bool isCarousel}) {
+  Widget _buildPointCardContent(
+    Map<String, dynamic> point,
+    Color primaryColor,
+    bool isDarkMode, {
+    required bool isCarousel,
+    bool isSelected = false,
+  }) {
+    final distanceLabel = (point['distance'] ?? '').toString().trim();
     return Column(
       mainAxisSize: MainAxisSize.min, // Essential to prevent layout errors
       children: [
@@ -725,11 +898,13 @@ class _DropPointScreenState extends State<DropPointScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: primaryColor,
+                color: isSelected ? const Color(0xFF16A34A) : primaryColor,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                point['distance'] ?? '',
+                isSelected
+                    ? 'Dipilih'
+                    : (distanceLabel.isNotEmpty ? distanceLabel : 'Aktif'),
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -739,9 +914,9 @@ class _DropPointScreenState extends State<DropPointScreen> {
             ),
           ],
         ),
-        if (!isCarousel) const SizedBox(height: 24) else const Spacer(),
+        if (!isCarousel) const SizedBox(height: 16) else const Spacer(),
         Padding(
-          padding: EdgeInsets.only(top: isCarousel ? 4 : 12),
+          padding: EdgeInsets.only(top: isCarousel ? 4 : 8),
           child: Divider(color: isDarkMode ? Colors.white10 : Colors.grey.shade100, height: 1),
         ),
         const SizedBox(height: 12),
@@ -749,11 +924,15 @@ class _DropPointScreenState extends State<DropPointScreen> {
           children: [
             Icon(Icons.schedule, size: 18, color: primaryColor),
             const SizedBox(width: 4),
-            Text(
-              point['schedule'] ?? '',
-              style: TextStyle(fontSize: 12, color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600),
+            Flexible(
+              child: Text(
+                point['schedule'] ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600),
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Icon(Icons.star, size: 18, color: primaryColor),
             const SizedBox(width: 4),
             Text(
@@ -761,24 +940,59 @@ class _DropPointScreenState extends State<DropPointScreen> {
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const Spacer(),
-            ElevatedButton(
-              onPressed: () => _openDirections(point['latitude'], point['longitude']),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (widget.selectionMode) ...[
+              IconButton(
+                tooltip: 'Lihat Rute Peta',
+                onPressed: () =>
+                    _openDirections(point['latitude'], point['longitude']),
+                icon: Icon(Icons.directions, size: 20, color: primaryColor),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.directions, size: 16),
-                  const SizedBox(width: 4),
-                  const Text('Petunjuk Arah', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                ],
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, point),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF5A00),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Pilih Drop Point',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
+            ] else
+              ElevatedButton(
+                onPressed: () =>
+                    _openDirections(point['latitude'], point['longitude']),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.directions, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      'Petunjuk Arah',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ],

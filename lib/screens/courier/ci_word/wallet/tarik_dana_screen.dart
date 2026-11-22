@@ -126,9 +126,9 @@ class _TarikDanaScreenState extends State<TarikDanaScreen> {
 
     setState(() {
       _isLoading = false;
-      _providerDisabledReason = providers.isEnabled('ipaymu')
+      _providerDisabledReason = providers.isEnabled('xendit')
           ? null
-          : 'Layanan pencairan iPaymu sedang dinonaktifkan oleh Admin.';
+          : 'Layanan pencairan Xendit sedang dinonaktifkan oleh Admin.';
 
       _saldoTersedia = walletResult['success'] == true && walletResult['data'] != null
           ? WalletBalance.fromJson((walletResult['data'] as Map).cast<String, dynamic>())

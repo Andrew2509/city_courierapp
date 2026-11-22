@@ -150,5 +150,11 @@ class CourierDirectoryService {
 
     return null;
   }
+
+  /// Hapus cache daftar kurir di memori agar dapat dimuat ulang bila diperlukan.
+  static void clearCache() {
+    _cachedCouriers = null;
+    _cacheTimestamp = null;
+  }
 }
 

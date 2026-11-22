@@ -1,4 +1,4 @@
-import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
@@ -22,16 +22,20 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
   bool _loading = true;
   String? _error;
 
-  static const _bankChannels = [
+  List<(String, String)> _bankChannels = _defaultBankChannels;
+  List<(String, String)> _ewalletChannels = _defaultEwalletChannels;
+
+  static const _defaultBankChannels = [
     ('ID_BCA', 'Bank BCA'),
     ('ID_BRI', 'Bank BRI'),
     ('ID_BNI', 'Bank BNI'),
     ('ID_MANDIRI', 'Bank Mandiri'),
     ('ID_PERMATA', 'Bank Permata'),
-    ('ID_BSI', 'Bank BSI'),
+    ('ID_CIMB', 'Bank CIMB Niaga'),
+    ('ID_BSI', 'Bank Syariah Indonesia (BSI)'),
   ];
 
-  static const _ewalletChannels = [
+  static const _defaultEwalletChannels = [
     ('ID_DANA', 'DANA'),
     ('ID_OVO', 'OVO'),
     ('ID_GOPAY', 'GoPay'),
@@ -51,10 +55,14 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
       _error = null;
     });
     try {
-      final list = await _service.getDestinations();
+      final bundle = await _service.getDestinationsBundle();
       if (!mounted) return;
       setState(() {
-        _items = list;
+        _items = bundle.items;
+        if (bundle.hasServerChannels) {
+          _bankChannels = bundle.bankChannels;
+          _ewalletChannels = bundle.ewalletChannels;
+        }
         _loading = false;
       });
     } catch (e) {
@@ -70,9 +78,9 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
     final added = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: CityWalletUi.cardBg(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => _AddCustomerDestinationSheet(
         service: _service,
@@ -87,190 +95,169 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            CityWalletUi.buildHeader(context, title: 'Rekening & E-Wallet'),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primaryOrange,
-                      ),
-                    )
-                  : _error != null
-                      ? WalletErrorState(message: _error!, onRetry: _load)
-                      : RefreshIndicator(
-                          color: AppColors.primaryOrange,
-                          onRefresh: _load,
-                          child: ListView(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryOrange
-                                      .withValues(alpha: 0.06),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppColors.primaryOrange
-                                        .withValues(alpha: 0.25),
+      backgroundColor: CityWalletUi.scaffoldBg(context),
+      appBar: CityWalletUi.buildAppBar(context, title: 'Rekening & E-Wallet'),
+      body: Column(
+        children: [
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: CityWalletUi.primaryColor,
+                    ),
+                  )
+                : _error != null
+                    ? WalletErrorState(message: _error!, onRetry: _load)
+                    : RefreshIndicator(
+                        color: CityWalletUi.primaryColor,
+                        onRefresh: _load,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: CityWalletUi.noticeDecoration(context),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.verified_user_outlined,
+                                    size: 20,
+                                    color: CityWalletUi.primaryColor,
                                   ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Pilih akun utama atau tambahkan rekening bank / e-wallet untuk penarikan dana.',
+                                      style: AppTypography.bodySmall.copyWith(
+                                        fontSize: 12.5,
+                                        color: CityWalletUi.ink(context),
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (_items.isEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 36,
+                                  horizontal: 20,
                                 ),
-                                child: const Row(
+                                decoration: CityWalletUi.cardDecoration(
+                                  context,
+                                  radius: 16,
+                                ),
+                                child: Column(
                                   children: [
                                     Icon(
-                                      Icons.verified_user_outlined,
-                                      size: 20,
-                                      color: AppColors.primaryOrange,
+                                      Icons.account_balance_wallet_outlined,
+                                      size: 40,
+                                      color: CityWalletUi.mutedInk(context),
                                     ),
-                                    SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        'Pilih akun utama atau tambahkan rekening bank / e-wallet untuk penarikan dana.',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: CityWalletUi.inkPrimary,
-                                          height: 1.4,
-                                        ),
-                                      ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Belum ada rekening bank atau e-wallet terdaftar',
+                                      textAlign: TextAlign.center,
+                                      style:
+                                          CityWalletUi.cardTitleStyle(context),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Tekan tombol di bawah untuk menambahkan rekening tujuan baru.',
+                                      textAlign: TextAlign.center,
+                                      style: CityWalletUi.bodyStyle(context)
+                                          .copyWith(fontSize: 12),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              if (_items.isEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 36,
-                                    horizontal: 20,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: CityWalletUi.borderColor,
-                                    ),
-                                  ),
-                                  child: const Column(
-                                    children: [
-                                      Icon(
-                                        Icons.account_balance_wallet_outlined,
-                                        size: 38,
-                                        color: Color(0xFFCBD5E1),
-                                      ),
-                                      SizedBox(height: 10),
-                                      Text(
-                                        'Belum ada rekening bank atau e-wallet terdaftar',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: CityWalletUi.inkPrimary,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Tekan tombol di bawah untuk menambahkan rekening tujuan baru.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: CityWalletUi.inkSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              else
-                                ..._items.map(_buildDestinationCard),
-                            ],
-                          ),
-                        ),
-            ),
-            if (!_loading && _error == null)
-              CityWalletUi.stickyBottomBar(
-                context,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _openAddSheet(initialType: 'bank'),
-                        style: CityWalletUi.secondaryButtonStyle(
-                          borderTint:
-                              AppColors.primaryOrange.withValues(alpha: 0.45),
-                          fgColor: AppColors.primaryOrange,
-                        ),
-                        icon: const Icon(Icons.account_balance_outlined,
-                            size: 18),
-                        label: const Text(
-                          '+ Rekening Bank',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                          ),
+                              )
+                            else
+                              ..._items.map(_buildDestinationCard),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _openAddSheet(initialType: 'ewallet'),
-                        style: CityWalletUi.primaryButtonStyle(),
-                        icon: const Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 18,
-                        ),
-                        label: const Text(
-                          '+ E-Wallet',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+          ),
+          if (!_loading && _error == null)
+            CityWalletUi.stickyBottomBar(
+              context,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openAddSheet(initialType: 'bank'),
+                      style: CityWalletUi.secondaryButtonStyle(
+                        borderTint:
+                            CityWalletUi.primaryColor.withValues(alpha: 0.45),
+                        fgColor: CityWalletUi.primaryColor,
+                        context: context,
+                      ),
+                      icon: const Icon(
+                        Icons.account_balance_outlined,
+                        size: 18,
+                      ),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('+ Rekening Bank', maxLines: 1),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openAddSheet(initialType: 'ewallet'),
+                      style: CityWalletUi.primaryButtonStyle(context: context),
+                      icon: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                        size: 18,
+                      ),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('+ E-Wallet', maxLines: 1),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildDestinationCard(PayoutDestinationV1 d) {
     final isBank = d.destinationType == 'bank';
+    final dark = CityWalletUi.isDark(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color:
-              d.isDefault ? AppColors.primaryOrange : CityWalletUi.borderColor,
-          width: d.isDefault ? 1.4 : 1,
-        ),
+      decoration: CityWalletUi.cardDecoration(
+        context,
+        isHighlighted: d.isDefault,
+        radius: 14,
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: isBank
-                  ? AppColors.primaryOrange.withValues(alpha: 0.1)
-                  : const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(10),
+                  ? CityWalletUi.primaryColor.withValues(alpha: 0.1)
+                  : (dark
+                      ? const Color(0xFF064E3B)
+                      : const Color(0xFFECFDF5)),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               isBank
                   ? Icons.account_balance_outlined
                   : Icons.account_balance_wallet_outlined,
               size: 20,
-              color: isBank ? AppColors.primaryOrange : const Color(0xFF15803D),
+              color: isBank
+                  ? CityWalletUi.primaryColor
+                  : const Color(0xFF15803D),
             ),
           ),
           const SizedBox(width: 12),
@@ -284,10 +271,8 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
                       child: Text(
                         d.channelName,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: CityWalletUi.cardTitleStyle(context).copyWith(
                           fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: CityWalletUi.inkPrimary,
                         ),
                       ),
                     ),
@@ -295,16 +280,15 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
                       const SizedBox(width: 6),
                       const WalletStatusChip(status: 'default'),
                     ],
+                    const SizedBox(width: 6),
+                    WalletStatusChip(status: d.normalizedVerificationStatus),
                   ],
                 ),
                 const SizedBox(height: 3),
                 Text(
                   '${d.accountNumberMasked} • ${d.accountHolderName}',
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: CityWalletUi.inkSecondary,
-                  ),
+                  style: CityWalletUi.bodyStyle(context).copyWith(fontSize: 12),
                 ),
               ],
             ),
@@ -313,30 +297,33 @@ class _PayoutDestinationsScreenState extends State<PayoutDestinationsScreen> {
           if (d.isDefault)
             const Icon(
               Icons.check_circle_rounded,
-              color: Color(0xFF16A34A),
+              color: CityWalletUi.successGreen,
               size: 22,
             )
           else
-            TextButton(
+            OutlinedButton(
               onPressed: () async {
                 await _service.setDefaultDestination(d.id);
                 _load();
               },
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryOrange,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: CityWalletUi.primaryColor,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                side: BorderSide(
+                  color: CityWalletUi.primaryColor.withValues(alpha: 0.45),
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(
-                    color: AppColors.primaryOrange.withValues(alpha: 0.35),
-                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                textStyle: AppTypography.caption.copyWith(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              child: const Text(
-                'Jadikan Default',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-              ),
+              child: const Text('Jadikan Default'),
             ),
         ],
       ),
@@ -445,43 +432,48 @@ class _AddCustomerDestinationSheetState
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primaryOrange.withValues(alpha: 0.08)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color:
-                selected ? AppColors.primaryOrange : CityWalletUi.borderColor,
-            width: selected ? 1.4 : 1,
+    return Material(
+      color: selected
+          ? CityWalletUi.primaryColor.withValues(alpha: 0.08)
+          : CityWalletUi.cardBg(context),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? CityWalletUi.primaryColor
+                  : CityWalletUi.lineColor(context),
+              width: selected ? 1.5 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color:
-                  selected ? AppColors.primaryOrange : CityWalletUi.inkSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
                 color: selected
-                    ? AppColors.primaryOrange
-                    : CityWalletUi.inkPrimary,
+                    ? CityWalletUi.primaryColor
+                    : CityWalletUi.secondaryInk(context),
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTypography.titleSmall.copyWith(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? CityWalletUi.primaryColor
+                      : CityWalletUi.ink(context),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -506,21 +498,21 @@ class _AddCustomerDestinationSheetState
           children: [
             Center(
               child: Container(
-                width: 36,
+                width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
+                  color: const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-            const Text(
+            const SizedBox(height: 16),
+            Text(
               'Tambah Rekening / E-Wallet',
-              style: TextStyle(
+              style: AppTypography.titleMedium.copyWith(
                 fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: CityWalletUi.inkPrimary,
+                fontWeight: FontWeight.bold,
+                color: CityWalletUi.ink(context),
               ),
             ),
             const SizedBox(height: 14),
@@ -560,17 +552,20 @@ class _AddCustomerDestinationSheetState
             const SizedBox(height: 16),
             CityWalletUi.fieldLabel(
               _destType == 'bank' ? 'Pilih Bank' : 'Pilih E-Wallet',
+              context: context,
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               key: ValueKey(_destType),
               initialValue: _channelCode,
               isExpanded: true,
-              icon: const Icon(
+              dropdownColor: CityWalletUi.cardBg(context),
+              icon: Icon(
                 Icons.keyboard_arrow_down_rounded,
-                color: CityWalletUi.inkSecondary,
+                color: CityWalletUi.secondaryInk(context),
               ),
               decoration: CityWalletUi.inputDecoration(
+                context: context,
                 hintText: 'Pilih bank atau e-wallet',
               ),
               items: channels
@@ -579,10 +574,9 @@ class _AddCustomerDestinationSheetState
                       value: c.$1,
                       child: Text(
                         c.$2,
-                        style: const TextStyle(
+                        style: CityWalletUi.cardTitleStyle(context).copyWith(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: CityWalletUi.inkPrimary,
                         ),
                       ),
                     ),
@@ -598,6 +592,7 @@ class _AddCustomerDestinationSheetState
             const SizedBox(height: 14),
             CityWalletUi.fieldLabel(
               _destType == 'bank' ? 'Nomor Rekening' : 'Nomor HP E-Wallet',
+              context: context,
             ),
             const SizedBox(height: 8),
             TextField(
@@ -605,12 +600,13 @@ class _AddCustomerDestinationSheetState
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               onChanged: (_) => _scheduleInquiry(),
-              style: const TextStyle(
+              style: AppTypography.bodyMedium.copyWith(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: CityWalletUi.inkPrimary,
+                color: CityWalletUi.ink(context),
               ),
               decoration: CityWalletUi.inputDecoration(
+                context: context,
                 hintText: _destType == 'bank'
                     ? 'Contoh: 1234567890'
                     : '08xxxxxxxxxx',
@@ -623,28 +619,25 @@ class _AddCustomerDestinationSheetState
             const SizedBox(height: 14),
             CityWalletUi.fieldLabel(
               'Nama Pemilik Rekening',
-              trailing: _inquiry.hasAutoFilled
-                  ? const Text(
-                      'Terisi otomatis',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF15803D),
-                      ),
-                    )
-                  : null,
+              context: context,
+              trailing: WalletStatusChip(
+                status: _inquiry.hasAutoFilled
+                    ? 'auto_verified'
+                    : (_inquiry.result?.verificationStatus ?? 'unverified'),
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _nameCtrl,
               textCapitalization: TextCapitalization.characters,
               onChanged: (val) => _inquiry.onManualNameEdited(val),
-              style: const TextStyle(
+              style: AppTypography.bodySmall.copyWith(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: CityWalletUi.inkPrimary,
+                color: CityWalletUi.ink(context),
               ),
               decoration: CityWalletUi.inputDecoration(
+                context: context,
                 hintText: 'Nama pemilik sesuai akun',
               ),
             ),
@@ -652,7 +645,7 @@ class _AddCustomerDestinationSheetState
               const SizedBox(height: 10),
               Text(
                 _sheetError!,
-                style: const TextStyle(
+                style: AppTypography.caption.copyWith(
                   fontSize: 12,
                   color: CityWalletUi.errorRed,
                   fontWeight: FontWeight.w500,
@@ -662,7 +655,10 @@ class _AddCustomerDestinationSheetState
             const SizedBox(height: 18),
             ElevatedButton(
               onPressed: _saving ? null : _save,
-              style: CityWalletUi.primaryButtonStyle(enabled: !_saving),
+              style: CityWalletUi.primaryButtonStyle(
+                enabled: !_saving,
+                context: context,
+              ),
               child: _saving
                   ? const SizedBox(
                       width: 20,
@@ -672,13 +668,7 @@ class _AddCustomerDestinationSheetState
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text(
-                      'Simpan Rekening Tujuan',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                  : const Text('Simpan Rekening Tujuan'),
             ),
           ],
         ),

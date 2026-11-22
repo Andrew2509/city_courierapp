@@ -76,18 +76,58 @@ class RajaOngkirService {
     required String courier,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/shipping/cost'),
-        headers: await _getHeaders(),
-        body: json.encode({
-          'origin': origin,
-          'destination': destination,
-          'weight': weight,
-          'courier': courier,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/shipping/cost'),
+            headers: await _getHeaders(),
+            body: json.encode({
+              'origin': origin,
+              'destination': destination,
+              'weight': weight,
+              'courier': courier,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
 
-      return json.decode(response.body);
+      dynamic decoded;
+      try {
+        decoded = response.body.isNotEmpty ? json.decode(response.body) : null;
+      } catch (_) {
+        decoded = null;
+      }
+
+      if (decoded is Map) {
+        final map = Map<String, dynamic>.from(decoded);
+        if (response.statusCode >= 400) {
+          map['success'] = false;
+          map['status_code'] = response.statusCode;
+          map['message'] ??=
+              response.statusCode == 401
+                  ? 'Sesi login berakhir. Silakan masuk kembali.'
+                  : 'Server mengembalikan status ${response.statusCode}';
+          return map;
+        }
+        final ro = map['rajaongkir'];
+        if (map['success'] == null &&
+            ro is Map &&
+            ro['status'] is Map &&
+            ro['status']['code'] == 200) {
+          return {
+            'success': true,
+            'data': ro['results'],
+            ...map,
+          };
+        }
+        return map;
+      }
+
+      return {
+        'success': false,
+        'status_code': response.statusCode,
+        'message': response.statusCode == 401
+            ? 'Sesi login berakhir. Silakan masuk kembali.'
+            : 'Respons tarif tidak valid (${response.statusCode})',
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }

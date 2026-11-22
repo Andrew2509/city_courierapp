@@ -21,6 +21,19 @@ class AddSenderScreen extends StatefulWidget {
     this.isReceiver = false,
   });
 
+  /// Validasi format nomor telepon Indonesia (9–15 digit, mendukung 08 / 628 / +628 / kode area).
+  static bool isValidIndonesianPhone(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return false;
+    if (RegExp(r'[a-zA-Z]').hasMatch(trimmed)) return false;
+    final digits = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length < 9 || digits.length > 15) return false;
+    return digits.startsWith('08') ||
+        digits.startsWith('628') ||
+        digits.startsWith('8') ||
+        RegExp(r'^0[2-9]').hasMatch(digits);
+  }
+
   @override
   State<AddSenderScreen> createState() => _AddSenderScreenState();
 }
@@ -38,12 +51,14 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController addressController = TextEditingController();
+  final TextEditingController postalCodeController = TextEditingController();
 
   @override
   void dispose() {
     nameController.dispose();
     phoneController.dispose();
     addressController.dispose();
+    postalCodeController.dispose();
     super.dispose();
   }
 
@@ -122,6 +137,19 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                     // 4. Field Wilayah RajaOngkir (No green, match image)
                     _buildRegionField(
                       context: context,
+                      isDarkMode: isDarkMode,
+                      primaryColor: primaryColor,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // 4b. Kode Pos (opsional / terisi otomatis dari wilayah)
+                    _buildInputField(
+                      controller: postalCodeController,
+                      label: 'Kode Pos (Opsional)',
+                      hintText: 'Contoh: 12110',
+                      icon: Icons.markunread_mailbox_outlined,
+                      keyboardType: TextInputType.number,
                       isDarkMode: isDarkMode,
                       primaryColor: primaryColor,
                     ),
@@ -619,6 +647,10 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
         selectedCity = result;
         _isAutoMatchedRegion = result['is_gps_detected'] == true;
         _showUnmatchedWarning = false;
+        final zip = (result['postal_code'] ?? result['zip_code'] ?? '').toString().trim();
+        if (zip.isNotEmpty) {
+          postalCodeController.text = zip;
+        }
       });
     }
   }
@@ -637,6 +669,29 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
         if (phoneController.text.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Nomor telepon tidak boleh kosong')),
+          );
+          return;
+        }
+
+        if (!AddSenderScreen.isValidIndonesianPhone(phoneController.text)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Nomor HP tidak valid. Masukkan 9–15 digit nomor yang benar (contoh: 081234567890)',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        final typedPostal = postalCodeController.text.trim();
+        if (typedPostal.isNotEmpty && !RegExp(r'^\d{5}$').hasMatch(typedPostal)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Kode pos harus terdiri dari 5 digit angka'),
+              backgroundColor: Colors.red,
+            ),
           );
           return;
         }
@@ -680,6 +735,14 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           }
         }
 
+        final resolvedPostal = typedPostal.isNotEmpty
+            ? typedPostal
+            : (selectedCity?['postal_code'] ??
+                    selectedCity?['zip_code'] ??
+                    resolvedAddress?.postalCode)
+                ?.toString()
+                .trim();
+
         final body = {
           'name': nameController.text.trim(),
           'phone': phoneController.text.trim(),
@@ -688,14 +751,16 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
           'city_name': selectedCity?['city_name'] ?? selectedCity?['kabupaten_name'],
           'province_id': selectedCity?['province_id'] ?? selectedCity?['provinsi_id'],
           'province_name': selectedCity?['province_name'] ?? selectedCity?['provinsi_name'],
+          'kecamatan_id': selectedCity?['kecamatan_id'] ?? selectedCity?['subdistrict_id'],
+          'kecamatan_name': selectedCity?['kecamatan_name'] ?? selectedCity?['district_name'],
+          'kelurahan_name': selectedCity?['kelurahan_name'],
           'subdistrict_id': selectedCity?['subdistrict_id'] ?? selectedCity?['kecamatan_id'] ?? selectedCity?['rajaongkir_subdistrict_id'] ?? selectedCity?['rajaongkir_region_id'],
           'subdistrict_name': selectedCity?['subdistrict_name'] ?? selectedCity?['kecamatan_name'] ?? selectedCity?['kelurahan_name'],
           'latitude': resolvedAddress?.latitude,
           'longitude': resolvedAddress?.longitude,
-          'postal_code': selectedCity?['postal_code'] ?? selectedCity?['zip_code'] ?? resolvedAddress?.postalCode,
+          'postal_code': (resolvedPostal != null && resolvedPostal.isNotEmpty) ? resolvedPostal : null,
           'postal_code_verified': selectedCity?['postal_code_verified'] == true ||
-              (selectedCity?['zip_code']?.toString().trim().isNotEmpty ?? false) ||
-              (selectedCity?['postal_code']?.toString().trim().isNotEmpty ?? false),
+              (resolvedPostal != null && resolvedPostal.isNotEmpty),
           'is_favorite': false,
         };
 
@@ -705,13 +770,18 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
         setState(() => _isSaving = false);
 
         if (saved != null) {
+          final merged = <String, dynamic>{...body, ...saved};
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pengirim dan alamat berhasil disimpan'),
-              backgroundColor: Color(0xFFEC5B13),
+            SnackBar(
+              content: Text(
+                widget.isReceiver
+                    ? 'Penerima dan alamat tujuan berhasil disimpan'
+                    : 'Pengirim dan alamat berhasil disimpan',
+              ),
+              backgroundColor: const Color(0xFFEC5B13),
             ),
           );
-          Navigator.pop(context, saved);
+          Navigator.pop(context, merged);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Gagal menyimpan alamat. Coba lagi.')),
@@ -850,6 +920,11 @@ class _AddSenderScreenState extends State<AddSenderScreen> {
                 'postal_code': postalCodeCandidate,
                 'postal_code_verified': match['postal_code_verified'] == true || postalCodeCandidate != null,
               };
+              if (postalCodeCandidate != null &&
+                  postalCodeCandidate.toString().trim().isNotEmpty) {
+                postalCodeController.text =
+                    postalCodeCandidate.toString().trim();
+              }
             } else {
               _isAutoMatchedRegion = false;
               _showUnmatchedWarning = true;

@@ -29,13 +29,13 @@ void main() {
     ProviderAvailabilityService.testSettingsFetcher = null;
   });
 
-  List<PaymentMethod> sampleIpaymuChannels() => [
+  List<PaymentMethod> sampleXenditChannels() => [
     PaymentMethod(
-      code: 'bca',
+      code: 'BCA_VIRTUAL_ACCOUNT',
       name: 'BCA Virtual Account',
       group: 'virtual_account',
       iconUrl: '',
-      fee: 4000,
+      fee: 0,
       isAvailable: true,
     ),
     PaymentMethod(
@@ -146,7 +146,7 @@ void main() {
     );
   }
 
-  testWidgets('Checkout shows VA & QRIS when iPaymu is ON', (tester) async {
+  testWidgets('Checkout shows VA & QRIS when Xendit is ON', (tester) async {
     final walletService = buildMockWalletService(topupEnabled: true);
 
     await tester.pumpWidget(
@@ -156,11 +156,12 @@ void main() {
           shipmentId: '101',
           walletService: walletService,
           methodsFetcher: () async => CheckoutPaymentMethodsResult(
-            methods: sampleIpaymuChannels(),
-            ipaymuEnabled: true,
+            methods: sampleXenditChannels(),
+            xenditEnabled: true,
           ),
           settingsFetcher: () async => {
-            'providers': {'ipaymu': true},
+            'providers': {'xendit': true},
+            'topup_provider_enabled': true,
           },
         ),
       ),
@@ -175,7 +176,7 @@ void main() {
   });
 
   testWidgets(
-    'Checkout hides VA & QRIS when Admin turns iPaymu OFF while keeping Wallet, COD, and Tunai',
+    'Checkout hides VA & QRIS when Admin turns Xendit OFF while keeping Wallet, COD, and Tunai',
     (tester) async {
       final walletService = buildMockWalletService(topupEnabled: true);
 
@@ -187,12 +188,13 @@ void main() {
             walletService: walletService,
             methodsFetcher: () async => const CheckoutPaymentMethodsResult(
               methods: [],
-              ipaymuEnabled: false,
+              xenditEnabled: false,
               message:
-                  'Pembayaran iPaymu (VA & QRIS) sedang dinonaktifkan oleh Admin.',
+                  'Pembayaran Xendit (VA, QRIS & E-Wallet) sedang dinonaktifkan oleh Admin.',
             ),
             settingsFetcher: () async => {
-              'providers': {'ipaymu': false},
+              'providers': {'xendit': false},
+              'topup_provider_enabled': false,
             },
           ),
         ),
@@ -212,7 +214,7 @@ void main() {
       expect(find.textContaining('COD'), findsOneWidget);
       expect(find.textContaining('Tunai'), findsOneWidget);
 
-      // Even if methodsFetcher returned channels stale-cached, /settings ipaymu=false filters them out
+      // Even if methodsFetcher returned channels stale-cached, /settings xendit=false filters them out
       await tester.pumpWidget(
         MaterialApp(
           home: PaymentMethodScreen(
@@ -220,11 +222,12 @@ void main() {
             shipmentId: '102',
             walletService: walletService,
             methodsFetcher: () async => CheckoutPaymentMethodsResult(
-              methods: sampleIpaymuChannels(),
-              ipaymuEnabled: true,
+              methods: sampleXenditChannels(),
+              xenditEnabled: true,
             ),
             settingsFetcher: () async => {
-              'providers': {'ipaymu': false},
+              'providers': {'xendit': false},
+              'topup_provider_enabled': false,
             },
           ),
         ),
@@ -281,7 +284,7 @@ void main() {
     'Map & Routing providers halt immediately when Admin disables map provider',
     () async {
       ProviderAvailabilityService.testSettingsFetcher = () async => {
-        'providers': {'map': false, 'ipaymu': false, 'xendit': false},
+        'providers': {'map': false, 'xendit': false},
       };
       ProviderAvailabilityService.clearCache();
 
@@ -299,11 +302,11 @@ void main() {
       );
 
       final disabledSnapshot = ProviderStatusSnapshot.fromSettingsData({
-        'providers': {'map': false, 'ipaymu': false, 'xendit': false},
+        'providers': {'map': false, 'xendit': false},
       });
       expect(disabledSnapshot.isEnabled('map'), isFalse);
-      expect(disabledSnapshot.isEnabled('ipaymu'), isFalse);
       expect(disabledSnapshot.isEnabled('xendit'), isFalse);
+      expect(disabledSnapshot.isEnabled('doku'), isFalse);
       expect(disabledSnapshot.topupProviderEnabled, isFalse);
       expect(
         TopupMethodsBundle.fromJson({
@@ -316,7 +319,7 @@ void main() {
   );
 
   testWidgets(
-    'Checkout shows diagnostic banner and Muat Ulang when iPaymu is ON but VA/QRIS fail to load',
+    'Checkout shows diagnostic banner and Muat Ulang when Xendit is ON but VA/QRIS fail to load',
     (tester) async {
       final walletService = buildMockWalletService(topupEnabled: true);
       var callCount = 0;
@@ -332,10 +335,10 @@ void main() {
               if (callCount == 1) {
                 return const CheckoutPaymentMethodsResult(
                   methods: [],
-                  ipaymuEnabled: true,
+                  xenditEnabled: true,
                   hasError: true,
                   message:
-                      'iPaymu belum terkonfigurasi. Isi VA & API Key iPaymu di Admin > Provider.',
+                      'Xendit belum dikonfigurasi oleh Admin untuk mode production.',
                 );
               }
               return CheckoutPaymentMethodsResult(
@@ -349,11 +352,11 @@ void main() {
                     isAvailable: true,
                   ),
                 ],
-                ipaymuEnabled: true,
+                xenditEnabled: true,
               );
             },
             settingsFetcher: () async => {
-              'providers': {'ipaymu': true},
+              'providers': {'xendit': true},
             },
           ),
         ),
@@ -362,7 +365,7 @@ void main() {
 
       expect(
         find.text(
-          'iPaymu belum terkonfigurasi. Isi VA & API Key iPaymu di Admin > Provider.',
+          'Xendit belum dikonfigurasi oleh Admin untuk mode production.',
         ),
         findsOneWidget,
       );

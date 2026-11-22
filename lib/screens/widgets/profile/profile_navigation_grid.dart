@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/profile/favorite_address_screen.dart';
 import 'package:city_courierapp/screens/profile/keamanan_akun/account_security_screen.dart';
 import 'package:city_courierapp/screens/profile/daftar_kurir/views/informasi_pendaftaran_screen.dart';
@@ -13,17 +14,20 @@ class ProfileNavigationGrid extends StatelessWidget {
   final Color surfaceColor;
   final Color borderColor;
   final Map<String, dynamic>? userData;
+  final bool showWalletCard;
 
   const ProfileNavigationGrid({
-    Key? key,
+    super.key,
     required this.primaryColor,
     required this.surfaceColor,
     required this.borderColor,
     this.userData,
-  }) : super(key: key);
+    this.showWalletCard = true,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final navItems = [
       {'icon': Icons.location_on, 'label': 'Alamat Favorit'},
       {'icon': Icons.security, 'label': 'Keamanan Akun'},
@@ -35,125 +39,200 @@ class ProfileNavigationGrid extends StatelessWidget {
 
     return Column(
       children: [
-        InkWell(
-          onTap: () => AuthGuard.runWithAuth(
-            context,
-            onAuthenticated: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const CustomerWalletDashboardScreen()),
-            ),
-          ),
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
+        if (showWalletCard)
+          Container(
             margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: surfaceColor,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor),
             ),
-            child: Row(
-              children: [
-                Icon(Icons.account_balance_wallet_rounded, color: primaryColor),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => AuthGuard.runWithAuth(
+                  context,
+                  onAuthenticated: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CustomerWalletDashboardScreen(),
+                    ),
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
                     children: [
-                      Text('City Wallet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                      Text('Top-up saldo, bayar pesanan, & refund', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.account_balance_wallet_rounded,
+                          color: primaryColor,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'City Wallet',
+                              style: AppTypography.titleSmall.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: isDarkMode
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Top-up saldo, bayar pesanan, & refund',
+                              style: AppTypography.caption.copyWith(
+                                fontSize: 11.5,
+                                color: isDarkMode
+                                    ? Colors.grey.shade400
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: isDarkMode
+                            ? Colors.grey.shade500
+                            : const Color(0xFF94A3B8),
+                      ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: Colors.black45),
-              ],
+              ),
             ),
           ),
-        ),
         Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisExtent: 80, // Reduced from 100
-          crossAxisSpacing: 1,
-          mainAxisSpacing: 1,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDarkMode
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : borderColor.withValues(alpha: 0.7),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: isDarkMode ? 0.2 : 0.03,
+                ),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisExtent: 90,
+              crossAxisSpacing: 0,
+              mainAxisSpacing: 0,
+            ),
+            itemCount: navItems.length,
+            itemBuilder: (context, index) {
+              return Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(
+                      color: index % 3 != 2
+                          ? borderColor.withValues(alpha: 0.7)
+                          : Colors.transparent,
+                    ),
+                    bottom: BorderSide(
+                      color: index < 3
+                          ? borderColor.withValues(alpha: 0.7)
+                          : Colors.transparent,
+                    ),
+                  ),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    if (navItems[index]['label'] == 'Alamat Favorit') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const FavoriteAddressScreen(),
+                        ),
+                      );
+                    } else if (navItems[index]['label'] == 'Keamanan Akun') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AccountSecurityScreen(
+                            initialUserData: userData,
+                          ),
+                        ),
+                      );
+                    } else if (navItems[index]['label'] == 'Daftar Kurir') {
+                      _handleCourierRegistration(context);
+                    } else if (navItems[index]['label'] == 'Pusat Bantuan') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HelpScreen(),
+                        ),
+                      );
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 10,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          navItems[index]['icon'] as IconData,
+                          color: primaryColor,
+                          size: 25,
+                        ),
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            navItems[index]['label'] as String,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            style: AppTypography.caption.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDarkMode
+                                  ? Colors.white.withValues(alpha: 0.9)
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
-        itemCount: navItems.length,
-        itemBuilder: (context, index) {
-          return Container(
-            decoration: BoxDecoration(
-              border: Border(
-                right: BorderSide(
-                  color: index % 3 != 2 ? borderColor : Colors.transparent,
-                ),
-                bottom: BorderSide(
-                  color: index < 3 ? borderColor : Colors.transparent,
-                ),
-              ),
-            ),
-            child: InkWell(
-              onTap: () {
-                // ... logic same
-                if (navItems[index]['label'] == 'Alamat Favorit') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FavoriteAddressScreen(),
-                    ),
-                  );
-                } else if (navItems[index]['label'] == 'Keamanan Akun') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AccountSecurityScreen(
-                        initialUserData: userData,
-                      ),
-                    ),
-                  );
-                } else if (navItems[index]['label'] == 'Daftar Kurir') {
-                  _handleCourierRegistration(context);
-                } else if (navItems[index]['label'] == 'Pusat Bantuan') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HelpScreen(),
-                    ),
-                  );
-                }
-              },
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    navItems[index]['icon'] as IconData,
-                    color: primaryColor,
-                    size: 20, // Slightly smaller
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    navItems[index]['label'] as String,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 9, // Slightly smaller
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    ),
       ],
     );
   }

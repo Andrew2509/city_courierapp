@@ -239,7 +239,7 @@ class ShipmentService {
                 'reason': reason.trim(),
             }),
           )
-          // Pembatalan menanyakan status ke iPaymu lebih dulu, jadi butuh waktu
+          // Pembatalan menanyakan status ke Xendit lebih dulu, jadi butuh waktu
           // lebih dari sekadar update database.
           .timeout(const Duration(seconds: 30));
 
@@ -250,7 +250,7 @@ class ShipmentService {
           'message': responseData is Map && responseData['message'] != null
               ? responseData['message'].toString()
               : 'Pesanan berhasil dibatalkan.',
-          // Ringkasan transaksi iPaymu (status, referensi, hasil pembatalan)
+          // Ringkasan transaksi Xendit (status, referensi, hasil pembatalan)
           // supaya layar bisa membedakan pembatalan biasa dari kasus refund.
           'payment': responseData is Map ? responseData['payment'] : null,
           'data': responseData is Map ? responseData['data'] : null,

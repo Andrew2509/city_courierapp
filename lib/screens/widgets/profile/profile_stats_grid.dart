@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/history/unpaid_list_screen.dart';
 import 'package:city_courierapp/screens/history/shipment_status_list_screen.dart';
 import 'package:city_courierapp/services/shipping/shipment_service.dart';
@@ -10,12 +11,12 @@ class ProfileStatsGrid extends StatefulWidget {
   final bool isDarkMode;
 
   const ProfileStatsGrid({
-    Key? key,
+    super.key,
     required this.primaryColor,
     required this.surfaceColor,
     required this.borderColor,
     required this.isDarkMode,
-  }) : super(key: key);
+  });
 
   @override
   State<ProfileStatsGrid> createState() => _ProfileStatsGridState();
@@ -67,63 +68,79 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
 
   @override
   Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final double cardWidth = ((screenWidth - 32 - 24) / 4).clamp(76.0, 96.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Lacak Pesanan',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: widget.isDarkMode ? Colors.white70 : Colors.blueGrey[800],
+                style: AppTypography.titleMedium.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: widget.isDarkMode
+                      ? Colors.white
+                      : const Color(0xFF0F172A),
                 ),
               ),
               if (_isLoading)
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: widget.primaryColor,
+                  ),
                 )
               else
                 IconButton(
                   onPressed: _fetchStats,
                   icon: Icon(
-                    _errorMessage != null ? Icons.error_outline : Icons.refresh_rounded,
-                    size: 16,
+                    _errorMessage != null
+                        ? Icons.error_outline
+                        : Icons.refresh_rounded,
+                    size: 20,
                   ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   visualDensity: VisualDensity.compact,
                   color: _errorMessage != null
                       ? Colors.redAccent
-                      : widget.primaryColor.withOpacity(0.5),
+                      : widget.primaryColor,
                 ),
             ],
           ),
         ),
         if (_errorMessage != null)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.08),
+                color: Colors.redAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.2),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline, size: 16, color: Colors.redAccent),
+                  const Icon(
+                    Icons.error_outline,
+                    size: 16,
+                    color: Colors.redAccent,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(
+                      style: AppTypography.caption.copyWith(
                         fontSize: 11,
                         color: Colors.redAccent,
                       ),
@@ -138,7 +155,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                     ),
                     child: Text(
                       'Coba Lagi',
-                      style: TextStyle(
+                      style: AppTypography.caption.copyWith(
                         fontSize: 11,
                         color: Colors.redAccent,
                         fontWeight: FontWeight.w600,
@@ -151,7 +168,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
           ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
@@ -161,6 +178,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                 'Belum Bayar',
                 const UnpaidListScreen(),
                 _stats['pending'] ?? 0,
+                cardWidth: cardWidth,
               ),
               _buildStatCard(
                 context,
@@ -171,6 +189,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                   title: 'Dikonfirmasi',
                 ),
                 (_stats['confirmed'] ?? 0) + (_stats['assigned'] ?? 0),
+                cardWidth: cardWidth,
               ),
               _buildStatCard(
                 context,
@@ -181,6 +200,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                   title: 'Diambil',
                 ),
                 (_stats['picking_up'] ?? 0) + (_stats['picked_up'] ?? 0),
+                cardWidth: cardWidth,
               ),
               _buildStatCard(
                 context,
@@ -191,6 +211,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                   title: 'Dalam Perjalanan',
                 ),
                 (_stats['delivering'] ?? 0) + (_stats['in_transit'] ?? 0),
+                cardWidth: cardWidth,
               ),
               _buildStatCard(
                 context,
@@ -201,6 +222,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                   title: 'Terkirim',
                 ),
                 _stats['delivered'] ?? 0,
+                cardWidth: cardWidth,
               ),
               _buildStatCard(
                 context,
@@ -211,6 +233,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
                   title: 'Dibatalkan',
                 ),
                 _stats['cancelled'] ?? 0,
+                cardWidth: cardWidth,
               ),
             ],
           ),
@@ -219,7 +242,14 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, IconData icon, String label, Widget targetScreen, int count) {
+  Widget _buildStatCard(
+    BuildContext context,
+    IconData icon,
+    String label,
+    Widget targetScreen,
+    int count, {
+    required double cardWidth,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Material(
@@ -229,47 +259,65 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => targetScreen),
-            ).then((_) => _fetchStats()); // Refresh when coming back
+            ).then((_) => _fetchStats());
           },
           borderRadius: BorderRadius.circular(16),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 80,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                width: cardWidth,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 6,
+                ),
                 decoration: BoxDecoration(
                   color: widget.surfaceColor,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: widget.borderColor),
+                  border: Border.all(
+                    color: widget.isDarkMode
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : widget.borderColor.withValues(alpha: 0.7),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(
+                        alpha: widget.isDarkMode ? 0.2 : 0.03,
+                      ),
                       blurRadius: 10,
-                      offset: const Offset(0, 4),
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 42,
+                      height: 42,
                       decoration: BoxDecoration(
-                        color: widget.primaryColor.withOpacity(0.08),
+                        color: widget.primaryColor.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(icon, color: widget.primaryColor, size: 20),
+                      child: Icon(
+                        icon,
+                        color: widget.primaryColor,
+                        size: 21,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: widget.isDarkMode ? Colors.white70 : Colors.blueGrey[700],
-                        fontWeight: FontWeight.w600,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        style: AppTypography.caption.copyWith(
+                          fontSize: 10.5,
+                          color: widget.isDarkMode
+                              ? Colors.white.withValues(alpha: 0.9)
+                              : const Color(0xFF0F172A),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],

@@ -22,6 +22,8 @@ class _CourierPayoutDestinationsScreenState
   late final CourierWalletV1Service _service =
       widget.service ?? CourierWalletV1Service.instance;
   List<PayoutDestinationV1> _items = [];
+  List<(String, String)>? _supportedBanks;
+  List<(String, String)>? _supportedEwallets;
   bool _loading = true;
   String? _error;
 
@@ -37,10 +39,14 @@ class _CourierPayoutDestinationsScreenState
       _error = null;
     });
     try {
-      final list = await _service.getDestinations();
+      final bundle = await _service.getDestinationsBundle();
       if (!mounted) return;
       setState(() {
-        _items = list;
+        _items = bundle.items;
+        if (bundle.hasServerChannels) {
+          _supportedBanks = bundle.bankChannels;
+          _supportedEwallets = bundle.ewalletChannels;
+        }
         _loading = false;
       });
     } catch (e) {
@@ -55,7 +61,12 @@ class _CourierPayoutDestinationsScreenState
   Future<void> _openAddBank() async {
     final ok = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => AddBankAccountScreen(service: _service)),
+      MaterialPageRoute(
+        builder: (_) => AddBankAccountScreen(
+          service: _service,
+          supportedChannels: _supportedBanks,
+        ),
+      ),
     );
     if (ok == true && mounted) await _load();
   }
@@ -63,7 +74,12 @@ class _CourierPayoutDestinationsScreenState
   Future<void> _openAddEwallet() async {
     final ok = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => AddEwalletAccountScreen(service: _service)),
+      MaterialPageRoute(
+        builder: (_) => AddEwalletAccountScreen(
+          service: _service,
+          supportedChannels: _supportedEwallets,
+        ),
+      ),
     );
     if (ok == true && mounted) await _load();
   }
@@ -315,6 +331,8 @@ class _CourierPayoutDestinationsScreenState
                         ),
                       ),
                     ],
+                    const SizedBox(width: 6),
+                    WalletStatusChip(status: d.normalizedVerificationStatus),
                   ],
                 ),
                 const SizedBox(height: 3),

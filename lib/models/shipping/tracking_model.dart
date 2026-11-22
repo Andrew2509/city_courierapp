@@ -4,11 +4,15 @@ import 'package:latlong2/latlong.dart';
 enum TrackingStatus {
   pending,
   confirmed,
+  awaitingDropoff,
+  droppedOff,
+  processing,
   assigned,
   pickingUp,
   pickedUp,
   delivering,
   inTransit,
+  arrivedAtDestination,
   delivered,
   cancelled,
   unknown;
@@ -16,9 +20,15 @@ enum TrackingStatus {
   String get label {
     switch (this) {
       case TrackingStatus.pending:
-        return 'Menunggu';
+        return 'Menunggu Pembayaran';
       case TrackingStatus.confirmed:
         return 'Pesanan Dikonfirmasi';
+      case TrackingStatus.awaitingDropoff:
+        return 'Menunggu Diantar ke Drop Point';
+      case TrackingStatus.droppedOff:
+        return 'Paket Diterima Petugas Drop Point';
+      case TrackingStatus.processing:
+        return 'Paket Diproses';
       case TrackingStatus.assigned:
         return 'Kurir Ditugaskan';
       case TrackingStatus.pickingUp:
@@ -26,9 +36,11 @@ enum TrackingStatus {
       case TrackingStatus.pickedUp:
         return 'Paket Dalam Perjalanan ke Penerima';
       case TrackingStatus.delivering:
-        return 'Segera Tiba';
+        return 'Dalam Pengantaran';
       case TrackingStatus.inTransit:
         return 'Dalam Perjalanan';
+      case TrackingStatus.arrivedAtDestination:
+        return 'Sampai di Kota Tujuan';
       case TrackingStatus.delivered:
         return 'Paket Diterima';
       case TrackingStatus.cancelled:
@@ -39,18 +51,23 @@ enum TrackingStatus {
   }
 
   /// Step index for progress bar (0-based, 4 steps total):
-  /// 0 = Dibuat, 1 = Dijemput, 2 = Dalam Perjalanan, 3 = Diterima
+  /// 0 = Dibuat / Menunggu Dropoff, 1 = Dijemput / Diterima Drop Point,
+  /// 2 = Dalam Perjalanan, 3 = Diterima
   int get progressIndex {
     switch (this) {
       case TrackingStatus.pending:
       case TrackingStatus.confirmed:
+      case TrackingStatus.awaitingDropoff:
         return 0; // Dibuat
       case TrackingStatus.assigned:
       case TrackingStatus.pickingUp:
-        return 1; // Dijemput
+      case TrackingStatus.droppedOff:
+      case TrackingStatus.processing:
+        return 1; // Dijemput / Diterima di Drop Point
       case TrackingStatus.pickedUp:
       case TrackingStatus.delivering:
       case TrackingStatus.inTransit:
+      case TrackingStatus.arrivedAtDestination:
         return 2; // Perjalanan
       case TrackingStatus.delivered:
         return 3; // Diterima
@@ -65,10 +82,11 @@ enum TrackingStatus {
       this == TrackingStatus.cancelled;
 
   /// Status yang masih mengizinkan pelanggan membatalkan pesanan secara mandiri
-  /// (menunggu penugasan kurir atau sudah ditugaskan tetapi proses pickup belum dimulai).
+  /// (menunggu penugasan kurir, menunggu pengantaran ke Drop Point, atau belum diambil).
   bool get isCustomerCancellableStatus =>
       this == TrackingStatus.pending ||
       this == TrackingStatus.confirmed ||
+      this == TrackingStatus.awaitingDropoff ||
       this == TrackingStatus.assigned;
 
   static TrackingStatus fromString(String? value) {
@@ -77,6 +95,17 @@ enum TrackingStatus {
         return TrackingStatus.pending;
       case 'confirmed':
         return TrackingStatus.confirmed;
+      case 'waiting_dropoff':
+      case 'awaiting_dropoff':
+      case 'waiting_drop_off':
+        return TrackingStatus.awaitingDropoff;
+      case 'dropped_off':
+      case 'received_at_drop_point':
+      case 'at_drop_point':
+        return TrackingStatus.droppedOff;
+      case 'processing':
+      case 'processed':
+        return TrackingStatus.processing;
       case 'assigned':
         return TrackingStatus.assigned;
       case 'picking_up':
@@ -87,6 +116,9 @@ enum TrackingStatus {
         return TrackingStatus.delivering;
       case 'in_transit':
         return TrackingStatus.inTransit;
+      case 'arrived_at_destination':
+      case 'at_destination_hub':
+        return TrackingStatus.arrivedAtDestination;
       case 'delivered':
         return TrackingStatus.delivered;
       case 'cancelled':
@@ -134,7 +166,16 @@ class TrackingModel {
   final String? cancelledByLabel;
   final String? cancellationReason;
   final String? qrCodeUrl;
+  final String? shippingMethod;
+  final String? dropPointName;
+  final String? dropPointAddress;
   final Map<String, dynamic>? rawJson;
+
+  bool get isDropoff {
+    final m = (shippingMethod ?? '').toLowerCase();
+    return m.contains('dropoff') ||
+        (dropPointName != null && dropPointName!.trim().isNotEmpty);
+  }
 
   const TrackingModel({
     required this.trackingNumber,
@@ -172,6 +213,9 @@ class TrackingModel {
     this.cancelledByLabel,
     this.cancellationReason,
     this.qrCodeUrl,
+    this.shippingMethod,
+    this.dropPointName,
+    this.dropPointAddress,
     this.rawJson,
   });
 
@@ -211,6 +255,9 @@ class TrackingModel {
     String? cancelledByLabel,
     String? cancellationReason,
     String? qrCodeUrl,
+    String? shippingMethod,
+    String? dropPointName,
+    String? dropPointAddress,
     Map<String, dynamic>? rawJson,
   }) {
     return TrackingModel(
@@ -249,6 +296,9 @@ class TrackingModel {
       cancelledByLabel: cancelledByLabel ?? this.cancelledByLabel,
       cancellationReason: cancellationReason ?? this.cancellationReason,
       qrCodeUrl: qrCodeUrl ?? this.qrCodeUrl,
+      shippingMethod: shippingMethod ?? this.shippingMethod,
+      dropPointName: dropPointName ?? this.dropPointName,
+      dropPointAddress: dropPointAddress ?? this.dropPointAddress,
       rawJson: rawJson ?? this.rawJson,
     );
   }
@@ -410,6 +460,17 @@ class TrackingModel {
     final cancelledByLabel = json['cancelled_by_label']?.toString();
     final cancellationReason = json['cancellation_reason']?.toString();
     final qrCodeUrl = json['qr_code_url']?.toString();
+    final dropPointMap = json['drop_point'] is Map
+        ? Map<String, dynamic>.from(json['drop_point'] as Map)
+        : null;
+    final shippingMethod = (json['shipping_method'] ??
+            json['delivery_method'] ??
+            json['service_type'])
+        ?.toString();
+    final dropPointName =
+        (json['drop_point_name'] ?? dropPointMap?['name'])?.toString();
+    final dropPointAddress =
+        (json['drop_point_address'] ?? dropPointMap?['address'])?.toString();
 
     return TrackingModel(
       trackingNumber: trackingNumber,
@@ -447,6 +508,9 @@ class TrackingModel {
       cancelledByLabel: cancelledByLabel,
       cancellationReason: cancellationReason,
       qrCodeUrl: qrCodeUrl,
+      shippingMethod: shippingMethod,
+      dropPointName: dropPointName,
+      dropPointAddress: dropPointAddress,
       rawJson: json,
     );
   }
@@ -659,6 +723,17 @@ class TrackingTimelineItem {
         return 'Pesanan dibuat';
       case 'confirmed':
         return 'Pesanan dikonfirmasi';
+      case 'waiting_dropoff':
+      case 'awaiting_dropoff':
+      case 'waiting_drop_off':
+        return 'Menunggu paket diantar ke Drop Point';
+      case 'dropped_off':
+      case 'received_at_drop_point':
+      case 'at_drop_point':
+        return 'Paket diterima petugas Drop Point';
+      case 'processing':
+      case 'processed':
+        return 'Paket diproses';
       case 'assigned':
         return 'Kurir ditugaskan';
       case 'picking_up':
@@ -669,6 +744,9 @@ class TrackingTimelineItem {
         return 'Kurir segera tiba';
       case 'in_transit':
         return 'Dalam perjalanan';
+      case 'arrived_at_destination':
+      case 'at_destination_hub':
+        return 'Sampai di kota tujuan';
       case 'arriving':
         return 'Segera tiba';
       case 'delivered':

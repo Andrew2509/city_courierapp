@@ -155,6 +155,17 @@ class TrackingTimelineWidget extends StatelessWidget {
         return Icons.receipt_long;
       case 'confirmed':
         return Icons.verified_outlined;
+      case 'waiting_dropoff':
+      case 'awaiting_dropoff':
+      case 'waiting_drop_off':
+        return Icons.store_mall_directory_outlined;
+      case 'dropped_off':
+      case 'received_at_drop_point':
+      case 'at_drop_point':
+        return Icons.storefront_rounded;
+      case 'processing':
+      case 'processed':
+        return Icons.inventory_2_outlined;
       case 'assigned':
         return Icons.person_add_outlined;
       case 'pickup':
@@ -165,6 +176,9 @@ class TrackingTimelineWidget extends StatelessWidget {
       case 'in_transit':
       case 'delivering':
         return Icons.local_shipping;
+      case 'arrived_at_destination':
+      case 'at_destination_hub':
+        return Icons.warehouse_outlined;
       case 'arriving':
         return Icons.near_me;
       case 'delivered':

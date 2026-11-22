@@ -31,6 +31,16 @@ class PaymentMethodScreen extends StatefulWidget {
   final CustomerWalletService? walletService;
   final Future<CheckoutPaymentMethodsResult> Function()? methodsFetcher;
   final Future<Map<String, dynamic>?> Function()? settingsFetcher;
+  final Future<Map<String, dynamic>?> Function(
+    String endpoint,
+    Map<String, dynamic> body,
+  )? confirmPaymentFn;
+  final bool isDropoff;
+  final Map<String, dynamic>? dropPointData;
+  final String? itemDescription;
+  final double? packageWeight;
+  final String? receiverPhone;
+  final String? receiverAddress;
 
   const PaymentMethodScreen({
     super.key,
@@ -49,6 +59,13 @@ class PaymentMethodScreen extends StatefulWidget {
     this.walletService,
     this.methodsFetcher,
     this.settingsFetcher,
+    this.confirmPaymentFn,
+    this.isDropoff = false,
+    this.dropPointData,
+    this.itemDescription,
+    this.packageWeight,
+    this.receiverPhone,
+    this.receiverAddress,
   });
 
   @override
@@ -63,10 +80,19 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
   String? selectedMethodGroup;
   bool saveCard = true;
   bool isLoading = true;
+  bool _isProcessingPayment = false;
+  CustomerWalletSummary? _walletSummary;
   List<PaymentMethod> paymentMethods = [];
   Map<String, bool> expandedGroups = {
     'virtual_account': true, // Open by default as in the example
   };
+
+  bool get _isDropoffOrder =>
+      widget.isDropoff ||
+      widget.shipmentData?['delivery_method']?.toString().toLowerCase() ==
+          'dropoff' ||
+      widget.shipmentData?['shipping_method']?.toString().toLowerCase() ==
+          'dropoff';
 
   String _formatCurrency(int amount) {
     final str = amount.toString();
@@ -106,11 +132,11 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       final methodResult = results[0] as CheckoutPaymentMethodsResult;
       final providerSnapshot = results[1] as ProviderStatusSnapshot;
 
-      final bool ipaymuEnabled =
-          methodResult.ipaymuEnabled &&
-          providerSnapshot.isEnabled('ipaymu', defaultValue: true);
+      final bool xenditEnabled =
+          methodResult.xenditEnabled &&
+          providerSnapshot.isEnabled('xendit', defaultValue: true);
 
-      final List<PaymentMethod> methods = ipaymuEnabled
+      final List<PaymentMethod> methods = xenditEnabled
           ? List<PaymentMethod>.from(methodResult.methods)
           : methodResult.methods
                 .where((m) => _isLocalCheckoutMethod(m.code))
@@ -123,18 +149,23 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           methodResult.message?.trim().isNotEmpty == true
           ? methodResult.message!.trim()
           : null;
-      final String? remoteNotice = !ipaymuEnabled || hasRemoteMethod
+      final String? remoteNotice = !xenditEnabled || hasRemoteMethod
           ? null
           : (trimmedResultMsg ??
                 (methodResult.hasError
-                    ? 'Virtual Account & QRIS (iPaymu) gagal dimuat dari server.'
-                    : 'Saluran Virtual Account & QRIS (iPaymu) belum aktif di server.'));
+                    ? 'Virtual Account, QRIS & E-Wallet (Xendit) gagal dimuat dari server.'
+                    : 'Saluran Virtual Account, QRIS & E-Wallet (Xendit) belum aktif di server.'));
 
       if (mounted) {
         setState(() {
+          _walletSummary = walletSummary;
           _remoteMethodsNotice = remoteNotice;
-          paymentMethods = methods;
-          if (!ipaymuEnabled &&
+          paymentMethods = _isDropoffOrder
+              ? methods
+                    .where((m) => m.code.toUpperCase() != 'COD')
+                    .toList()
+              : methods;
+          if (!xenditEnabled &&
               selectedMethodCode != null &&
               !_isLocalCheckoutMethod(selectedMethodCode!)) {
             selectedMethod = null;
@@ -158,8 +189,9 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
               ),
             );
           }
-          // Tambahkan metode pembayaran COD secara lokal jika tidak ada dari API
-          if (!paymentMethods.any((m) => m.code.toUpperCase() == 'COD')) {
+          // Tambahkan metode pembayaran COD secara lokal hanya untuk Pickup (bukan Dropoff)
+          if (!_isDropoffOrder &&
+              !paymentMethods.any((m) => m.code.toUpperCase() == 'COD')) {
             paymentMethods.insert(
               0,
               PaymentMethod(
@@ -177,7 +209,9 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
               0,
               PaymentMethod(
                 code: 'TUNAI',
-                name: 'Pembayaran Tunai',
+                name: _isDropoffOrder
+                    ? 'Bayar Tunai di Drop Point'
+                    : 'Pembayaran Tunai',
                 group: 'direct',
                 iconUrl: '',
                 fee: 0,
@@ -372,7 +406,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pengiriman Paket',
+                  _isDropoffOrder ? 'Pengiriman Dropoff' : 'Pengiriman Paket',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -388,15 +422,49 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                       color: Colors.grey.shade500,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      '${widget.senderCity ?? "Jakarta"} → ${widget.receiverCity ?? "Surabaya"}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
+                    Expanded(
+                      child: Text(
+                        '${widget.senderCity ?? "Jakarta"} → ${widget.receiverCity ?? "Surabaya"}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
                     ),
                   ],
                 ),
+                if (_isDropoffOrder &&
+                    (widget.dropPointData?['name'] ??
+                            widget.shipmentData?['drop_point_name']) !=
+                        null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.store_mall_directory_outlined,
+                        size: 14,
+                        color: primaryColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          (widget.dropPointData?['name'] ??
+                                  widget.shipmentData?['drop_point_name'])
+                              .toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: primaryColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   'ID: ${widget.trackingNumber ?? widget.shipmentId ?? "-"}',
@@ -413,7 +481,11 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Regular Service',
+                    _isDropoffOrder
+                        ? (widget.vehicle?.isNotEmpty == true
+                              ? 'Dropoff • ${widget.vehicle}'
+                              : 'Dropoff Service')
+                        : 'Regular Service',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -588,6 +660,41 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
     }
   }
 
+  String _directMethodSubtitle(String code) {
+    final upper = code.toUpperCase();
+    if (upper.contains('COD')) {
+      return 'Bayar tunai saat paket sampai';
+    }
+    if (upper.contains('TUNAI')) {
+      return _isDropoffOrder
+          ? 'Bayar tunai saat menyerahkan paket di Drop Point'
+          : 'Bayar tunai kepada kurir';
+    }
+    if (upper == 'WALLET') {
+      final summary = _walletSummary;
+      if (summary != null && summary.isFrozen) {
+        return 'Dompet sedang dibekukan';
+      }
+      if (summary != null && summary.availableBalance < widget.totalAmount) {
+        final short = _formatCurrency(
+          widget.totalAmount - summary.availableBalance,
+        );
+        return 'Saldo tidak mencukupi (kurang $short)';
+      }
+      return summary != null
+          ? 'Saldo cukup untuk pembayaran instan'
+          : 'Bayar instan menggunakan saldo City Wallet';
+    }
+    return 'Bayar tunai di agen/drop point';
+  }
+
+  bool _isWalletBlockedForMethod(String code) {
+    if (code.toUpperCase() != 'WALLET') return false;
+    final summary = _walletSummary;
+    if (summary == null) return false;
+    return summary.isFrozen || summary.availableBalance < widget.totalAmount;
+  }
+
   Widget _buildDirectMethodTile(
     PaymentMethod method,
     Color primaryColor,
@@ -660,15 +767,13 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                       ),
                     ),
                     Text(
-                      method.code.toUpperCase().contains('COD')
-                          ? 'Bayar tunai saat paket sampai'
-                          : (method.code.toUpperCase().contains('TUNAI')
-                                ? 'Bayar tunai kepada kurir'
-                                : 'Bayar tunai di agen/drop point'),
+                      _directMethodSubtitle(method.code),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: Colors.grey.shade400,
+                        color: _isWalletBlockedForMethod(method.code)
+                            ? Colors.red.shade500
+                            : Colors.grey.shade500,
                       ),
                     ),
                   ],
@@ -906,7 +1011,10 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           SizedBox(
             width: 160,
             child: ElevatedButton(
-              onPressed: isLoading || selectedMethodCode == null
+              onPressed:
+                  (isLoading ||
+                      _isProcessingPayment ||
+                      selectedMethodCode == null)
                   ? null
                   : _handlePayment,
               style: ElevatedButton.styleFrom(
@@ -942,6 +1050,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
   }
 
   Future<void> _handlePayment() async {
+    if (_isProcessingPayment) return;
     if (selectedMethodCode == null ||
         selectedMethodGroup == null ||
         selectedMethod == null ||
@@ -952,7 +1061,10 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() {
+      _isProcessingPayment = true;
+      isLoading = true;
+    });
     try {
       debugPrint(
         'DEBUG: Creating Payment - ShipmentId: ${widget.shipmentId}, Type: $selectedMethodGroup, Channel: $selectedMethodCode, Amount: ${widget.totalAmount}',
@@ -966,6 +1078,47 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         }
         final walletSvc =
             widget.walletService ?? CustomerWalletService.instance;
+        var summary = _walletSummary;
+        if (summary == null) {
+          try {
+            summary = await walletSvc.getWallet();
+            if (mounted) {
+              setState(() => _walletSummary = summary);
+            }
+          } catch (_) {}
+        }
+        if (summary != null && summary.isFrozen) {
+          if (mounted) {
+            setState(() => isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Dompet City Wallet Anda sedang dibekukan.'),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+        if (summary != null && summary.availableBalance < widget.totalAmount) {
+          final shortfall = _formatCurrency(
+            widget.totalAmount - summary.availableBalance,
+          );
+          if (mounted) {
+            setState(() => isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Saldo City Wallet tidak mencukupi (kurang $shortfall).',
+                ),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
         Map<String, dynamic> res;
         try {
           res = await walletSvc.payOrderWithWallet(shipmentId: shipmentIntId);
@@ -1014,6 +1167,12 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 receiverCity: widget.receiverCity,
                 vehicle: widget.vehicle,
                 shipmentData: widget.shipmentData,
+                isDropoff: _isDropoffOrder,
+                dropPointData: widget.dropPointData,
+                itemDescription: widget.itemDescription,
+                packageWeight: widget.packageWeight,
+                receiverPhone: widget.receiverPhone,
+                receiverAddress: widget.receiverAddress,
               ),
             ),
             (route) => false,
@@ -1022,16 +1181,26 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         return;
       }
 
-      // 1. COD & TUNAI: Konfirmasi pembayaran ke backend (status pending → confirmed)
+      // 1. COD & TUNAI: Konfirmasi pembayaran ke backend (wajib validasi respons)
       if (selectedMethodCode!.toUpperCase() == 'COD' ||
           selectedMethodCode!.toUpperCase() == 'TUNAI') {
-        try {
-          await ApiService.post(
-            '/shipments/${widget.shipmentId}/confirm-payment',
-            {'payment_method': selectedMethodCode!.toUpperCase()},
+        final confirmFn =
+            widget.confirmPaymentFn ??
+            (endpoint, body) => ApiService.post(endpoint, body);
+        final confirmRes = await confirmFn(
+          '/shipments/${widget.shipmentId}/confirm-payment',
+          {'payment_method': selectedMethodCode!.toUpperCase()},
+        );
+        final isConfirmed =
+            confirmRes != null &&
+            (confirmRes['success'] == true || confirmRes['confirmed'] == true);
+        if (!isConfirmed) {
+          final serverMsg = confirmRes?['message']?.toString().trim();
+          throw Exception(
+            (serverMsg != null && serverMsg.isNotEmpty)
+                ? serverMsg
+                : 'Konfirmasi pembayaran gagal dari server. Pesanan belum lunas.',
           );
-        } catch (e) {
-          debugPrint('DEBUG: COD/TUNAI confirmPayment error: $e');
         }
 
         if (mounted) {
@@ -1052,6 +1221,12 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
                 vehicle: widget.vehicle,
                 trackingUrl: widget.trackingUrl,
                 shipmentData: widget.shipmentData,
+                isDropoff: _isDropoffOrder,
+                dropPointData: widget.dropPointData,
+                itemDescription: widget.itemDescription,
+                packageWeight: widget.packageWeight,
+                receiverPhone: widget.receiverPhone,
+                receiverAddress: widget.receiverAddress,
               ),
             ),
             (route) => false,
@@ -1074,8 +1249,7 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       if (result != null) {
         final String upperCode = selectedMethodCode!.toUpperCase();
 
-        // 0. Redirect Payment iPaymu (cadangan saat Direct/VA ditolak sistem
-        //    risiko iPaymu). Tidak ada VA/QR dari server — buka halaman iPaymu.
+        // 0. Halaman Checkout Hosted (Redirect Payment Xendit untuk E-Wallet / link eksternal).
         if (result.isRedirect) {
           Navigator.push(
             context,
@@ -1201,6 +1375,10 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        _isProcessingPayment = false;
       }
     }
   }

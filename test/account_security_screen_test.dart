@@ -468,7 +468,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).first, '50000');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Masukkan nominal penarikan'),
+      '50000',
+    );
     await tester.tap(find.text('Ajukan Penarikan'));
     await tester.pumpAndSettle();
 

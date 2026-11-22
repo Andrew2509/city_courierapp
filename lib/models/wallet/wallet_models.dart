@@ -315,6 +315,10 @@ class PayoutDestinationV1 {
   });
 
   factory PayoutDestinationV1.fromJson(Map<String, dynamic> json) {
+    final verified = json['is_verified'] == true;
+    final rawStatus = (json['verification_status'] ??
+            (verified ? 'auto_verified' : 'unverified'))
+        .toString();
     return PayoutDestinationV1(
       id: _asInt(json['id']),
       ownerType: (json['owner_type'] ?? 'customer').toString(),
@@ -323,12 +327,28 @@ class PayoutDestinationV1 {
       channelName: (json['channel_name'] ?? '').toString(),
       accountNumberMasked: (json['account_number_masked'] ?? '').toString(),
       accountHolderName: (json['account_holder_name'] ?? '').toString(),
-      isVerified: json['is_verified'] == true,
-      verificationStatus: (json['verification_status'] ?? 'verified').toString(),
+      isVerified: verified,
+      verificationStatus: rawStatus,
       isDefault: json['is_default'] == true,
       isActive: json['is_active'] != false,
     );
   }
+
+  String get normalizedVerificationStatus {
+    final lower = verificationStatus.toLowerCase();
+    if (lower == 'auto_verified' || lower == 'verified') {
+      return 'auto_verified';
+    }
+    if (lower == 'verification_failed' || lower == 'failed') {
+      return 'verification_failed';
+    }
+    if (lower == 'unavailable' || lower == 'provider_disabled') {
+      return 'unavailable';
+    }
+    return isVerified ? 'auto_verified' : 'unverified';
+  }
+
+  bool get isAutoVerified => normalizedVerificationStatus == 'auto_verified';
 }
 
 class PayoutTransactionV1 {
@@ -647,6 +667,8 @@ class CourierWalletV1Summary {
 class DestinationInquiryResult {
   final bool supported;
   final bool found;
+  final String verificationStatus;
+  final bool canInputManually;
   final String? accountHolderName;
   final String channelCode;
   final String accountNumber;
@@ -658,28 +680,114 @@ class DestinationInquiryResult {
   const DestinationInquiryResult({
     required this.supported,
     required this.found,
+    String? verificationStatus,
+    bool? canInputManually,
     this.accountHolderName,
     this.channelCode = '',
     this.accountNumber = '',
     this.mode = 'sandbox',
     this.isSimulated = true,
-    this.provider = 'mock',
+    this.provider = 'xendit',
     this.message,
-  });
+  })  : verificationStatus = verificationStatus ??
+            (found
+                ? 'auto_verified'
+                : (supported ? 'verification_failed' : 'unverified')),
+        canInputManually = canInputManually ?? !found;
+
+  bool get isAutoVerified => verificationStatus == 'auto_verified';
+  bool get isUnverified => verificationStatus == 'unverified';
+  bool get isUnavailable => verificationStatus == 'unavailable';
+  bool get isVerificationFailed => verificationStatus == 'verification_failed';
 
   factory DestinationInquiryResult.fromJson(Map<String, dynamic> json) {
     final rawName = json['account_holder_name']?.toString().trim();
+    final hasName = rawName != null && rawName.isNotEmpty;
+    final found = json['found'] == true && hasName;
+    final supported = json['supported'] == true;
+    final rawStatus = json['verification_status']?.toString().trim().toLowerCase();
+    final resolvedStatus = (rawStatus != null && rawStatus.isNotEmpty)
+        ? rawStatus
+        : (found
+            ? 'auto_verified'
+            : (supported ? 'verification_failed' : 'unverified'));
+    final canManual = json.containsKey('can_input_manually')
+        ? json['can_input_manually'] == true
+        : (resolvedStatus != 'unavailable' && resolvedStatus != 'auto_verified');
+
     return DestinationInquiryResult(
-      supported: json['supported'] == true,
-      found: json['found'] == true && rawName != null && rawName.isNotEmpty,
-      accountHolderName:
-          (rawName != null && rawName.isNotEmpty) ? rawName : null,
+      supported: supported,
+      found: found,
+      verificationStatus: resolvedStatus,
+      canInputManually: canManual,
+      accountHolderName: hasName ? rawName : null,
       channelCode: (json['channel_code'] ?? '').toString(),
       accountNumber: (json['account_number'] ?? '').toString(),
       mode: (json['mode'] ?? 'sandbox').toString(),
       isSimulated: json['is_simulated'] == true,
-      provider: (json['provider'] ?? 'mock').toString(),
+      provider: (json['provider'] ?? 'xendit').toString(),
       message: json['message']?.toString(),
+    );
+  }
+}
+
+class PayoutDestinationsBundle {
+  final List<PayoutDestinationV1> items;
+  final List<(String, String)> bankChannels;
+  final List<(String, String)> ewalletChannels;
+  final bool hasServerChannels;
+
+  const PayoutDestinationsBundle({
+    required this.items,
+    required this.bankChannels,
+    required this.ewalletChannels,
+    required this.hasServerChannels,
+  });
+
+  static List<(String, String)> _parseChannels(dynamic raw) {
+    final List<(String, String)> result = [];
+    if (raw is Map) {
+      raw.forEach((key, value) {
+        final code = key.toString().trim().toUpperCase();
+        final label = value.toString().trim();
+        if (code.isNotEmpty && label.isNotEmpty) {
+          result.add((code, label));
+        }
+      });
+    } else if (raw is List) {
+      for (final entry in raw) {
+        if (entry is Map) {
+          final code = (entry['code'] ?? entry['channel_code'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
+          final label = (entry['name'] ?? entry['label'] ?? code)
+              .toString()
+              .trim();
+          if (code.isNotEmpty && label.isNotEmpty) {
+            result.add((code, label));
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  factory PayoutDestinationsBundle.fromJson(Map<String, dynamic> json) {
+    final items = (json['items'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => PayoutDestinationV1.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    final supported = json['supported_channels'];
+    final hasServerChannels = supported is Map;
+    final banks = hasServerChannels ? _parseChannels(supported['bank']) : const <(String, String)>[];
+    final ewallets = hasServerChannels ? _parseChannels(supported['ewallet']) : const <(String, String)>[];
+
+    return PayoutDestinationsBundle(
+      items: items,
+      bankChannels: banks,
+      ewalletChannels: ewallets,
+      hasServerChannels: hasServerChannels,
     );
   }
 }

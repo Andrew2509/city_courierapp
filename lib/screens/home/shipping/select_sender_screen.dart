@@ -5,12 +5,14 @@ import 'package:city_courierapp/services/address_service.dart';
 class SelectSenderScreen extends StatefulWidget {
   final String title;
   final String subtitle;
+  final Future<List<Map<String, dynamic>>> Function()? addressesFetcher;
 
   const SelectSenderScreen({
-    Key? key,
+    super.key,
     this.title = 'Pilih Pengirim',
     this.subtitle = 'Pilih pengirim untuk pengiriman',
-  }) : super(key: key);
+    this.addressesFetcher,
+  });
 
   @override
   State<SelectSenderScreen> createState() => _SelectSenderScreenState();
@@ -32,7 +34,8 @@ class _SelectSenderScreenState extends State<SelectSenderScreen> {
 
   Future<void> _loadAddresses() async {
     setState(() => _isLoading = true);
-    final result = await AddressService.getAddresses();
+    final result =
+        await (widget.addressesFetcher ?? AddressService.getAddresses)();
     if (mounted) {
       setState(() {
         _addresses = result;
@@ -311,7 +314,7 @@ class _SelectSenderScreenState extends State<SelectSenderScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.only(top: 16, bottom: 24),
         itemCount: list.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemBuilder: (context, index) =>
             _buildSenderCard(list[index], isDarkMode, primaryColor),
       ),
@@ -464,8 +467,9 @@ class _SelectSenderScreenState extends State<SelectSenderScreen> {
             ),
           );
           if (result != null && result is Map<String, dynamic>) {
-            // Reload from API after adding
-            _loadAddresses();
+            if (!context.mounted) return;
+            Navigator.pop(context, result);
+            return;
           }
         },
         child: Container(
@@ -482,14 +486,16 @@ class _SelectSenderScreenState extends State<SelectSenderScreen> {
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add, color: Colors.white, size: 20),
-              SizedBox(width: 8),
+              const Icon(Icons.add, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
               Text(
-                'Tambah Pengirim Baru',
-                style: TextStyle(
+                widget.title.toLowerCase().contains('penerima')
+                    ? 'Tambah Penerima Baru'
+                    : 'Tambah Pengirim Baru',
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,

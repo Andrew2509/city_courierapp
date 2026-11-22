@@ -208,7 +208,7 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
         'Status Belum Bisa Diperiksa',
         'Server belum mengembalikan status pembayaran. Pastikan koneksi internet '
             'aktif lalu coba lagi. Status tetap tidak diubah sebelum ada konfirmasi '
-            'resmi dari iPaymu.',
+            'resmi dari Xendit.',
       );
       return;
     }
@@ -228,7 +228,7 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
             ],
           ),
           content: Text(
-            'Pembayaran Anda sudah dikonfirmasi iPaymu. Pesanan akan segera diproses.',
+            'Pembayaran Anda sudah dikonfirmasi Xendit. Pesanan akan segera diproses.',
             style: TextStyle(fontSize: 12.5, height: 1.5, color: mutedColor),
           ),
           actions: [
@@ -250,7 +250,7 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
       final label = latest.status == 'expired' ? 'kedaluwarsa' : 'dibatalkan';
       await _infoDialog(
         'Pembayaran Tidak Berhasil',
-        'Transaksi QRIS/e-wallet ini sudah $label di iPaymu. Pesanan belum '
+        'Transaksi QRIS/e-wallet ini sudah $label di Xendit. Pesanan belum '
             'terbayar — buat pembayaran baru dari halaman checkout atau '
             'batalkan pesanan.',
         icon: Icons.cancel_rounded,
@@ -295,7 +295,7 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: inkColor),
         ),
         content: Text(
-          'Pesanan akan dibatalkan dan status pembayaran diperiksa ke iPaymu. '
+          'Pesanan akan dibatalkan dan status pembayaran diperiksa ke Xendit. '
           'Bila pembayaran sudah diterima, pembatalan diproses sebagai pengembalian dana.',
           style: TextStyle(fontSize: 12.5, height: 1.5, color: mutedColor),
         ),
@@ -324,7 +324,7 @@ class _EWalletConfirmationScreenState extends State<EWalletConfirmationScreen> {
     );
 
     // Satu pintu: batalkan PESANAN-nya, bukan hanya transaksi pembayaran.
-    // Backend menutup transaksi iPaymu lalu mengubah status pesanan sekaligus.
+    // Backend membatalkan transaksi Xendit lalu mengubah status pesanan sekaligus.
     final result = shipmentId.isNotEmpty
         ? await ShipmentService.cancelShipment(shipmentId)
         : await PaymentService.cancelPayment(paymentId);

@@ -1,9 +1,8 @@
-import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/wallet/customer_refund_screen.dart';
 import 'package:city_courierapp/screens/wallet/customer_withdrawal_screen.dart';
-import 'package:city_courierapp/screens/wallet/payout_destinations_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_amount_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transaction_detail_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transactions_screen.dart';
@@ -86,55 +85,47 @@ class _CustomerWalletDashboardScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            CityWalletUi.buildHeader(
-              context,
-              title: 'City Wallet Saya',
-              trailing: IconButton(
-                onPressed: _loading ? null : _load,
-                icon: const Icon(
-                  Icons.refresh,
-                  color: CityWalletUi.inkPrimary,
-                  size: 20,
-                ),
-                tooltip: 'Muat ulang',
-              ),
+      backgroundColor: CityWalletUi.scaffoldBg(context),
+      appBar: CityWalletUi.buildAppBar(
+        context,
+        title: 'City Wallet Saya',
+        actions: [
+          IconButton(
+            onPressed: _loading ? null : _load,
+            icon: Icon(
+              Icons.refresh,
+              color: CityWalletUi.ink(context),
+              size: 20,
             ),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primaryOrange,
-                      ),
-                    )
-                  : _biometricLocked
-                      ? _buildBiometricLockState()
-                      : _error != null
-                          ? WalletErrorState(message: _error!, onRetry: _load)
-                          : RefreshIndicator(
-                              color: AppColors.primaryOrange,
-                              onRefresh: _load,
-                              child: ListView(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                                children: [
-                                  if (_wallet!.isFrozen) _buildFrozenBanner(),
-                                  _buildBalanceCard(),
-                                  const SizedBox(height: 16),
-                                  _buildQuickActions(),
-                                  const SizedBox(height: 24),
-                                  _buildRecentTransactionsSection(),
-                                ],
-                              ),
-                            ),
-            ),
-          ],
-        ),
+            tooltip: 'Muat ulang',
+          ),
+        ],
       ),
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: CityWalletUi.primaryColor,
+              ),
+            )
+          : _biometricLocked
+              ? _buildBiometricLockState()
+              : _error != null
+                  ? WalletErrorState(message: _error!, onRetry: _load)
+                  : RefreshIndicator(
+                      color: CityWalletUi.primaryColor,
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                        children: [
+                          if (_wallet!.isFrozen) _buildFrozenBanner(),
+                          _buildBalanceCard(),
+                          const SizedBox(height: 16),
+                          _buildQuickActions(),
+                          const SizedBox(height: 24),
+                          _buildRecentTransactionsSection(),
+                        ],
+                      ),
+                    ),
     );
   }
 
@@ -146,25 +137,25 @@ class _CustomerWalletDashboardScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 68,
+              height: 68,
               decoration: BoxDecoration(
-                color: AppColors.primaryOrange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(18),
+                color: CityWalletUi.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: const Icon(
                 Icons.fingerprint_rounded,
-                color: AppColors.primaryOrange,
-                size: 34,
+                color: CityWalletUi.primaryColor,
+                size: 36,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'City Wallet Terkunci',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: CityWalletUi.inkPrimary,
+              style: AppTypography.titleMedium.copyWith(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: CityWalletUi.ink(context),
               ),
             ),
             const SizedBox(height: 6),
@@ -172,22 +163,16 @@ class _CustomerWalletDashboardScreenState
               _biometricHint ??
                   'Verifikasi biometrik diperlukan untuk melindungi saldo Anda.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: CityWalletUi.inkSecondary,
-              ),
+              style: CityWalletUi.bodyStyle(context),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
             SizedBox(
               width: 240,
               child: ElevatedButton.icon(
                 onPressed: _unlockWithBiometric,
-                style: CityWalletUi.primaryButtonStyle(),
+                style: CityWalletUi.primaryButtonStyle(context: context),
                 icon: const Icon(Icons.fingerprint_rounded),
-                label: const Text(
-                  'Buka dengan Biometrik',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
+                label: const Text('Buka dengan Biometrik'),
               ),
             ),
           ],
@@ -198,22 +183,26 @@ class _CustomerWalletDashboardScreenState
 
   Widget _buildFrozenBanner() {
     return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: const Color(0xFFFEF2F2),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.ac_unit_rounded, color: CityWalletUi.errorRed, size: 18),
+          const Icon(
+            Icons.ac_unit_rounded,
+            color: CityWalletUi.errorRed,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'Wallet Dibekukan: ${_wallet!.freezeReason ?? "Hubungi Admin City Courier"}',
-              style: const TextStyle(
-                color: Color(0xFF991B1B),
+              style: AppTypography.caption.copyWith(
+                color: const Color(0xFF991B1B),
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),
@@ -230,21 +219,18 @@ class _CustomerWalletDashboardScreenState
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        color: AppColors.primaryOrange,
-        borderRadius: BorderRadius.circular(14),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      decoration: CityWalletUi.heroCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Saldo Tersedia',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                     color: Colors.white70,
                   ),
@@ -256,14 +242,14 @@ class _CustomerWalletDashboardScreenState
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             formatRupiah(w.availableBalance),
-            style: const TextStyle(
+            style: AppTypography.headline1.copyWith(
               color: Colors.white,
               fontSize: 28,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.6,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 14),
@@ -290,7 +276,7 @@ class _CustomerWalletDashboardScreenState
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            height: 42,
+            height: 46,
             child: ElevatedButton.icon(
               onPressed: !canTopup
                   ? null
@@ -301,6 +287,7 @@ class _CustomerWalletDashboardScreenState
                           builder: (_) => TopupAmountScreen(
                             minAmount: w.topupMinIdr,
                             maxAmount: w.topupMaxIdr,
+                            currentBalance: w.availableBalance,
                             service: _service,
                           ),
                         ),
@@ -309,12 +296,16 @@ class _CustomerWalletDashboardScreenState
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: AppColors.primaryOrange,
-                disabledBackgroundColor: Colors.white24,
+                foregroundColor: CityWalletUi.primaryColor,
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.24),
                 disabledForegroundColor: Colors.white70,
                 elevation: 0,
+                textStyle: AppTypography.titleSmall.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               icon: const Icon(Icons.add_circle_outline, size: 18),
@@ -322,10 +313,6 @@ class _CustomerWalletDashboardScreenState
                 w.topupProviderEnabled
                     ? 'Top-Up Saldo'
                     : 'Top-Up Dinonaktifkan Admin',
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                ),
               ),
             ),
           ),
@@ -340,17 +327,17 @@ class _CustomerWalletDashboardScreenState
         children: [
           TextSpan(
             text: '$label\n',
-            style: const TextStyle(
-              fontSize: 11,
+            style: AppTypography.caption.copyWith(
+              fontSize: 11.5,
               color: Colors.white70,
               height: 1.4,
             ),
           ),
           TextSpan(
             text: value,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+            style: AppTypography.titleSmall.copyWith(
+              fontSize: 13.5,
+              fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
@@ -370,16 +357,7 @@ class _CustomerWalletDashboardScreenState
             ),
           );
         }),
-        const SizedBox(width: 8),
-        _actionChip(Icons.account_balance_outlined, 'Rekening', () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PayoutDestinationsScreen(service: _service),
-            ),
-          );
-        }),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         _actionChip(Icons.outbond_outlined, 'Tarik Dana', () async {
           await Navigator.push(
             context,
@@ -392,7 +370,7 @@ class _CustomerWalletDashboardScreenState
           );
           _load();
         }),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         _actionChip(Icons.assignment_return_outlined, 'Refund', () async {
           await Navigator.push(
             context,
@@ -412,14 +390,10 @@ class _CustomerWalletDashboardScreenState
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Transaksi Terbaru',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: CityWalletUi.inkPrimary,
-                ),
+                style: CityWalletUi.sectionTitleStyle(context),
               ),
             ),
             TextButton(
@@ -429,50 +403,37 @@ class _CustomerWalletDashboardScreenState
                   builder: (_) => WalletTransactionsScreen(service: _service),
                 ),
               ),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryOrange,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'Lihat Semua',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
+              style: CityWalletUi.textButtonStyle,
+              child: const Text('Lihat Semua'),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (_recentTx.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: CityWalletUi.borderColor),
-            ),
-            child: const Column(
+            decoration: CityWalletUi.cardDecoration(context, radius: 16),
+            child: Column(
               children: [
                 Icon(
                   Icons.receipt_long_outlined,
-                  size: 32,
-                  color: Color(0xFFCBD5E1),
+                  size: 36,
+                  color: CityWalletUi.mutedInk(context),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   'Belum ada transaksi wallet',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: CityWalletUi.inkSecondary,
+                  style: CityWalletUi.cardTitleStyle(context).copyWith(
+                    fontSize: 13.5,
+                    color: CityWalletUi.secondaryInk(context),
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   'Top-up, pembayaran, dan refund Anda akan tercatat di sini.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11.5, color: CityWalletUi.inkMuted),
+                  style: CityWalletUi.captionStyle(context),
                 ),
               ],
             ),
@@ -495,37 +456,44 @@ class _CustomerWalletDashboardScreenState
 
   Widget _actionChip(IconData icon, String label, VoidCallback onTap) {
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: CityWalletUi.borderColor),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryOrange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(icon, color: AppColors.primaryOrange, size: 18),
+      child: Container(
+        decoration: CityWalletUi.cardDecoration(context, radius: 16),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+              child: Column(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: CityWalletUi.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: CityWalletUi.primaryColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.caption.copyWith(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: CityWalletUi.ink(context),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: CityWalletUi.inkPrimary,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -21,6 +21,12 @@ class DirectPaymentConfirmationScreen extends StatefulWidget {
   final String? vehicle;
   final String? trackingUrl;
   final Map<String, dynamic>? shipmentData;
+  final bool isDropoff;
+  final Map<String, dynamic>? dropPointData;
+  final String? itemDescription;
+  final double? packageWeight;
+  final String? receiverPhone;
+  final String? receiverAddress;
 
   const DirectPaymentConfirmationScreen({
     super.key,
@@ -36,6 +42,12 @@ class DirectPaymentConfirmationScreen extends StatefulWidget {
     this.vehicle,
     this.trackingUrl,
     this.shipmentData,
+    this.isDropoff = false,
+    this.dropPointData,
+    this.itemDescription,
+    this.packageWeight,
+    this.receiverPhone,
+    this.receiverAddress,
   });
 
   @override
@@ -56,6 +68,19 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
   String? get trackingUrl => widget.trackingUrl;
   Map<String, dynamic>? get shipmentData => widget.shipmentData;
 
+  bool get _isDropoffOrder =>
+      widget.isDropoff ||
+      shipmentData?['delivery_method']?.toString().toLowerCase() == 'dropoff' ||
+      shipmentData?['shipping_method']?.toString().toLowerCase() == 'dropoff';
+
+  String? get _dropPointName =>
+      widget.dropPointData?['name']?.toString() ??
+      shipmentData?['drop_point_name']?.toString();
+
+  String? get _dropPointAddress =>
+      widget.dropPointData?['address']?.toString() ??
+      shipmentData?['drop_point_address']?.toString();
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +91,27 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
 
   void _saveActiveOrder() {
     final destCity = receiverCity ?? shipmentData?['destination_name'] ?? 'Kebayoran Baru';
+    if (_isDropoffOrder) {
+      ActiveOrderService.saveActiveOrder({
+        'order_id': orderId,
+        'status': 'Menunggu Diantar ke Drop Point',
+        'status_raw': 'waiting_dropoff',
+        'estimated_time': 'Antar ke Drop Point',
+        'courier_name': _dropPointName ?? 'Drop Point City Courier',
+        'courier_vehicle':
+            vehicle ?? shipmentData?['service_name']?.toString() ?? 'Dropoff',
+        'courier_phone': widget.dropPointData?['phone']?.toString() ?? '',
+        'destination': destCity,
+        'status_message':
+            'Pesanan Dropoff dibuat. Silakan antar paket ke ${_dropPointName ?? 'Drop Point pilihan'}.',
+        'step': 0,
+        'has_courier': false,
+        'is_delivered': false,
+        'shipment_data': shipmentData,
+      });
+      return;
+    }
+
     final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
     final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor';
     ActiveOrderService.saveActiveOrder({
@@ -92,17 +138,27 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
     final rCity = receiverCity ?? shipmentData?['destination_name'] ?? 'Surabaya';
     
     final vRaw = (vehicle ?? shipmentData?['vehicle'] ?? shipmentData?['courier_name'] ?? 'motor').toString().toLowerCase();
-    final veh = vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor';
+    final veh = _isDropoffOrder
+        ? (vehicle ?? shipmentData?['service_name']?.toString() ?? 'Reguler')
+        : (vRaw.contains('mobil') || vRaw.contains('car') ? 'Mobil' : 'Motor');
     
     final trackUrl = trackingUrl ?? 'https://www.neonflux.my.id/track/$orderId';
     final qrUrl = barcodeUrl ?? 'https://www.neonflux.my.id/track/$orderId/qrcode.png';
 
+    final statusLine = _isDropoffOrder
+        ? 'Menunggu Diantar ke Drop Point'
+        : 'Menunggu Kurir';
+    final dropPointLine = _isDropoffOrder && _dropPointName != null
+        ? '📍 Drop Point:\n$_dropPointName${_dropPointAddress != null ? ' ($_dropPointAddress)' : ''}\n\n'
+        : '';
+
     final text = '📦 *Pesanan City Courier*\n\n'
         'Nomor Resi:\n$orderId\n\n'
-        'Status:\nMenunggu Kurir\n\n'
+        'Status:\n$statusLine\n\n'
+        '$dropPointLine'
         '📍 Pengirim:\n$sName - $sCity\n\n'
         '📍 Penerima:\n$rName - $rCity\n\n'
-        '🚚 Kendaraan:\n$veh\n\n'
+        '🚚 ${_isDropoffOrder ? 'Layanan' : 'Kendaraan'}:\n$veh\n\n'
         '🔗 Live Tracking:\n$trackUrl\n\n'
         '📱 QR Code:\n$qrUrl';
 
@@ -237,9 +293,12 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Menunggu Kurir',
-                style: TextStyle(
+              Text(
+                _isDropoffOrder
+                    ? 'Menunggu Diantar ke Drop Point'
+                    : 'Menunggu Kurir',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   color: darkNavy,
@@ -250,7 +309,9 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Text(
-                  'Pesanan Anda berhasil dibuat dan kurir akan segera menjemput paket.',
+                  _isDropoffOrder
+                      ? 'Pesanan Dropoff Anda berhasil dibuat. Silakan antar paket ke ${_dropPointName ?? 'Drop Point pilihan'} dan selesaikan pembayaran di tempat.'
+                      : 'Pesanan Anda berhasil dibuat dan kurir akan segera menjemput paket.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -279,16 +340,18 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
                 ),
                 child: Column(
                   children: [
-                    // Top Pill: "Tunjukkan Resi / QR ini ke Kurir"
+                    // Top Pill
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
-                        'Tunjukkan Resi / QR ini ke Kurir',
-                        style: TextStyle(
+                      child: Text(
+                        _isDropoffOrder
+                            ? 'Tunjukkan Resi / QR ini di Drop Point'
+                            : 'Tunjukkan Resi / QR ini ke Kurir',
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF334155),
@@ -461,6 +524,48 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
                         ),
                       ],
                     ),
+                    if (_isDropoffOrder) ...[
+                      const SizedBox(height: 12),
+                      _ticketDetailRow(
+                        'Status Pengiriman',
+                        'Menunggu Diantar ke Drop Point',
+                        valueColor: orangeAccent,
+                      ),
+                      if (_dropPointName != null && _dropPointName!.isNotEmpty)
+                        _ticketDetailRow('Drop Point', _dropPointName!),
+                      if (_dropPointAddress != null &&
+                          _dropPointAddress!.isNotEmpty)
+                        _ticketDetailRow(
+                          'Alamat Drop Point',
+                          _dropPointAddress!,
+                        ),
+                      if (receiverName != null && receiverName!.isNotEmpty)
+                        _ticketDetailRow(
+                          'Penerima',
+                          '${receiverName!}${widget.receiverPhone != null && widget.receiverPhone!.isNotEmpty ? ' (${widget.receiverPhone})' : ''}',
+                        ),
+                      if (widget.receiverAddress != null &&
+                          widget.receiverAddress!.isNotEmpty)
+                        _ticketDetailRow(
+                          'Alamat Tujuan',
+                          widget.receiverAddress!,
+                        ),
+                      if ((widget.itemDescription != null &&
+                              widget.itemDescription!.isNotEmpty) ||
+                          widget.packageWeight != null)
+                        _ticketDetailRow(
+                          'Paket',
+                          [
+                            if (widget.itemDescription != null &&
+                                widget.itemDescription!.isNotEmpty)
+                              widget.itemDescription!,
+                            if (widget.packageWeight != null)
+                              '${widget.packageWeight!.toStringAsFixed(widget.packageWeight! % 1 == 0 ? 0 : 1)} kg',
+                          ].join(' • '),
+                        ),
+                      if (vehicle != null && vehicle!.isNotEmpty)
+                        _ticketDetailRow('Layanan', vehicle!),
+                    ],
                   ],
                 ),
               ),
@@ -606,6 +711,38 @@ class _DirectPaymentConfirmationScreenState extends State<DirectPaymentConfirmat
             ),
           ),
         ),
+      ),
+    );
+  }
+  Widget _ticketDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 118,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: valueColor ?? const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

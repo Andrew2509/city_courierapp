@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
-import 'package:city_courierapp/core/utils/auth_guard.dart';
-import 'package:city_courierapp/screens/wallet/customer_wallet_dashboard_screen.dart';
 import '../../home/cek_ongkir/cek_ongkir_screen.dart';
 import '../../home/drop_point/drop_point_screen.dart';
 
@@ -51,60 +49,6 @@ class OtherFeaturesSection extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          InkWell(
-            onTap: () => AuthGuard.runWithAuth(
-              context,
-              onAuthenticated: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CustomerWalletDashboardScreen()),
-              ),
-            ),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.25), width: 1.5),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryOrange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.account_balance_wallet_rounded, color: AppColors.primaryOrange),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'City Wallet & Top-Up',
-                          style: AppTypography.titleSmall.copyWith(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isDarkMode ? Colors.white : Colors.grey.shade900,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Bayar ongkir instan, top-up VA/QRIS, dan ajukan refund',
-                          style: TextStyle(fontSize: 11, color: isDarkMode ? Colors.white60 : Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.chevron_right_rounded, color: AppColors.primaryOrange),
-                ],
-              ),
-            ),
           ),
         ],
       ),

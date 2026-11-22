@@ -14,12 +14,10 @@ class PaymentResult {
   final String? instructions;
   final DateTime? expiryTime;
 
-  /// 'direct' (VA/QRIS dibuat server) atau 'redirect' (halaman iPaymu).
+  /// 'direct' (VA/QRIS dibuat server) atau 'redirect' (halaman checkout Xendit).
   final String paymentMode;
 
-  /// URL yang dipanggil iPaymu saat pelanggan selesai / membatalkan
-  /// pembayaran. Dikirim backend agar aplikasi bisa mengenali kapan sesi
-  /// berakhir tanpa menebak dari pola URL.
+  /// URL kembali saat pelanggan selesai / membatalkan pembayaran di halaman Xendit.
   final String? returnUrl;
   final String? cancelUrl;
 
@@ -39,7 +37,7 @@ class PaymentResult {
     this.cancelUrl,
   });
 
-  /// Pembayaran lewat halaman iPaymu: tidak ada nomor VA / QR dari server,
+  /// Pembayaran lewat halaman Xendit: tidak ada nomor VA / QR dari server,
   /// hanya URL checkout yang harus dibuka pelanggan.
   bool get isRedirect =>
       paymentMode == 'redirect' ||

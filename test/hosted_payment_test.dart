@@ -4,20 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:city_courierapp/models/payment/payment_result.dart';
 import 'package:city_courierapp/screens/home/shipping/payment/hosted_payment_screen.dart';
 
-/// Layar hosted iPaymu disamakan gayanya dengan VA/QRIS: kartu ringkas,
+/// Layar hosted Xendit disamakan gayanya dengan VA/QRIS: kartu ringkas,
 /// hitung mundur, catatan keamanan, dan aksi tetap di bawah.
 /// Di host (bukan Android/iOS) WebView tidak dipakai, jadi yang diuji adalah
 /// kerangka tampilan + aksinya.
 void main() {
   PaymentResult buildResult() => PaymentResult(
-        paymentId: 'SESS-ABC-123',
+        paymentId: 'PR-XND-ABC-123',
         method: 'BNI Virtual Account',
         amount: 13300,
         status: 'pending',
-        checkoutUrl: 'https://sandbox.ipaymu.com/payment/SESS-ABC-123',
+        checkoutUrl: 'https://checkout.xendit.co/web/PR-XND-ABC-123',
         paymentMode: 'redirect',
-        returnUrl: 'https://www.neonflux.my.id/api/ipaymu/return',
-        cancelUrl: 'https://www.neonflux.my.id/api/ipaymu/cancel',
+        returnUrl: 'https://www.neonflux.my.id/payment/return',
+        cancelUrl: 'https://www.neonflux.my.id/payment/cancel',
         expiryTime: DateTime.now().add(const Duration(hours: 2)),
       );
 

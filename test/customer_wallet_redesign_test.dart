@@ -7,7 +7,6 @@ import 'package:city_courierapp/screens/wallet/customer_wallet_dashboard_screen.
 import 'package:city_courierapp/screens/wallet/payout_destinations_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_amount_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_instruction_screen.dart';
-import 'package:city_courierapp/screens/wallet/topup_method_screen.dart';
 import 'package:city_courierapp/screens/wallet/topup_status_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_payment_confirmation_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transaction_detail_screen.dart';
@@ -141,7 +140,7 @@ void main() {
       expect(find.text('City Wallet Saya'), findsOneWidget);
       expect(find.text('Rp 215.000'), findsOneWidget);
       expect(find.text('Riwayat'), findsOneWidget);
-      expect(find.text('Rekening'), findsOneWidget);
+      expect(find.text('Rekening'), findsNothing);
       expect(find.text('Tarik Dana'), findsOneWidget);
       expect(find.text('Refund'), findsOneWidget);
 
@@ -466,16 +465,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Top-Up City Wallet'), findsOneWidget);
+      expect(find.text('Saldo City Wallet'), findsOneWidget);
       await tester.tap(find.widgetWithText(ChoiceChip, 'Rp 100.000'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Pilih Metode (Rp 100.000)'));
+      // Pilih Metode Pembayaran langsung di halaman yang sama
+      await tester.ensureVisible(find.text('QRIS Instan').first);
       await tester.pumpAndSettle();
-
-      expect(find.byType(TopupMethodScreen), findsOneWidget);
-      expect(find.text('Pilih Metode Top-Up'), findsOneWidget);
-      expect(find.text('BCA Virtual Account'), findsOneWidget);
-      expect(find.text('QRIS Instan'), findsOneWidget);
+      expect(find.text('Pilih Metode Pembayaran'), findsOneWidget);
+      expect(find.text('Konfirmasi Top-Up'), findsOneWidget);
+      await tester.tap(find.text('QRIS Instan').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('BCA Virtual Account').last);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Buat Instruksi Pembayaran'));
       await tester.pumpAndSettle();
@@ -581,7 +583,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('SARI WIBOWO'), findsWidgets);
-      expect(find.text('Terisi otomatis'), findsOneWidget);
+      expect(find.text('TERVERIFIKASI'), findsWidgets);
 
       // Submit WITHOUT typing in the Name field manually
       await tester.tap(find.text('Simpan Rekening Tujuan'));
@@ -707,7 +709,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 550));
       await tester.pumpAndSettle();
 
-      expect(find.text('BUDI TERSIMPAN'), findsOneWidget);
+      expect(find.text('BUDI TERSIMPAN'), findsWidgets);
       expect(find.textContaining('(Sandbox)'), findsNothing);
       await tester.tap(find.text('Simpan Rekening Bank'));
       await tester.pumpAndSettle();
@@ -738,7 +740,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 550));
       await tester.pumpAndSettle();
 
-      expect(find.text('RINA PROFIL'), findsOneWidget);
+      expect(find.text('RINA PROFIL'), findsWidgets);
       await tester.tap(find.text('Simpan E-Wallet'));
       await tester.pumpAndSettle();
       expect(submittedEwalletHolder, 'RINA PROFIL');

@@ -12,7 +12,9 @@ class ItemInfoScreen extends StatefulWidget {
   final int? initialJumlah;
   final String? initialDeskripsi;
   final String? initialKategori;
+  final String? initialCatatan;
   final List<String>? initialPhotoPaths;
+  final bool showVehicleSelector;
 
   /// 'Barang' atau 'Dokumen', dipilih otomatis dari tombol layanan beranda.
   final String initialJenisKiriman;
@@ -28,7 +30,9 @@ class ItemInfoScreen extends StatefulWidget {
     this.initialJumlah,
     this.initialDeskripsi,
     this.initialKategori,
+    this.initialCatatan,
     this.initialPhotoPaths,
+    this.showVehicleSelector = true,
   });
 
   @override
@@ -46,7 +50,9 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
   late final TextEditingController lebarController;
   late final TextEditingController tinggiController;
   late final TextEditingController beratController;
+  late final TextEditingController catatanController;
 
+  String _weightUnit = 'kg'; // 'kg' atau 'gram'
   int jumlahBarang = 1;
 
   // Daftar file foto barang nyata
@@ -89,6 +95,9 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
               ? widget.initialBerat!.toInt().toString()
               : widget.initialBerat!.toString())
           : '1.5',
+    );
+    catatanController = TextEditingController(
+      text: widget.initialCatatan ?? '',
     );
 
     if (widget.initialJumlah != null) {
@@ -151,13 +160,19 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
     lebarController.dispose();
     tinggiController.dispose();
     beratController.dispose();
+    catatanController.dispose();
     super.dispose();
   }
 
-  double get panjang => double.tryParse(panjangController.text) ?? 0.0;
-  double get lebar => double.tryParse(lebarController.text) ?? 0.0;
-  double get tinggi => double.tryParse(tinggiController.text) ?? 0.0;
-  double get berat => double.tryParse(beratController.text) ?? 0.0;
+  double get panjang =>
+      double.tryParse(panjangController.text.replaceAll(',', '.')) ?? 0.0;
+  double get lebar =>
+      double.tryParse(lebarController.text.replaceAll(',', '.')) ?? 0.0;
+  double get tinggi =>
+      double.tryParse(tinggiController.text.replaceAll(',', '.')) ?? 0.0;
+  double get _rawBerat =>
+      double.tryParse(beratController.text.replaceAll(',', '.')) ?? 0.0;
+  double get berat => _weightUnit == 'gram' ? (_rawBerat / 1000.0) : _rawBerat;
 
   /// Berat aktual barang (kg)
   double get beratAktual => berat;
@@ -454,8 +469,10 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
                       ],
 
                       // KARTU 3: Pilihan Kendaraan & Deteksi Kapasitas
-                      const SizedBox(height: 14),
-                      _buildCardPilihanKendaraan(isDarkMode, primaryColor),
+                      if (widget.showVehicleSelector) ...[
+                        const SizedBox(height: 14),
+                        _buildCardPilihanKendaraan(isDarkMode, primaryColor),
+                      ],
 
                       // KARTU 4: Foto Barang (Fungsional, Maks. 3 Foto)
                       const SizedBox(height: 14),
@@ -640,17 +657,16 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
             // Kategori Barang Dropdown
             _buildKategoriBarang(isDarkMode, primaryColor),
 
-            // Deskripsi Tambahan jika Kategori 'Lainnya'
-            if (kategoriBarang == 'lainnya') ...[
-              const SizedBox(height: 12),
-              _buildDeskripsiBarang(isDarkMode, primaryColor),
-            ],
+            const SizedBox(height: 12),
+            _buildDeskripsiBarang(isDarkMode, primaryColor),
 
             const SizedBox(height: 14),
 
             // Berat Aktual & Jumlah Barang (Side by side)
             _buildBeratDanJumlah(isDarkMode, primaryColor),
           ],
+          const SizedBox(height: 14),
+          _buildCatatanField(isDarkMode, primaryColor),
         ],
       ),
     );
@@ -842,7 +858,7 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
         Padding(
           padding: const EdgeInsets.only(left: 2, bottom: 6),
           child: Text(
-            'DESKRIPSI BARANG',
+            'NAMA / DESKRIPSI BARANG',
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -853,9 +869,37 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
         ),
         _buildTextField(
           deskripsiController,
-          'Sebutkan jenis barang lainnya...',
+          'Contoh: Sepatu Olahraga / Elektronik',
           isDarkMode,
           primaryColor,
+          key: const Key('field_deskripsi_barang'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCatatanField(bool isDarkMode, Color primaryColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(
+            'CATATAN TAMBAHAN (OPSIONAL)',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? Colors.grey.shade400 : Colors.grey.shade500,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        _buildTextField(
+          catatanController,
+          'Tambahkan catatan untuk kurir atau petugas...',
+          isDarkMode,
+          primaryColor,
+          key: const Key('field_catatan'),
         ),
       ],
     );
@@ -872,16 +916,32 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(left: 2, bottom: 6),
-                child: Text(
-                  'BERAT (KG)',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isDarkMode
-                        ? Colors.grey.shade400
-                        : Colors.grey.shade500,
-                    letterSpacing: 0.8,
-                  ),
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      _weightUnit == 'gram' ? 'BERAT (GRAM)' : 'BERAT (KG)',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade500,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildUnitChip('kg', 'KG', primaryColor, isDarkMode),
+                        const SizedBox(width: 4),
+                        _buildUnitChip('gram', 'Gram', primaryColor, isDarkMode),
+                      ],
+                    ),
+                  ],
                 ),
               ),
               Container(
@@ -915,7 +975,7 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
                       child: Padding(
                         padding: const EdgeInsets.only(right: 12),
                         child: Text(
-                          'KG',
+                          _weightUnit == 'gram' ? 'GRAM' : 'KG',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -1899,6 +1959,52 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
     );
   }
 
+  Widget _buildUnitChip(
+    String unitValue,
+    String label,
+    Color primaryColor,
+    bool isDarkMode,
+  ) {
+    final selected = _weightUnit == unitValue;
+    return GestureDetector(
+      key: Key('weight_unit_$unitValue'),
+      onTap: () {
+        if (_weightUnit == unitValue) return;
+        final currentRaw = _rawBerat;
+        setState(() {
+          if (currentRaw > 0) {
+            final converted = unitValue == 'gram'
+                ? (currentRaw * 1000).roundToDouble()
+                : (currentRaw / 1000.0);
+            beratController.text = converted % 1 == 0
+                ? converted.toInt().toString()
+                : converted.toString();
+          }
+          _weightUnit = unitValue;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: selected
+              ? primaryColor
+              : (isDarkMode ? Colors.grey.shade800 : Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: selected
+                ? Colors.white
+                : (isDarkMode ? Colors.grey.shade300 : Colors.grey.shade700),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField(
     TextEditingController controller,
     String hintText,
@@ -2007,6 +2113,29 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
                   return;
                 }
 
+                if (jenisKiriman == 'Barang' &&
+                    (kategoriBarang == null || kategoriBarang!.isEmpty)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Silakan pilih kategori barang terlebih dahulu'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                if (jenisKiriman == 'Barang' &&
+                    kategoriBarang == 'lainnya' &&
+                    deskripsiController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nama atau deskripsi barang tidak boleh kosong'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
                 if (berat <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -2017,8 +2146,26 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
                   return;
                 }
 
-                String finalDeskripsi = deskripsiController.text;
-                if (kategoriBarang != 'lainnya') {
+                if (jenisKiriman == 'Barang' &&
+                    (panjang <= 0 || lebar <= 0 || tinggi <= 0)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Panjang, lebar, dan tinggi paket harus lebih dari 0 cm',
+                      ),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                String finalDeskripsi = deskripsiController.text.trim();
+                if (jenisKiriman == 'Dokumen') {
+                  finalDeskripsi =
+                      finalDeskripsi.isEmpty ? 'Dokumen' : finalDeskripsi;
+                } else if (kategoriBarang != 'lainnya' &&
+                    (finalDeskripsi.isEmpty ||
+                        finalDeskripsi == 'Peralatan Rumah Tangga')) {
                   switch (kategoriBarang) {
                     case 'pakaian':
                       finalDeskripsi = 'Pakaian & Fashion';
@@ -2040,6 +2187,7 @@ class _ItemInfoScreenState extends State<ItemInfoScreen> {
                   'status': 'tersimpan',
                   'deskripsi': finalDeskripsi,
                   'kategori': kategoriBarang,
+                  'catatan': catatanController.text.trim(),
                   'berat': beratAktual,
                   'beratAktual': beratAktual,
                   'panjang': panjang,
