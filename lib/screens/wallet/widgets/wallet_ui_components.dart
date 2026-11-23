@@ -173,6 +173,32 @@ class CityWalletUi {
       );
   }
 
+  /// Menampilkan status hasil penarikan real-time (`completed`, `processing`, atau `failed`).
+  static void showWithdrawalOutcomeSnackBar(
+    BuildContext context,
+    PayoutTransactionV1 payout,
+  ) {
+    final st = payout.status.toLowerCase();
+    if (st == 'failed' || st == 'reversed') {
+      final reason = (payout.failureReason ?? '').trim();
+      showSnackBar(
+        context,
+        reason.isNotEmpty
+            ? 'Penarikan gagal diproses: $reason'
+            : 'Penarikan gagal diproses. Saldo tertahan telah dikembalikan.',
+        backgroundColor: errorRed,
+      );
+      return;
+    }
+
+    final message = switch (st) {
+      'completed' => 'Penarikan dana berhasil diselesaikan.',
+      'processing' => 'Penarikan dana sedang diproses penyedia pembayaran.',
+      _ => 'Permintaan penarikan dana berhasil dikirim.',
+    };
+    showSnackBar(context, message, backgroundColor: successGreen);
+  }
+
   /// AppBar standar bawaan aplikasi untuk semua halaman City Wallet.
   static PreferredSizeWidget buildAppBar(
     BuildContext context, {

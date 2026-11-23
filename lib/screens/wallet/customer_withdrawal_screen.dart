@@ -346,23 +346,13 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
         resolvedDestId = created.id;
       }
 
-      await _service.requestWithdrawal(
+      final payout = await _service.requestWithdrawal(
         amount: amount,
         destinationId: resolvedDestId,
         transactionPin: pin,
       );
       if (!mounted) return;
-      _amountCtrl.clear();
-      _numberCtrl.clear();
-      _holderCtrl.clear();
-      _inquiry.reset();
-      _showManualNameField = false;
-      CityWalletUi.showSnackBar(
-        context,
-        'Permintaan penarikan dana berhasil dikirim.',
-        backgroundColor: CityWalletUi.successGreen,
-      );
-      _load();
+      _handleWithdrawalSubmitted(payout);
     } on WalletApiException catch (e) {
       if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' &&
           mounted &&
@@ -376,23 +366,13 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
         if (prompted == null || !mounted) return;
         setState(() => _submitting = true);
         try {
-          await _service.requestWithdrawal(
+          final payout = await _service.requestWithdrawal(
             amount: amount,
             destinationId: resolvedDestId,
             transactionPin: prompted,
           );
           if (!mounted) return;
-          _amountCtrl.clear();
-          _numberCtrl.clear();
-          _holderCtrl.clear();
-          _inquiry.reset();
-          _showManualNameField = false;
-          CityWalletUi.showSnackBar(
-            context,
-            'Permintaan penarikan dana berhasil dikirim.',
-            backgroundColor: CityWalletUi.successGreen,
-          );
-          _load();
+          _handleWithdrawalSubmitted(payout);
           return;
         } catch (err) {
           if (!mounted) return;
@@ -420,6 +400,16 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  void _handleWithdrawalSubmitted(PayoutTransactionV1 payout) {
+    _amountCtrl.clear();
+    _numberCtrl.clear();
+    _holderCtrl.clear();
+    _inquiry.reset();
+    _showManualNameField = false;
+    CityWalletUi.showWithdrawalOutcomeSnackBar(context, payout);
+    _load();
   }
 
   @override

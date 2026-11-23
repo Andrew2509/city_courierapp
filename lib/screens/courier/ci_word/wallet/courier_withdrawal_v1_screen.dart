@@ -180,20 +180,13 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
 
     setState(() => _submitting = true);
     try {
-      await _service.requestWithdrawal(
+      final payout = await _service.requestWithdrawal(
         amount: amount,
         destinationId: dest.id,
         transactionPin: pin,
       );
       if (!mounted) return;
-      _amountCtrl.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permintaan penarikan saldo berhasil diajukan.'),
-          backgroundColor: Color(0xFF16A34A),
-        ),
-      );
-      await _load();
+      await _handleWithdrawalSubmitted(payout);
     } on WalletApiException catch (e) {
       if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' && mounted) {
         setState(() => _submitting = false);
@@ -204,20 +197,13 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
         if (prompted == null || !mounted) return;
         setState(() => _submitting = true);
         try {
-          await _service.requestWithdrawal(
+          final payout = await _service.requestWithdrawal(
             amount: amount,
             destinationId: dest.id,
             transactionPin: prompted,
           );
           if (!mounted) return;
-          _amountCtrl.clear();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan penarikan saldo berhasil diajukan.'),
-              backgroundColor: Color(0xFF16A34A),
-            ),
-          );
-          await _load();
+          await _handleWithdrawalSubmitted(payout);
           return;
         } catch (err) {
           if (!mounted) return;
@@ -239,6 +225,12 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<void> _handleWithdrawalSubmitted(PayoutTransactionV1 payout) async {
+    _amountCtrl.clear();
+    CityWalletUi.showWithdrawalOutcomeSnackBar(context, payout);
+    await _load();
   }
 
   @override
