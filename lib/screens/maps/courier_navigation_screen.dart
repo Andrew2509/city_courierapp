@@ -175,33 +175,18 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
     }
   }
 
-  void _cancelNavigation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Keluar Navigasi?'),
-        content: const Text('Apakah Anda yakin ingin menghentikan navigasi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () {
-              _arrivalRedirector.cancel();
-              _navController.stopTracking();
-              _trafficController.setMapActive(false);
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Close navigation
-            },
-            child: const Text(
-              'Keluar',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _cancelNavigation() async {
+    final confirmed = await showEndNavigationConfirmDialog(
+      context,
+      targetLabel: _navController.phase == NavigationPhase.pickup
+          ? 'lokasi pengirim'
+          : 'lokasi penerima',
     );
+    if (!confirmed || !mounted) return;
+    _arrivalRedirector.cancel();
+    _navController.stopTracking();
+    _trafficController.setMapActive(false);
+    Navigator.pop(context);
   }
 
   @override
@@ -749,64 +734,55 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
             ),
           ),
 
-        // ── Traffic Toggle, Legend & Route Congestion Alert ──
-        Positioned(
-          top: (step != null && !hasArrived)
-              ? (isOffRoute ? 168 : 104)
-              : (isOffRoute || hasArrived ? 80 : 16),
-          left: 16,
-          right: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TrafficMapFloatingControls(controller: _trafficController),
-              if (_trafficController.isTrafficEnabled &&
-                  _trafficController.closestCongestion != null) ...[
-                const SizedBox(height: 8),
-                RouteCongestionAlertCard(
-                  alert: _trafficController.closestCongestion!,
-                  fasterAlternative:
-                      _trafficController.alternativesResult?.recommendedRoute,
-                  onViewAlternativesTap:
-                      (route != null && _navController.destination != null)
-                          ? () {
-                              final origin = _navController.snappedLocation ??
-                                  _navController.currentLocation ??
-                                  route.coordinates.first;
-                              final dest = _navController.destination!;
-                              showRouteAlternativesSheet(
-                                context: context,
-                                controller: _trafficController,
-                                origin: origin,
-                                destination: dest,
-                                currentRouteSignature:
-                                    TrafficService.buildRouteSignature(
-                                  route.coordinates,
+        // ── Route Congestion Alert ──
+        if (_trafficController.isTrafficEnabled &&
+            _trafficController.closestCongestion != null)
+          Positioned(
+            top: (step != null && !hasArrived)
+                ? (isOffRoute ? 168 : 104)
+                : (isOffRoute || hasArrived ? 80 : 16),
+            left: 16,
+            right: 16,
+            child: RouteCongestionAlertCard(
+              alert: _trafficController.closestCongestion!,
+              fasterAlternative:
+                  _trafficController.alternativesResult?.recommendedRoute,
+              onViewAlternativesTap:
+                  (route != null && _navController.destination != null)
+                      ? () {
+                          final origin = _navController.snappedLocation ??
+                              _navController.currentLocation ??
+                              route.coordinates.first;
+                          final dest = _navController.destination!;
+                          showRouteAlternativesSheet(
+                            context: context,
+                            controller: _trafficController,
+                            origin: origin,
+                            destination: dest,
+                            currentRouteSignature:
+                                TrafficService.buildRouteSignature(
+                              route.coordinates,
+                            ),
+                            onConfirmAlternative: (alt) {
+                              if (!mounted || alt.coordinates.length < 2) {
+                                return;
+                              }
+                              final newRoute = routeModelFromAlternative(alt);
+                              _navController.applyAlternativeRoute(newRoute);
+                              unawaited(
+                                _trafficController.syncRouteTraffic(
+                                  routeCoordinates: newRoute.coordinates,
+                                  courierLocation: origin,
+                                  destination: dest,
+                                  travelMode: 'motorcycle',
                                 ),
-                                onConfirmAlternative: (alt) {
-                                  if (!mounted || alt.coordinates.length < 2) {
-                                    return;
-                                  }
-                                  final newRoute = routeModelFromAlternative(alt);
-                                  _navController.applyAlternativeRoute(newRoute);
-                                  unawaited(
-                                    _trafficController.syncRouteTraffic(
-                                      routeCoordinates: newRoute.coordinates,
-                                      courierLocation: origin,
-                                      destination: dest,
-                                      travelMode: 'motorcycle',
-                                    ),
-                                  );
-                                },
                               );
-                            }
-                          : null,
-                ),
-              ],
-            ],
+                            },
+                          );
+                        }
+                      : null,
+            ),
           ),
-        ),
 
         if (_trafficController.isTrafficEnabled &&
             (_trafficController.selectedRoad != null ||

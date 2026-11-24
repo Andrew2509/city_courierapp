@@ -12,6 +12,7 @@ import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/screens/maps/courier_navigation_screen.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
+import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 
 const List<int> _kTransparentPng = <int>[
   0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
@@ -547,6 +548,155 @@ void main() {
 
       expect(find.byType(CourierNavigationScreen), findsNothing);
       expect(find.byType(DriverAtDeliveryScreen), findsOneWidget);
+    });
+  });
+
+  group('Kontrol floating Lalu Lintas & Legenda dihapus dari halaman navigasi', () {
+    testWidgets('DriverNavigationScreen tidak menampilkan TrafficMapFloatingControls meski traffic aktif', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final order = buildOrder(status: 'delivering');
+      final controller = createController(
+        phase: NavigationPhase.delivery,
+        order: order,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DriverNavigationScreen(
+            order: order,
+            phase: NavigationPhase.delivery,
+            navigationController: controller,
+            initialTrafficEnabled: true,
+            autoStartController: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(TrafficMapFloatingControls), findsNothing);
+      expect(find.text('Lalu Lintas ON'), findsNothing);
+      expect(find.text('Lalu Lintas'), findsNothing);
+      expect(find.text('Legenda'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('CourierNavigationScreen tidak menampilkan TrafficMapFloatingControls meski traffic aktif', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final order = buildOrder(status: 'delivering');
+      final controller = createController(
+        phase: NavigationPhase.delivery,
+        order: order,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CourierNavigationScreen(
+            order: order,
+            initialPhase: NavigationPhase.delivery,
+            navigationController: controller,
+            initialTrafficEnabled: true,
+            autoStartController: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(TrafficMapFloatingControls), findsNothing);
+      expect(find.text('Lalu Lintas ON'), findsNothing);
+      expect(find.text('Lalu Lintas'), findsNothing);
+      expect(find.text('Legenda'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('DriverNavigationScreen menampilkan bottom bar ringkas, tombol Tengahkan, sheet ekspansi & dialog Akhiri navigasi', (tester) async {
+      tester.view.physicalSize = const Size(720, 1520);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final order = buildOrder(status: 'delivering');
+      final controller = createController(
+        phase: NavigationPhase.delivery,
+        order: order,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DriverNavigationScreen(
+            order: order,
+            phase: NavigationPhase.delivery,
+            navigationController: controller,
+            initialTrafficEnabled: false,
+            autoStartController: false,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      controller.ingestGpsSample(
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+        accuracy: 8.0,
+        speedMs: 6.0,
+      );
+      await tester.pump();
+      await tester.pump(Duration.zero);
+
+      // Default collapsed state: luas, ada tombol Tengahkan, X keluar, ETA & alternatif rute
+      expect(find.byKey(const Key('nav_recenter_button')), findsOneWidget);
+      expect(find.text('Tengahkan'), findsOneWidget);
+      expect(find.byKey(const Key('nav_exit_button')), findsOneWidget);
+      expect(find.byKey(const Key('nav_alternatives_button')), findsOneWidget);
+      expect(find.text('km/j'), findsOneWidget);
+      expect(find.text('30'), findsNothing);
+      expect(find.text('Titik Pengantaran:'), findsNothing);
+
+      // Ketuk tombol Tengahkan berjalan bersih
+      await tester.tap(find.byKey(const Key('nav_recenter_button')));
+      await tester.pump();
+
+      // Ketuk area tengah ETA untuk membuka detail order City Courier
+      await tester.tap(find.byKey(const Key('nav_bottom_eta_toggle')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Menuju Penerima'), findsOneWidget);
+      expect(find.text('CC-ARR-303'), findsOneWidget);
+      expect(find.text('Titik Pengantaran:'), findsOneWidget);
+      expect(find.text('Fajar Penerima'), findsOneWidget);
+
+      // Ketuk tombol X untuk membuka dialog Akhiri navigasi, uji Batal lalu Ya, Akhiri
+      await tester.tap(find.byKey(const Key('nav_exit_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(find.text('Akhiri navigasi?'), findsOneWidget);
+      expect(find.text('Batal'), findsOneWidget);
+      expect(find.text('Ya, Akhiri'), findsOneWidget);
+
+      await tester.tap(find.text('Batal'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text('Akhiri navigasi?'), findsNothing);
+      expect(find.byType(DriverNavigationScreen), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('nav_exit_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('Ya, Akhiri'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 }

@@ -529,7 +529,7 @@ class RouteParser {
     String roadName,
   ) {
     final roadPart =
-        roadName.isEmpty ? '' : '${type == 'arrive' ? 'Di lokasi ' : 'ke '}$roadName';
+        roadName.isEmpty ? '' : ' ${type == 'arrive' ? 'di lokasi' : 'ke'} $roadName';
     switch (type) {
       case 'depart':
         return 'Mulai perjalanan';

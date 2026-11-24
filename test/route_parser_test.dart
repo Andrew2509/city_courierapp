@@ -153,6 +153,7 @@ void main() {
       expect(route.distanceMeters, 1900.0);
       expect(route.durationSeconds, closeTo(300.0, 1e-6));
       expect(route.steps.single.maneuver, 'left');
+      expect(route.steps.single.instruction, 'Belok kiri ke Jl. Baru');
       expect(route.steps.single.roadName, 'Jl. Baru');
     });
 
