@@ -369,7 +369,7 @@ void main() {
     );
 
     testWidgets(
-      'DriverDeliveryFlowScreen menampilkan tombol Chat WA Pengirim & Chat WA Penerima',
+      'DriverDeliveryFlowScreen menampilkan ikon telepon & WA ringkas di sebelah Estimasi dan Harga tanpa tombol teks penuh',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 2.0;
@@ -386,15 +386,24 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('Hubungi Pengirim'), findsOneWidget);
-        expect(find.text('Hubungi Penerima'), findsOneWidget);
+        expect(find.text('Estimasi'), findsOneWidget);
+        expect(find.text('Harga'), findsOneWidget);
+        expect(find.byKey(const Key('call_flow_sender_button')), findsOneWidget);
         expect(find.byKey(const Key('wa_flow_sender_button')), findsOneWidget);
+        expect(
+          find.byKey(const Key('call_flow_receiver_button')),
+          findsOneWidget,
+        );
         expect(
           find.byKey(const Key('wa_flow_receiver_button')),
           findsOneWidget,
         );
-        expect(find.text('Chat WA Pengirim'), findsOneWidget);
-        expect(find.text('Chat WA Penerima'), findsOneWidget);
+
+        // Pastikan tombol teks panjang sebelumnya tidak lagi memenuhi kartu
+        expect(find.text('Hubungi Pengirim'), findsNothing);
+        expect(find.text('Hubungi Penerima'), findsNothing);
+        expect(find.text('Chat WA Pengirim'), findsNothing);
+        expect(find.text('Chat WA Penerima'), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());
       },

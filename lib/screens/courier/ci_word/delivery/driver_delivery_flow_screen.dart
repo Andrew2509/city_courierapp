@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
@@ -1184,7 +1183,7 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
             children: [
               // Locations (Pickup & Dropoff)
               Expanded(
-                flex: 3,
+                flex: 11,
                 child: Column(
                   children: [
                     // Pickup
@@ -1301,86 +1300,185 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
               // Vertical Divider
               Container(
                 width: 1,
-                height: 88,
+                height: 92,
                 color: const Color(0xFFE2E8F0),
-                margin: const EdgeInsets.symmetric(horizontal: 12),
+                margin: const EdgeInsets.symmetric(horizontal: 10),
               ),
-              // Meta (Right side)
+              // Meta (Right side): Estimasi + kontak pengirim, Harga + kontak penerima
               Expanded(
-                flex: 2,
+                flex: 12,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isScheduled ? 'Jadwal Pickup' : 'Estimasi',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (isScheduled) ...[
-                      Text(
-                        displayDateStr,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      if (pickupTimeStr.isNotEmpty)
-                        Text(
-                          pickupTimeStr,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primaryOrange,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isScheduled ? 'Jadwal Pickup' : 'Estimasi',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              if (isScheduled) ...[
+                                Text(
+                                  displayDateStr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
+                                if (pickupTimeStr.isNotEmpty)
+                                  Text(
+                                    pickupTimeStr,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primaryOrange,
+                                    ),
+                                  ),
+                              ] else
+                                const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    '20 - 30 mnt',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF1A1A1A),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                    ] else
-                      const Text(
-                        '20 - 30 mnt',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
+                        const SizedBox(width: 4),
+                        CourierPhoneIconButton(
+                          key: const Key('call_flow_sender_button'),
+                          size: 28,
+                          iconSize: 14,
+                          isCircular: true,
+                          tooltip: 'Hubungi Pengirim',
+                          iconColor: AppColors.primaryOrange,
+                          bgColor: const Color(0xFFFFF4EC),
+                          borderColor: AppColors.primaryOrange,
+                          onTap: () => _callContact(senderPhone),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        CourierWhatsAppIconButton(
+                          key: const Key('wa_flow_sender_button'),
+                          size: 28,
+                          iconSize: 14,
+                          isCircular: true,
+                          tooltip: 'Chat WA Pengirim',
+                          onTap: () => CourierContactHelper.openWhatsAppChat(
+                            context,
+                            phone: CourierContactHelper.extractSenderPhone(
+                              widget.order,
+                            ),
+                            isSender: true,
+                            order: widget.order,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Harga',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      formattedPrice,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF22C55E),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: const Color(0xFFCBD5E1)),
-                      ),
-                      child: Text(
-                        paymentMethod,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Harga',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  formattedPrice,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF22C55E),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(
+                                    color: const Color(0xFFCBD5E1),
+                                  ),
+                                ),
+                                child: Text(
+                                  paymentMethod,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 4),
+                        CourierPhoneIconButton(
+                          key: const Key('call_flow_receiver_button'),
+                          size: 28,
+                          iconSize: 14,
+                          isCircular: true,
+                          tooltip: 'Hubungi Penerima',
+                          iconColor: const Color(0xFF22C55E),
+                          bgColor: const Color(0xFFECFDF3),
+                          borderColor: const Color(0xFF22C55E),
+                          onTap: () => _callContact(receiverPhone),
+                        ),
+                        const SizedBox(width: 4),
+                        CourierWhatsAppIconButton(
+                          key: const Key('wa_flow_receiver_button'),
+                          size: 28,
+                          iconSize: 14,
+                          isCircular: true,
+                          tooltip: 'Chat WA Penerima',
+                          onTap: () => CourierContactHelper.openWhatsAppChat(
+                            context,
+                            phone: CourierContactHelper.extractReceiverPhone(
+                              widget.order,
+                            ),
+                            isSender: false,
+                            order: widget.order,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1418,141 +1516,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
               ),
             ),
           ],
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 12),
-          // Tombol Kontak Terpadu (Pengirim & Penerima dalam 1 baris tanpa mengulang kartu alamat)
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _callContact(senderPhone),
-                  icon: const Icon(Icons.phone_rounded, size: 15, color: AppColors.primaryOrange),
-                  label: const Text(
-                    'Hubungi Pengirim',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primaryOrange, width: 1.2),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _callContact(receiverPhone),
-                  icon: const Icon(Icons.phone_rounded, size: 15, color: Color(0xFF22C55E)),
-                  label: const Text(
-                    'Hubungi Penerima',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF22C55E), width: 1.2),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('wa_flow_sender_button'),
-                  onPressed: () => CourierContactHelper.openWhatsAppChat(
-                    context,
-                    phone: CourierContactHelper.extractSenderPhone(widget.order),
-                    isSender: true,
-                    order: widget.order,
-                  ),
-                  icon: const FaIcon(
-                    FontAwesomeIcons.whatsapp,
-                    size: 15,
-                    color: CourierContactHelper.whatsappColor,
-                  ),
-                  label: const Text(
-                    'Chat WA Pengirim',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: CourierContactHelper.whatsappBgColor,
-                    side: const BorderSide(
-                      color: CourierContactHelper.whatsappBorderColor,
-                      width: 1.2,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('wa_flow_receiver_button'),
-                  onPressed: () => CourierContactHelper.openWhatsAppChat(
-                    context,
-                    phone: CourierContactHelper.extractReceiverPhone(widget.order),
-                    isSender: false,
-                    order: widget.order,
-                  ),
-                  icon: const FaIcon(
-                    FontAwesomeIcons.whatsapp,
-                    size: 15,
-                    color: CourierContactHelper.whatsappColor,
-                  ),
-                  label: const Text(
-                    'Chat WA Penerima',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: CourierContactHelper.whatsappBgColor,
-                    side: const BorderSide(
-                      color: CourierContactHelper.whatsappBorderColor,
-                      width: 1.2,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );

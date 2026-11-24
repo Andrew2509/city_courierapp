@@ -189,6 +189,57 @@ class CourierContactHelper {
   }
 }
 
+/// Tombol ikon kontak bergaya City Courier (dipakai bersama oleh WA & Telepon).
+class _CourierActionIconButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final String tooltip;
+  final double size;
+  final bool isCircular;
+  final Color bgColor;
+  final Color borderColor;
+  final Widget icon;
+
+  const _CourierActionIconButton({
+    required this.onTap,
+    required this.tooltip,
+    required this.size,
+    required this.isCircular,
+    required this.bgColor,
+    required this.borderColor,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(isCircular ? size / 2 : 12);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: bgColor,
+        shape: isCircular
+            ? const CircleBorder()
+            : RoundedRectangleBorder(borderRadius: radius),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: isCircular
+              ? const CircleBorder()
+              : RoundedRectangleBorder(borderRadius: radius),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
+              borderRadius: isCircular ? null : radius,
+              border: Border.all(color: borderColor),
+            ),
+            child: Center(child: icon),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Tombol ikon WhatsApp hijau bersih bergaya City Courier.
 class CourierWhatsAppIconButton extends StatelessWidget {
   final VoidCallback onTap;
@@ -208,40 +259,56 @@ class CourierWhatsAppIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(isCircular ? size / 2 : 12);
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: CourierContactHelper.whatsappBgColor,
-        shape: isCircular
-            ? const CircleBorder()
-            : RoundedRectangleBorder(borderRadius: radius),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: isCircular
-              ? const CircleBorder()
-              : RoundedRectangleBorder(borderRadius: radius),
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
-              borderRadius: isCircular ? null : radius,
-              border: Border.all(
-                color: CourierContactHelper.whatsappBorderColor
-                    .withValues(alpha: 0.45),
-              ),
-            ),
-            child: Center(
-              child: FaIcon(
-                FontAwesomeIcons.whatsapp,
-                size: iconSize,
-                color: CourierContactHelper.whatsappColor,
-              ),
-            ),
-          ),
-        ),
+    return _CourierActionIconButton(
+      onTap: onTap,
+      tooltip: tooltip,
+      size: size,
+      isCircular: isCircular,
+      bgColor: CourierContactHelper.whatsappBgColor,
+      borderColor:
+          CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.45),
+      icon: FaIcon(
+        FontAwesomeIcons.whatsapp,
+        size: iconSize,
+        color: CourierContactHelper.whatsappColor,
       ),
+    );
+  }
+}
+
+/// Tombol ikon panggilan telepon ringkas bergaya City Courier.
+class CourierPhoneIconButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final String tooltip;
+  final double size;
+  final double iconSize;
+  final bool isCircular;
+  final Color iconColor;
+  final Color bgColor;
+  final Color borderColor;
+
+  const CourierPhoneIconButton({
+    super.key,
+    required this.onTap,
+    required this.tooltip,
+    this.size = 40,
+    this.iconSize = 19,
+    this.isCircular = false,
+    this.iconColor = const Color(0xFFFF5A00),
+    this.bgColor = const Color(0xFFFFF4EC),
+    this.borderColor = const Color(0xFFFF5A00),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _CourierActionIconButton(
+      onTap: onTap,
+      tooltip: tooltip,
+      size: size,
+      isCircular: isCircular,
+      bgColor: bgColor,
+      borderColor: borderColor.withValues(alpha: 0.45),
+      icon: Icon(Icons.phone_rounded, size: iconSize, color: iconColor),
     );
   }
 }

@@ -442,32 +442,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row(
             children: [
-              const Text(
+              Text(
                 'Ringkasan Hari Ini',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF1A1A1A),
-                ),
-              ),
-              GestureDetector(
-                onTap: () {},
-                child: const Row(
-                  children: [
-                    Text(
-                      'Lihat Detail',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: primaryColor,
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(Icons.chevron_right, size: 16, color: primaryColor),
-                  ],
                 ),
               ),
             ],
