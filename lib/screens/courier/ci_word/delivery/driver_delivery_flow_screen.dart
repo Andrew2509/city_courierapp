@@ -406,13 +406,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                                   const SizedBox(height: 12),
                                 ],
                                 _buildOrderInfoCard(),
-                                const SizedBox(height: 12),
-                                TrafficDeliverySummaryCard(
-                                  controller: _trafficController,
-                                  onRetry: () => unawaited(
-                                    _loadFlowTrafficSummary(force: true),
-                                  ),
-                                ),
                                 if (_currentState == DeliveryFlowState.delivering) ...[
                                   const SizedBox(height: 12),
                                   _buildDeliveryInfoCard(),
@@ -699,20 +692,7 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
       setState(() {
         _isMapLoading = false;
       });
-      if (widget.enableAutoTrafficSummary) {
-        unawaited(_loadFlowTrafficSummary());
-      }
     }
-  }
-
-  Future<void> _loadFlowTrafficSummary({bool force = false}) async {
-    await _trafficController.loadDeliverySummary(
-      pickup: LatLng(_pickupLat, _pickupLng),
-      dropoff: LatLng(_dropoffLat, _dropoffLng),
-      pickupRoadHint: widget.order['pickup_address']?.toString(),
-      dropoffRoadHint: widget.order['dropoff_address']?.toString(),
-      force: force,
-    );
   }
 
   /// Sederhanakan alamat untuk geocoding.
