@@ -1083,8 +1083,10 @@ class NavigationController extends ChangeNotifier {
   }
 
   /// Hentikan tracking GPS & panduan suara ketika navigasi berakhir.
-  void stopTracking() {
-    VoiceService().stopSpeaking();
+  void stopTracking({bool stopSpeech = true}) {
+    if (stopSpeech) {
+      VoiceService().stopSpeaking();
+    }
     VoiceService().stopListening();
     _positionSub?.cancel();
     _positionSub = null;
@@ -1098,4 +1100,39 @@ class NavigationController extends ChangeNotifier {
     _disposed = true;
     super.dispose();
   }
+}
+
+/// Pengatur jeda pengalihan halaman otomatis saat kurir tiba di tujuan agar
+/// pengumuman suara sempat terdengar serta mencegah navigasi ganda.
+class ArrivalAutoRedirector {
+  Timer? _timer;
+  bool _triggered = false;
+  bool _cancelled = false;
+
+  bool get isTriggered => _triggered;
+  bool get isScheduled => _timer != null;
+
+  void schedule(Duration delay, VoidCallback onRedirect) {
+    if (_triggered || _cancelled || _timer != null) return;
+    _timer = Timer(delay, () {
+      _timer = null;
+      triggerNow(onRedirect);
+    });
+  }
+
+  void triggerNow(VoidCallback onRedirect) {
+    if (_triggered || _cancelled) return;
+    _timer?.cancel();
+    _timer = null;
+    _triggered = true;
+    onRedirect();
+  }
+
+  void cancel() {
+    _cancelled = true;
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void dispose() => cancel();
 }

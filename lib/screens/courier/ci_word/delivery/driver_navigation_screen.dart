@@ -15,9 +15,21 @@ import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/widgets/map_arrow_marker.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
-import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_delivery_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
-import 'package:city_courierapp/services/courier/courier_order_service.dart';
+
+/// Memetakan fase navigasi ke halaman tujuan setelah kurir tiba di lokasi.
+Widget buildNavigationArrivalScreen({
+  required NavigationPhase phase,
+  required Map<String, dynamic> order,
+}) {
+  if (phase == NavigationPhase.delivery) {
+    return DriverAtDeliveryScreen(order: order);
+  }
+  return DriverDeliveryFlowScreen(
+    order: order,
+    initialState: DeliveryFlowState.pickingUp,
+  );
+}
 
 /// Maps & Navigasi Kurir (PRD).
 ///
@@ -32,6 +44,9 @@ class DriverNavigationScreen extends StatefulWidget {
   final NavigationPhase? phase;
   final TrafficService? trafficService;
   final bool initialTrafficEnabled;
+  final NavigationController? navigationController;
+  final Duration autoArrivalDelay;
+  final bool autoStartController;
 
   const DriverNavigationScreen({
     super.key,
@@ -39,7 +54,23 @@ class DriverNavigationScreen extends StatefulWidget {
     this.phase,
     this.trafficService,
     this.initialTrafficEnabled = true,
+    this.navigationController,
+    this.autoArrivalDelay = const Duration(milliseconds: 1500),
+    this.autoStartController = true,
   });
+
+  static NavigationPhase deriveNavigationPhase(Map<String, dynamic> order) {
+    final status = (order['status']?.toString() ?? '').trim().toLowerCase();
+    const deliveryStatuses = <String>{
+      'picked_up',
+      'delivering',
+      'in_transit',
+      'on_delivery',
+      'delivered',
+    };
+    if (deliveryStatuses.contains(status)) return NavigationPhase.delivery;
+    return NavigationPhase.pickup;
+  }
 
   @override
   State<DriverNavigationScreen> createState() => _DriverNavigationScreenState();
@@ -48,11 +79,12 @@ class DriverNavigationScreen extends StatefulWidget {
 class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     with WidgetsBindingObserver {
   late final NavigationController _controller;
+  late final bool _ownsController;
   late final TrafficService _trafficService;
   late final TrafficController _trafficController;
   late final MapController _mapController;
+  final ArrivalAutoRedirector _arrivalRedirector = ArrivalAutoRedirector();
   bool _didFitRoute = false;
-  bool _confirming = false;
   bool _isAutoCenter = true;
   String? _dismissedAlertSignature;
   String? _lastAltPrefetchSignature;
@@ -68,18 +100,27 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
       initialEnabled: widget.initialTrafficEnabled,
       initialShowLegend: false,
     )..addListener(_onTrafficChanged);
-    _controller = NavigationController(
-      order: widget.order,
-      phase: widget.phase ?? _derivePhase(widget.order),
-    );
+    _ownsController = widget.navigationController == null;
+    _controller = widget.navigationController ??
+        NavigationController(
+          order: widget.order,
+          phase: widget.phase ??
+              DriverNavigationScreen.deriveNavigationPhase(widget.order),
+        );
     _controller.addListener(_onControllerChanged);
     _controller.onVoiceCommand = (command) {
-      if (command == 'arrive' && !_confirming) {
+      if (command == 'arrive') {
         _confirmArrival();
       }
     };
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_controller.start());
+      if (!mounted) return;
+      if (widget.autoStartController) {
+        unawaited(_controller.start());
+      }
+      if (_controller.hasArrived) {
+        _scheduleAutoArrival();
+      }
     });
   }
 
@@ -95,28 +136,24 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _arrivalRedirector.dispose();
     _trafficController.removeListener(_onTrafficChanged);
     _trafficController.dispose();
     _controller.removeListener(_onControllerChanged);
-    _controller.dispose();
+    if (_ownsController) {
+      _controller.dispose();
+    } else {
+      _controller.stopTracking(stopSpeech: false);
+    }
     _mapController.dispose();
     super.dispose();
   }
 
-  static NavigationPhase _derivePhase(Map<String, dynamic> order) {
-    final status = order['status']?.toString() ?? '';
-    const deliveryStatuses = <String>{
-      'delivering',
-      'in_transit',
-      'on_delivery',
-      'delivered',
-    };
-    if (deliveryStatuses.contains(status)) return NavigationPhase.delivery;
-    return NavigationPhase.pickup;
-  }
-
   void _onControllerChanged() {
     if (!mounted) return;
+    if (_controller.hasArrived) {
+      _scheduleAutoArrival();
+    }
     final st = _controller.status;
     if (!_didFitRoute &&
         st == NavigationStatus.navigating &&
@@ -301,49 +338,30 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     }
   }
 
-  Future<void> _confirmArrival() async {
-    _controller.stopTracking();
-    _trafficController.setMapActive(false);
-
-    if (_controller.phase == NavigationPhase.delivery) {
-      final order = widget.order;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DriverAtDeliveryScreen(order: order),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _confirming = true);
-    final result = await CourierOrderService.updateOrderStatus(
-      orderId: widget.order['id'].toString(),
-      status: 'delivering',
+  void _scheduleAutoArrival() {
+    _arrivalRedirector.schedule(
+      widget.autoArrivalDelay,
+      _performArrivalNavigation,
     );
-    if (!mounted) return;
-    setState(() => _confirming = false);
+  }
 
-    if (result['success'] == true) {
-      final updatedOrder = Map<String, dynamic>.from(widget.order);
-      updatedOrder['status'] = 'delivering';
-      if (result['data'] != null) {
-        updatedOrder.addAll(Map<String, dynamic>.from(result['data']));
-      }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              DriverNavigationDeliveryScreen(order: updatedOrder),
+  void _confirmArrival() {
+    _arrivalRedirector.triggerNow(_performArrivalNavigation);
+  }
+
+  void _performArrivalNavigation() {
+    if (!mounted) return;
+    _controller.stopTracking(stopSpeech: false);
+    _trafficController.setMapActive(false);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => buildNavigationArrivalScreen(
+          phase: _controller.phase,
+          order: widget.order,
         ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Gagal memperbarui status'),
-        ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -401,7 +419,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               child: TrafficSelectionOverlay(controller: _trafficController),
             ),
           ..._buildStateOverlays(),
-          if (_confirming) _buildConfirmingOverlay(),
           _buildBottom(),
         ],
       ),
@@ -546,6 +563,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
+              _arrivalRedirector.cancel();
               _controller.stopTracking();
               _trafficController.setMapActive(false);
               Navigator.pop(context); // tutup dialog
@@ -1493,17 +1511,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     );
   }
 
-  Widget _buildConfirmingOverlay() {
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black38,
-        child: const Center(
-          child: CircularProgressIndicator(color: AppColors.primaryOrange),
-        ),
-      ),
-    );
-  }
-
   // ------------------------------------------------------- bottom sheet
 
   Widget _buildBottom() {
@@ -1730,7 +1737,16 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 4),
+            Text(
+              'Mengalihkan otomatis ke halaman berikutnya...',
+              textAlign: TextAlign.center,
+              style: AppTypography.caption.copyWith(
+                color: AppColors.primaryTeal,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 if (phone != null) ...[
@@ -1763,7 +1779,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                 ],
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: _confirming ? null : _confirmArrival,
+                    onPressed: _arrivalRedirector.isTriggered
+                        ? null
+                        : _confirmArrival,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryOrange,
                       foregroundColor: AppColors.textWhite,
@@ -1784,7 +1802,12 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               ],
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                _arrivalRedirector.cancel();
+                _controller.stopTracking();
+                _trafficController.setMapActive(false);
+                Navigator.pop(context);
+              },
               child: const Text('Tutup Navigasi'),
             ),
           ],

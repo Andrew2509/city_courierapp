@@ -8,6 +8,7 @@ import '../../controllers/traffic_controller.dart';
 import '../../core/config/map_config.dart';
 import '../../services/maps/traffic_service.dart';
 import '../../widgets/maps/traffic_overlay_widgets.dart';
+import '../courier/ci_word/delivery/driver_navigation_screen.dart';
 
 
 class CourierNavigationScreen extends StatefulWidget {
@@ -15,6 +16,9 @@ class CourierNavigationScreen extends StatefulWidget {
   final NavigationPhase initialPhase;
   final TrafficService? trafficService;
   final bool initialTrafficEnabled;
+  final NavigationController? navigationController;
+  final Duration autoArrivalDelay;
+  final bool autoStartController;
 
   const CourierNavigationScreen({
     Key? key,
@@ -22,6 +26,9 @@ class CourierNavigationScreen extends StatefulWidget {
     this.initialPhase = NavigationPhase.pickup,
     this.trafficService,
     this.initialTrafficEnabled = true,
+    this.navigationController,
+    this.autoArrivalDelay = const Duration(milliseconds: 1500),
+    this.autoStartController = true,
   }) : super(key: key);
 
   @override
@@ -31,10 +38,12 @@ class CourierNavigationScreen extends StatefulWidget {
 
 class _CourierNavigationScreenState extends State<CourierNavigationScreen>
     with WidgetsBindingObserver {
-  late NavigationController _navController;
+  late final NavigationController _navController;
+  late final bool _ownsController;
   late final TrafficService _trafficService;
   late final TrafficController _trafficController;
   final MapController _mapController = MapController();
+  final ArrivalAutoRedirector _arrivalRedirector = ArrivalAutoRedirector();
   bool _isFollowingMode = true;
 
   @override
@@ -46,14 +55,22 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
       service: _trafficService,
       initialEnabled: widget.initialTrafficEnabled,
     )..addListener(_onTrafficUpdate);
-    _navController = NavigationController(
-      order: widget.order,
-      phase: widget.initialPhase,
-    );
+    _ownsController = widget.navigationController == null;
+    _navController = widget.navigationController ??
+        NavigationController(
+          order: widget.order,
+          phase: widget.initialPhase,
+        );
     _navController.addListener(_onNavUpdate);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _navController.start();
+      if (!mounted) return;
+      if (widget.autoStartController) {
+        _navController.start();
+      }
+      if (_navController.hasArrived) {
+        _scheduleAutoArrival();
+      }
     });
   }
 
@@ -69,30 +86,66 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _arrivalRedirector.dispose();
     _trafficController.removeListener(_onTrafficUpdate);
     _trafficController.dispose();
     _navController.removeListener(_onNavUpdate);
-    _navController.dispose();
+    if (_ownsController) {
+      _navController.dispose();
+    } else {
+      _navController.stopTracking(stopSpeech: false);
+    }
     super.dispose();
+  }
+
+  void _scheduleAutoArrival() {
+    _arrivalRedirector.schedule(
+      widget.autoArrivalDelay,
+      _performArrivalNavigation,
+    );
+  }
+
+  void _confirmArrival() {
+    _arrivalRedirector.triggerNow(_performArrivalNavigation);
+  }
+
+  void _performArrivalNavigation() {
+    if (!mounted) return;
+    _navController.stopTracking(stopSpeech: false);
+    _trafficController.setMapActive(false);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => buildNavigationArrivalScreen(
+          phase: _navController.phase,
+          order: widget.order,
+        ),
+      ),
+    );
   }
 
   void _onNavUpdate() {
     if (!mounted) return;
+    if (_navController.hasArrived) {
+      _scheduleAutoArrival();
+    }
 
     // Update map camera in follow mode (lower-center offset + heading-up)
     final cur = _navController.snappedLocation ?? _navController.currentLocation;
     if (_isFollowingMode && cur != null) {
-      final h = MediaQuery.maybeOf(context)?.size.height ?? 800.0;
-      _mapController.move(
-        cur,
-        _mapController.camera.zoom,
-        offset: Offset(0, h * 0.14),
-      );
-      if (_navController.isCompassHeadingUp) {
-        _mapController.rotate(-_navController.effectiveVehicleHeading);
-      } else {
-        _mapController.rotate(0);
-      }
+      try {
+        final h = MediaQuery.maybeOf(context)?.size.height ?? 800.0;
+        _mapController.move(
+          cur,
+          _mapController.camera.zoom,
+          offset: Offset(0, h * 0.14),
+        );
+        if (_navController.isCompassHeadingUp) {
+          _mapController.rotate(-_navController.effectiveVehicleHeading);
+        } else {
+          _mapController.rotate(0);
+        }
+      } catch (_) {}
     }
 
     final route = _navController.route;
@@ -135,6 +188,7 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
           ),
           TextButton(
             onPressed: () {
+              _arrivalRedirector.cancel();
               _navController.stopTracking();
               _trafficController.setMapActive(false);
               Navigator.pop(context); // Close dialog
@@ -921,11 +975,9 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
                         ),
                         elevation: 2,
                       ),
-                      onPressed: () {
-                        _navController.stopTracking();
-                        _trafficController.setMapActive(false);
-                        Navigator.pop(context, true);
-                      },
+                      onPressed: _arrivalRedirector.isTriggered
+                          ? null
+                          : _confirmArrival,
                       icon: const Icon(Icons.check, size: 20),
                       label: const Text(
                         'KONFIRMASI TIBA',
