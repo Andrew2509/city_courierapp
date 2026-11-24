@@ -11,7 +11,6 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
-import 'package:city_courierapp/widgets/map_arrow_marker.dart';
 import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
@@ -651,7 +650,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               );
             },
           ),
-        MarkerLayer(markers: [..._buildArrowMarkers(), ..._buildMarkers()]),
+        MarkerLayer(markers: _buildMarkers()),
       ],
     );
   }
@@ -1085,55 +1084,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
       markers.add(
         Marker(point: cur, width: 100, height: 100, child: _driverMarker()),
       );
-    }
-
-    return markers;
-  }
-
-  double _calculateBearing(LatLng p1, LatLng p2) {
-    final lat1 = p1.latitude * math.pi / 180.0;
-    final lat2 = p2.latitude * math.pi / 180.0;
-    final dLng = (p2.longitude - p1.longitude) * math.pi / 180.0;
-    final y = math.sin(dLng) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
-    var bearing = math.atan2(y, x) * 180.0 / math.pi;
-    return (bearing + 360) % 360;
-  }
-
-  List<Marker> _buildArrowMarkers() {
-    final route = _controller.route;
-    if (route == null || route.coordinates.length < 3) return [];
-
-    final markers = <Marker>[];
-
-    // Taruh panah hanya pada titik-titik di mana ada belokan (sudut > 30 derajat)
-    for (int i = 1; i < route.coordinates.length - 1; i++) {
-      final p0 = route.coordinates[i - 1];
-      final p1 = route.coordinates[i];
-      final p2 = route.coordinates[i + 1];
-
-      final bearing1 = _calculateBearing(p0, p1);
-      final bearing2 = _calculateBearing(p1, p2);
-
-      var diff = (bearing2 - bearing1).abs();
-      if (diff > 180) diff = 360 - diff;
-
-      if (diff > 30.0) {
-        // Sudut belokan tajam
-        markers.add(
-          Marker(
-            point: p1,
-            width: 28,
-            height: 28,
-            child: Transform.rotate(
-              angle: bearing2 * math.pi / 180,
-              child: const MapArrowMarker(),
-            ),
-          ),
-        );
-      }
     }
 
     return markers;

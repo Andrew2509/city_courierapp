@@ -12,6 +12,7 @@ import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/screens/maps/courier_navigation_screen.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
+import 'package:city_courierapp/widgets/map_arrow_marker.dart';
 import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 
@@ -738,7 +739,12 @@ void main() {
         final order = buildOrder(status: 'delivering');
         const multiStepRoute = RouteModel(
           provider: 'tomtom_routing_v1',
-          coordinates: [origin, dropoffLoc],
+          coordinates: [
+            origin,
+            LatLng(-7.2860, 112.7500),
+            LatLng(-7.2860, 112.7560),
+            dropoffLoc,
+          ],
           distanceMeters: 900.0,
           durationSeconds: 120.0,
           trafficDurationSeconds: 120.0,
@@ -834,10 +840,11 @@ void main() {
             tester.getSize(find.byKey(const Key('nav_then_pill'))).width;
         expect(thenWidth, lessThan(bannerWidth * 0.6));
 
-        // Pastikan tidak ada tombol mic di banner maupun chip 'Mendekati lokasi'
+        // Pastikan tidak ada tombol mic di banner, chip 'Mendekati lokasi', maupun panah putih di garis biru
         expect(find.byIcon(Icons.mic), findsNothing);
         expect(find.byIcon(Icons.mic_none), findsNothing);
         expect(find.textContaining('Mendekati lokasi'), findsNothing);
+        expect(find.byType(MapArrowMarker), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());
       },
