@@ -422,62 +422,15 @@ void main() {
       controller.dispose();
     });
 
-    testWidgets('DriverDetailShipmentScreen menampilkan lalu lintas Penjemputan, Tujuan, Peringatan & fondasi rute alternatif', (tester) async {
+    testWidgets('DriverDetailShipmentScreen tidak menampilkan kartu Kondisi Lalu Lintas Pengiriman', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      var deliverySummaryRequested = false;
       final client = MockClient((req) async {
-        final now = DateTime.now().toUtc();
         if (req.url.path.endsWith('/delivery-summary')) {
-          return http.Response(
-            jsonEncode({
-              'success': true,
-              'data': {
-                'pickup_traffic': {
-                  'point': {'lat': -7.2995, 'lng': 112.7681},
-                  'road_name': 'Jl. Semolowaru',
-                  'current_speed_kmh': 42,
-                  'free_flow_speed_kmh': 50,
-                  'road_closure': false,
-                  'coordinates': [],
-                  'fetched_at': now.toIso8601String(),
-                  'expires_at': now.add(const Duration(seconds: 60)).toIso8601String(),
-                },
-                'dropoff_traffic': {
-                  'point': {'lat': -7.2880, 'lng': 112.7380},
-                  'road_name': 'Jl. Raya Darmo',
-                  'current_speed_kmh': 10,
-                  'free_flow_speed_kmh': 50,
-                  'road_closure': false,
-                  'coordinates': [],
-                  'fetched_at': now.toIso8601String(),
-                  'expires_at': now.add(const Duration(seconds: 60)).toIso8601String(),
-                },
-                'incidents': [],
-                'has_congestion': true,
-                'congestion_warnings': [
-                  {
-                    'area': 'dropoff',
-                    'severity': 'congested',
-                    'title': 'Lalu lintas di sekitar lokasi tujuan macet',
-                    'detail': 'Kecepatan rata-rata 10 km/jam (normal 50 km/jam • Kepadatan 80%).',
-                  },
-                ],
-                'alternative_route': {
-                  'supported': false,
-                  'routing_engine': 'osrm_openstreetmap',
-                  'traffic_aware': false,
-                  'recommendation_available': false,
-                  'message': 'Rekomendasi rute alternatif berbasis lalu lintas belum aktif karena routing saat ini memakai OSRM OpenStreetMap.',
-                },
-                'fetched_at': now.toIso8601String(),
-                'expires_at': now.add(const Duration(seconds: 60)).toIso8601String(),
-              },
-            }),
-            200,
-            headers: const {'content-type': 'application/json; charset=utf-8'},
-          );
+          deliverySummaryRequested = true;
         }
         return http.Response('{"success":true,"data":{"incidents":[]}}', 200);
       });
@@ -511,22 +464,14 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 500));
 
-      await tester.scrollUntilVisible(
-        find.text('Kondisi Lalu Lintas Pengiriman'),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.pump();
-
-      expect(find.text('Kondisi Lalu Lintas Pengiriman'), findsOneWidget);
-      expect(find.text('Sekitar Penjemputan'), findsOneWidget);
-      expect(find.text('Sekitar Tujuan'), findsOneWidget);
-      expect(find.text('Lancar'), findsOneWidget);
-      expect(find.text('Macet'), findsOneWidget);
-      expect(find.text('Peringatan Kemacetan'), findsOneWidget);
+      expect(deliverySummaryRequested, isFalse);
+      expect(find.text('Kondisi Lalu Lintas Pengiriman'), findsNothing);
+      expect(find.text('Sekitar Penjemputan'), findsNothing);
+      expect(find.text('Sekitar Tujuan'), findsNothing);
+      expect(find.text('Peringatan Kemacetan'), findsNothing);
       expect(
         find.textContaining('belum aktif karena routing saat ini memakai OSRM'),
-        findsOneWidget,
+        findsNothing,
       );
     });
   });

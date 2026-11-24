@@ -154,20 +154,7 @@ class _DriverDetailShipmentScreenState
         _isLoadingLocation = false;
       });
       Future.delayed(const Duration(milliseconds: 300), _fitBounds);
-      if (widget.enableAutoTrafficSummary) {
-        unawaited(_loadDeliveryTrafficSummary());
-      }
     }
-  }
-
-  Future<void> _loadDeliveryTrafficSummary({bool force = false}) async {
-    await _trafficController.loadDeliverySummary(
-      pickup: LatLng(_pickupLat, _pickupLng),
-      dropoff: LatLng(_dropoffLat, _dropoffLng),
-      pickupRoadHint: widget.shipment['pickup_address']?.toString(),
-      dropoffRoadHint: widget.shipment['dropoff_address']?.toString(),
-      force: force,
-    );
   }
 
   /// Sederhanakan alamat untuk geocoding.
@@ -1192,7 +1179,7 @@ class _DriverDetailShipmentScreenState
                             ),
                           ],
 
-                          // 7. Ringkasan Kondisi Lalu Lintas Penjemputan & Tujuan (TomTom Traffic)
+                          // 7. Detail Ruas Jalan / Insiden Lalu Lintas Peta (saat diketuk)
                           if (_trafficController.isTrafficEnabled &&
                               (_trafficController.selectedRoad != null ||
                                   _trafficController.selectedIncident != null)) ...[
@@ -1201,13 +1188,6 @@ class _DriverDetailShipmentScreenState
                               controller: _trafficController,
                             ),
                           ],
-                          const SizedBox(height: 10),
-                          TrafficDeliverySummaryCard(
-                            controller: _trafficController,
-                            onRetry: () => unawaited(
-                              _loadDeliveryTrafficSummary(force: true),
-                            ),
-                          ),
                         ],
                       ),
                     ),
