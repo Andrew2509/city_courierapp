@@ -7,6 +7,7 @@ import '../../controllers/navigation_controller.dart';
 import '../../controllers/traffic_controller.dart';
 import '../../core/config/map_config.dart';
 import '../../services/maps/traffic_service.dart';
+import '../../widgets/maps/navigation_turn_banner.dart';
 import '../../widgets/maps/traffic_overlay_widgets.dart';
 import '../courier/ci_word/delivery/driver_navigation_screen.dart';
 
@@ -674,63 +675,15 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
             top: isOffRoute ? 80 : 16,
             left: 16,
             right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      navigationManeuverIcon(step.maneuver),
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          step.instruction,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (_navController.distanceToNextManeuver > 0)
-                          Text(
-                            'Dalam ${_formatDistance(_navController.distanceToNextManeuver)}',
-                            style: const TextStyle(
-                              color: Color(0xFF94A3B8),
-                              fontSize: 11,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            child: NavigationTurnBanner(
+              currentStep: step,
+              thenStep: _navController.thenStep,
+              fallbackInstruction: _navController.phase == NavigationPhase.pickup
+                  ? 'Menuju Pengirim'
+                  : 'Menuju Penerima',
+              distanceLabel: _navController.distanceToNextManeuver > 0
+                  ? _formatDistance(_navController.distanceToNextManeuver)
+                  : '',
             ),
           ),
 
@@ -739,7 +692,9 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
             _trafficController.closestCongestion != null)
           Positioned(
             top: (step != null && !hasArrived)
-                ? (isOffRoute ? 168 : 104)
+                ? (isOffRoute
+                    ? (_navController.thenStep != null ? 196 : 168)
+                    : (_navController.thenStep != null ? 132 : 104))
                 : (isOffRoute || hasArrived ? 80 : 16),
             left: 16,
             right: 16,

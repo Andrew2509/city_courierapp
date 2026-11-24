@@ -12,6 +12,7 @@ import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/screens/maps/courier_navigation_screen.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
+import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 
 const List<int> _kTransparentPng = <int>[
@@ -698,5 +699,148 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
+
+    test('NavigationTurnBanner.formatHeadline memformat ke arah <Nama Jalan> dengan benar', () {
+      const straightStep = RouteStep(
+        instruction: 'Mulai perjalanan',
+        maneuver: 'DEPART',
+        roadName: 'Jl. Garuda',
+      );
+      final h1 = NavigationTurnBanner.formatHeadline(straightStep, 'Menuju');
+      expect(h1.prefix, 'ke arah');
+      expect(h1.mainText, 'Jl. Garuda');
+
+      const turnStep = RouteStep(
+        instruction: 'Belok kiri ke Jl. Semolowaru',
+        maneuver: 'TURN_LEFT',
+        roadName: 'Jl. Semolowaru',
+      );
+      final h2 = NavigationTurnBanner.formatHeadline(turnStep, 'Menuju');
+      expect(h2.prefix, 'Belok kiri ke');
+      expect(h2.mainText, 'Jl. Semolowaru');
+
+      const arriveStep = RouteStep(
+        instruction: 'Anda telah tiba di tujuan',
+        maneuver: 'ARRIVE',
+      );
+      final h3 = NavigationTurnBanner.formatHeadline(arriveStep, 'Menuju');
+      expect(h3.prefix, isNull);
+      expect(h3.mainText, 'Anda telah tiba di tujuan');
+    });
+
+    testWidgets(
+      'DriverNavigationScreen menampilkan banner atas ringkas ke arah jalan dan tab corner Kemudian tanpa tombol mic/mendekati',
+      (tester) async {
+        tester.view.physicalSize = const Size(720, 1520);
+        tester.view.devicePixelRatio = 2.0;
+        addTearDown(tester.view.resetPhysicalSize);
+
+        final order = buildOrder(status: 'delivering');
+        const multiStepRoute = RouteModel(
+          provider: 'tomtom_routing_v1',
+          coordinates: [origin, dropoffLoc],
+          distanceMeters: 900.0,
+          durationSeconds: 120.0,
+          trafficDurationSeconds: 120.0,
+          steps: [
+            RouteStep(
+              instruction: 'Mulai ke Jl. Garuda',
+              maneuver: 'DEPART',
+              roadName: 'Jl. Garuda',
+              distanceMeters: 50.0,
+              durationSeconds: 10.0,
+              routeOffsetMeters: 0.0,
+              isTomTomStep: true,
+            ),
+            RouteStep(
+              instruction: 'Tetap lurus di Jl. Garuda',
+              maneuver: 'CONTINUE',
+              roadName: 'Jl. Garuda',
+              distanceMeters: 350.0,
+              durationSeconds: 45.0,
+              routeOffsetMeters: 50.0,
+              isTomTomStep: true,
+            ),
+            RouteStep(
+              instruction: 'Belok kiri ke Jl. Semolowaru',
+              maneuver: 'TURN_LEFT',
+              roadName: 'Jl. Semolowaru',
+              distanceMeters: 500.0,
+              durationSeconds: 65.0,
+              routeOffsetMeters: 400.0,
+              isTomTomStep: true,
+            ),
+            RouteStep(
+              instruction: 'Anda telah tiba di tujuan',
+              maneuver: 'ARRIVE',
+              roadName: 'Jl. Semolowaru',
+              distanceMeters: 0.0,
+              durationSeconds: 0.0,
+              routeOffsetMeters: 900.0,
+              isTomTomStep: true,
+            ),
+          ],
+        );
+
+        final controller = NavigationController(
+          order: order,
+          phase: NavigationPhase.delivery,
+          routingService: _FakeRoutingService(multiStepRoute),
+          requiredArrivalReadings: 2,
+          arrivalRadiusMeters: 40.0,
+        );
+        controller.soundEnabled = false;
+        controller.destination = dropoffLoc;
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DriverNavigationScreen(
+              order: order,
+              phase: NavigationPhase.delivery,
+              navigationController: controller,
+              initialTrafficEnabled: false,
+              autoStartController: false,
+            ),
+          ),
+        );
+        await tester.pump();
+
+        controller.ingestGpsSample(
+          latitude: origin.latitude,
+          longitude: origin.longitude,
+          accuracy: 8.0,
+          speedMs: 6.0,
+        );
+        await tester.pump();
+        await tester.pump(Duration.zero);
+
+        expect(find.byKey(const Key('nav_turn_banner')), findsOneWidget);
+        expect(find.byKey(const Key('nav_then_pill')), findsOneWidget);
+        expect(
+          find.textContaining('ke arah', findRichText: true),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Jl. Garuda', findRichText: true),
+          findsOneWidget,
+        );
+        expect(find.text('Kemudian'), findsOneWidget);
+
+        // Pastikan tab 'Kemudian' hanya sebesar kontennya di sudut kiri bawah (tidak full-width)
+        final bannerWidth =
+            tester.getSize(find.byKey(const Key('nav_turn_banner'))).width;
+        final thenWidth =
+            tester.getSize(find.byKey(const Key('nav_then_pill'))).width;
+        expect(thenWidth, lessThan(bannerWidth * 0.6));
+
+        // Pastikan tidak ada tombol mic di banner maupun chip 'Mendekati lokasi'
+        expect(find.byIcon(Icons.mic), findsNothing);
+        expect(find.byIcon(Icons.mic_none), findsNothing);
+        expect(find.textContaining('Mendekati lokasi'), findsNothing);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
   });
 }

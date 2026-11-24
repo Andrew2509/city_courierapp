@@ -12,6 +12,7 @@ import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/widgets/map_arrow_marker.dart';
+import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
@@ -1220,12 +1221,8 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     final fallbackInstruction = _controller.title;
 
     final distanceToShow = _controller.distanceToNextManeuver;
-    final instructionText = currentStep?.instruction ?? fallbackInstruction;
-    final maneuver = currentStep?.maneuver;
     final formattedDist =
         distanceToShow > 0 ? _formatDistance(distanceToShow) : '';
-    final distParts =
-        formattedDist.isNotEmpty ? formattedDist.split(' ') : <String>[];
 
     return Positioned(
       top: MediaQuery.of(context).padding.top + 12,
@@ -1235,180 +1232,17 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F7B4A),
-              borderRadius: thenStep != null
-                  ? const BorderRadius.vertical(top: Radius.circular(16))
-                  : BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    navigationManeuverIcon(maneuver),
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (distParts.isNotEmpty)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              distParts[0],
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            if (distParts.length > 1) ...[
-                              const SizedBox(width: 4),
-                              Text(
-                                distParts[1],
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      Text(
-                        instructionText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w700,
-                          height: 1.25,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (currentStep != null &&
-                          currentStep.roadName != null &&
-                          currentStep.roadName!.isNotEmpty)
-                        Text(
-                          currentStep.roadName!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: _controller.toggleMic,
-                  borderRadius: BorderRadius.circular(22),
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: _controller.isMicEnabled
-                          ? Colors.red.shade100
-                          : Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _controller.isMicEnabled ? Icons.mic : Icons.mic_none,
-                      color: _controller.isMicEnabled
-                          ? Colors.red
-                          : const Color(0xFF0F172A),
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          NavigationTurnBanner(
+            key: const Key('nav_turn_banner'),
+            currentStep: currentStep,
+            thenStep: thenStep,
+            fallbackInstruction: fallbackInstruction,
+            distanceLabel: formattedDist,
           ),
-          if (thenStep != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A5C37),
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.14),
-                  ),
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(14),
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Text(
-                    'Kemudian',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    navigationManeuverIcon(thenStep.maneuver),
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      thenStep.instruction,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           if (_controller.accuracyWarning) _buildAccuracyBanner(),
           if (_controller.status == NavigationStatus.offRoute ||
               _controller.status == NavigationStatus.rerouting)
-            _buildOffRouteBanner()
-          else if (_controller.isApproachingDestination)
-            _buildApproachingBanner(),
+            _buildOffRouteBanner(),
           if (_trafficController.isTrafficEnabled &&
               _trafficController.closestCongestion != null &&
               _dismissedAlertSignature !=
@@ -1483,18 +1317,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
       'Lokasi kurang akurat\nPastikan GPS aktif dan Anda berada di area terbuka.',
       AppColors.warningColor,
       Icons.gps_off,
-    );
-  }
-
-  Widget _buildApproachingBanner() {
-    final target = _controller.phase == NavigationPhase.pickup
-        ? 'pengirim'
-        : 'penerima';
-    final dist = _formatDistance(_controller.distanceRemaining);
-    return _buildAlertBanner(
-      'Mendekati lokasi $target ($dist)',
-      const Color(0xFF047857),
-      Icons.near_me_rounded,
     );
   }
 
