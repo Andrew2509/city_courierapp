@@ -74,6 +74,7 @@ List<Widget> buildTrafficOverlayLayers({
               point: inc.point,
               width: 34,
               height: 34,
+              rotate: true,
               child: GestureDetector(
                 onTap: () => controller.selectIncident(inc),
                 child: Container(

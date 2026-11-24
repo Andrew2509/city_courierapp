@@ -194,7 +194,9 @@ class NavigationController extends ChangeNotifier {
 
   /// Prioritas arah kendaraan: GPS course/bearing saat bergerak, lalu segmen rute / kompas saat diam.
   double get effectiveVehicleHeading {
-    if (speedKmH >= 3.5 && gpsHeading != null) {
+    if (speedKmH >= 4.0 &&
+        gpsHeading != null &&
+        (headingAccuracy == null || headingAccuracy! <= 45.0)) {
       return gpsHeading!;
     }
     return routeHeading ?? gpsHeading ?? heading ?? deviceHeading ?? 0.0;
@@ -276,6 +278,13 @@ class NavigationController extends ChangeNotifier {
 
   void toggleCompassMode() {
     isCompassHeadingUp = !isCompassHeadingUp;
+    notifyListeners();
+  }
+
+  /// Mengatur mode rotasi kamera mengikuti arah kendaraan (`true`) atau Utara-atas (`false`).
+  void setCompassHeadingUp(bool enabled) {
+    if (isCompassHeadingUp == enabled) return;
+    isCompassHeadingUp = enabled;
     notifyListeners();
   }
 
@@ -503,16 +512,28 @@ class NavigationController extends ChangeNotifier {
     _compassSub = FlutterCompass.events?.listen((CompassEvent event) {
       if (_disposed) return;
       if (event.heading != null) {
-        final newHeading =
+        final rawHeading =
             event.heading! >= 0 ? event.heading! : 360 + event.heading!;
-        deviceHeading = newHeading;
+
+        // Deadband + low-pass filter agar getaran kompas magnetometer tidak menggetarkan kamera.
+        final prev = deviceHeading;
+        if (prev != null) {
+          final delta = (rawHeading - prev + 540.0) % 360.0 - 180.0;
+          if (delta.abs() < 4.0) return;
+        }
+        final smoothedHeading = _smoothAngleDeg(
+          deviceHeading,
+          rawHeading,
+          gain: 0.22,
+        );
+        deviceHeading = smoothedHeading;
 
         // Calculate shortest path for turns
         if (deviceHeadingTurns == 0.0) {
-          deviceHeadingTurns = newHeading / 360.0;
+          deviceHeadingTurns = smoothedHeading / 360.0;
         } else {
           final currentDeg = (deviceHeadingTurns % 1.0) * 360.0;
-          var diff = newHeading - currentDeg;
+          var diff = smoothedHeading - currentDeg;
           if (diff > 180) {
             diff -= 360;
           } else if (diff < -180) {
@@ -520,7 +541,11 @@ class NavigationController extends ChangeNotifier {
           }
           deviceHeadingTurns += diff / 360.0;
         }
-        notifyListeners();
+        // Saat sedang berkendara atau berada di segmen rute, arah menggunakan GPS/segmen rute;
+        // cegah noise kompas membanjiri rebuild UI/kamera.
+        if (speedKmH < 4.0 && !isSnappedToRoute) {
+          notifyListeners();
+        }
       }
     });
   }
@@ -585,12 +610,17 @@ class NavigationController extends ChangeNotifier {
     currentSpeedMs = speedMs >= 0 ? speedMs : 0.0;
 
     // Prioritaskan course/bearing GPS saat kendaraan bergerak sebelum fallback ke pergerakan/kompas.
-    if (currentSpeedMs >= 1.5 && headingDeg >= 0 && headingDeg <= 360.0) {
+    final bool hasReliableHeadingAccuracy =
+        headingAccuracy == null || headingAccuracy! <= 45.0;
+    if (currentSpeedMs >= 1.1 &&
+        headingDeg >= 0 &&
+        headingDeg <= 360.0 &&
+        hasReliableHeadingAccuracy) {
       gpsHeading = _smoothAngleDeg(gpsHeading, headingDeg);
       heading = gpsHeading;
     } else if (_bearingAnchor != null) {
       final moved = _distance.as(LengthUnit.Meter, _bearingAnchor!, currentLocation!);
-      if (moved >= 6.0 && accuracy <= 35.0) {
+      if (moved >= 7.0 && accuracy <= 35.0) {
         final derived = _bearing(_bearingAnchor!, currentLocation!);
         gpsHeading = _smoothAngleDeg(gpsHeading, derived);
         heading = gpsHeading;
@@ -608,10 +638,18 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  static double _smoothAngleDeg(double? currentDeg, double targetDeg) {
-    if (currentDeg == null) return (targetDeg + 360) % 360;
-    var diff = (targetDeg - currentDeg + 540) % 360 - 180;
-    return (currentDeg + diff * 0.45 + 360) % 360;
+  static double _smoothAngleDeg(
+    double? currentDeg,
+    double targetDeg, {
+    double? gain,
+  }) {
+    final normalizedTarget = (targetDeg % 360 + 360) % 360;
+    if (currentDeg == null) return normalizedTarget;
+    final diff = (normalizedTarget - currentDeg + 540) % 360 - 180;
+    // Deadband anti-getar untuk perubahan arah GPS mikro (< 2.5°)
+    if (diff.abs() < 2.5) return currentDeg;
+    final alpha = gain ?? (diff.abs() >= 14.0 ? 0.48 : 0.28);
+    return (currentDeg + diff * alpha + 360) % 360;
   }
 
   static double _bearing(LatLng a, LatLng b) {

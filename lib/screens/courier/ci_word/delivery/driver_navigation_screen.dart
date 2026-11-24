@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,6 +12,7 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
+import 'package:city_courierapp/widgets/maps/navigation_camera_controller.dart';
 import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
@@ -162,6 +164,7 @@ class DriverNavigationScreen extends StatefulWidget {
   final NavigationController? navigationController;
   final Duration autoArrivalDelay;
   final bool autoStartController;
+  final bool initial3dEnabled;
 
   const DriverNavigationScreen({
     super.key,
@@ -172,6 +175,7 @@ class DriverNavigationScreen extends StatefulWidget {
     this.navigationController,
     this.autoArrivalDelay = const Duration(milliseconds: 1500),
     this.autoStartController = true,
+    this.initial3dEnabled = true,
   });
 
   static NavigationPhase deriveNavigationPhase(Map<String, dynamic> order) {
@@ -192,16 +196,37 @@ class DriverNavigationScreen extends StatefulWidget {
 }
 
 class _DriverNavigationScreenState extends State<DriverNavigationScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
+  static const String _kInternalCameraEventId = 'city_courier_nav_cam';
+
   late final NavigationController _controller;
   late final bool _ownsController;
   late final TrafficService _trafficService;
   late final TrafficController _trafficController;
   late final MapController _mapController;
+  late final AnimationController _cameraAnimController;
+  late final AnimationController _tiltAnimController;
   final ArrivalAutoRedirector _arrivalRedirector = ArrivalAutoRedirector();
-  bool _didFitRoute = false;
+
+  bool _isMapReady = false;
   bool _isAutoCenter = true;
+  bool _userAdjustedZoom = false;
+  late bool _is3dEnabled;
   bool _isBottomSheetExpanded = false;
+  bool _isProgrammaticCameraMove = false;
+  double _currentMapRotationDeg = 0.0;
+  double? _unwrappedDriverTurns;
+  Size _mapViewportSize = const Size(400.0, 800.0);
+
+  LatLng _animStartAnchor = const LatLng(-7.2575, 112.7521);
+  LatLng _animEndAnchor = const LatLng(-7.2575, 112.7521);
+  double _animStartZoom = 17.0;
+  double _animEndZoom = 17.0;
+  double _animStartRot = 0.0;
+  double _animEndRot = 0.0;
+  Offset _animStartOffset = Offset.zero;
+  Offset _animEndOffset = Offset.zero;
+
   String? _dismissedAlertSignature;
   String? _lastAltPrefetchSignature;
 
@@ -209,7 +234,17 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _is3dEnabled = widget.initial3dEnabled;
     _mapController = MapController();
+    _cameraAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..addListener(_onCameraAnimationTick);
+    _tiltAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 340),
+      value: _is3dEnabled ? 1.0 : 0.0,
+    );
     _trafficService = widget.trafficService ?? TrafficService();
     _trafficController = TrafficController(
       service: _trafficService,
@@ -252,6 +287,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _cameraAnimController.removeListener(_onCameraAnimationTick);
+    _cameraAnimController.dispose();
+    _tiltAnimController.dispose();
     _arrivalRedirector.dispose();
     _trafficController.removeListener(_onTrafficChanged);
     _trafficController.dispose();
@@ -265,46 +303,168 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     super.dispose();
   }
 
+  void _onCameraAnimationTick() {
+    if (!mounted || !_isMapReady) return;
+    final t = Curves.easeOutCubic.transform(_cameraAnimController.value);
+    final anchor = LatLng(
+      lerpDouble(_animStartAnchor.latitude, _animEndAnchor.latitude, t) ??
+          _animEndAnchor.latitude,
+      lerpDouble(_animStartAnchor.longitude, _animEndAnchor.longitude, t) ??
+          _animEndAnchor.longitude,
+    );
+    final zoom = lerpDouble(_animStartZoom, _animEndZoom, t) ?? _animEndZoom;
+    final rot = lerpDouble(_animStartRot, _animEndRot, t) ?? _animEndRot;
+    final offset = Offset.lerp(_animStartOffset, _animEndOffset, t) ??
+        _animEndOffset;
+    _applyImmediateCameraPose(anchor, zoom, rot, offset);
+  }
+
+  void _applyImmediateCameraPose(
+    LatLng anchor,
+    double zoom,
+    double rotationDeg,
+    Offset offset,
+  ) {
+    if (!_isMapReady) return;
+    final normalizedRot = NavigationCameraMath.normalizeAngleDeg(rotationDeg);
+    final targetRot = normalizedRot > 180.0
+        ? normalizedRot - 360.0
+        : normalizedRot;
+    _isProgrammaticCameraMove = true;
+    try {
+      // Rotasi harus diterapkan terlebih dahulu sebelum move(offset: ...)
+      // karena FlutterMap memakai camera.rotation aktif untuk memproyeksikan offset.
+      _mapController.rotate(targetRot, id: _kInternalCameraEventId);
+      _mapController.move(
+        anchor,
+        zoom,
+        offset: offset,
+        id: _kInternalCameraEventId,
+      );
+      _currentMapRotationDeg = _mapController.camera.rotation;
+    } catch (_) {
+    } finally {
+      _isProgrammaticCameraMove = false;
+    }
+  }
+
+  LatLng _currentAnchorAtOffset(Offset offset) {
+    final cam = _mapController.camera;
+    if (offset == Offset.zero ||
+        cam.nonRotatedSize == MapCamera.kImpossibleSize) {
+      return cam.center;
+    }
+    return cam.pointToLatLng(
+      math.Point(
+        (cam.nonRotatedSize.x / 2.0) + offset.dx,
+        (cam.nonRotatedSize.y / 2.0) + offset.dy,
+      ),
+    );
+  }
+
+  void _animateCameraTo({
+    required LatLng targetAnchor,
+    required double targetZoom,
+    required double targetRotationDeg,
+    required Offset targetOffset,
+    bool immediate = false,
+  }) {
+    if (!_isMapReady) return;
+    if (immediate) {
+      _cameraAnimController.stop();
+      _applyImmediateCameraPose(
+        targetAnchor,
+        targetZoom,
+        targetRotationDeg,
+        targetOffset,
+      );
+      return;
+    }
+
+    final cam = _mapController.camera;
+    final startAnchor = _currentAnchorAtOffset(targetOffset);
+    final startZoom = cam.zoom;
+    final startRot = cam.rotation;
+    final deltaRot = NavigationCameraMath.shortestAngleDeltaDeg(
+      startRot,
+      targetRotationDeg,
+    );
+
+    const distCalc = Distance();
+    final deltaMeters = distCalc.as(LengthUnit.Meter, startAnchor, targetAnchor);
+    final deltaZoom = (targetZoom - startZoom).abs();
+    final deltaOffset = (targetOffset - _animEndOffset).distance;
+
+    // Hindari re-animasi mikro (< 0.5m & < 1.5°) agar kamera bebas getar.
+    if (deltaMeters < 0.5 &&
+        deltaRot.abs() < 1.5 &&
+        deltaZoom < 0.01 &&
+        deltaOffset < 0.5) {
+      return;
+    }
+
+    _animStartAnchor = startAnchor;
+    _animEndAnchor = targetAnchor;
+    _animStartZoom = startZoom;
+    _animEndZoom = targetZoom;
+    _animStartRot = startRot;
+    _animEndRot = startRot + deltaRot;
+    _animStartOffset = _cameraAnimController.isAnimating
+        ? (Offset.lerp(
+                _animStartOffset,
+                _animEndOffset,
+                Curves.easeOutCubic.transform(_cameraAnimController.value),
+              ) ??
+              targetOffset)
+        : targetOffset;
+    _animEndOffset = targetOffset;
+
+    _cameraAnimController.forward(from: 0.0);
+  }
+
   void _onControllerChanged() {
     if (!mounted) return;
     if (_controller.hasArrived) {
       _scheduleAutoArrival();
     }
-    final st = _controller.status;
-    if (!_didFitRoute &&
-        st == NavigationStatus.navigating &&
-        _controller.currentLocation != null &&
-        _controller.destination != null) {
-      _didFitRoute = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
-    }
 
-    try {
+    if (_isMapReady) {
       final cur = _controller.snappedLocation ?? _controller.currentLocation;
-      if (cur != null && _isAutoCenter) {
-        // Posisikan kendaraan di bagian bawah-tengah layar agar jalur di depan terlihat luas
-        _mapController.move(
-          cur,
-          _mapController.camera.zoom,
-          offset: _cameraFollowOffset(context),
+      final cam = _mapController.camera;
+      final followOffset = _cameraFollowOffset(context);
+      final targetAnchor = (_isAutoCenter && cur != null)
+          ? cur
+          : _currentAnchorAtOffset(followOffset);
+      final targetZoom = (_isAutoCenter && !_userAdjustedZoom && cur != null)
+          ? math.max(cam.zoom, 17.0)
+          : cam.zoom;
+      final targetRot = _controller.isCompassHeadingUp
+          ? -_controller.effectiveVehicleHeading
+          : cam.rotation;
+
+      if (_isAutoCenter || _controller.isCompassHeadingUp) {
+        _animateCameraTo(
+          targetAnchor: targetAnchor,
+          targetZoom: targetZoom,
+          targetRotationDeg: targetRot,
+          targetOffset: _isAutoCenter ? followOffset : Offset.zero,
         );
       }
-
-      if (_controller.isCompassHeadingUp) {
-        final headingToUse = _controller.effectiveVehicleHeading;
-        _mapController.rotate(-headingToUse);
-      } else {
-        _mapController.rotate(0.0);
-      }
-    } catch (_) {}
+    }
 
     _syncRouteTrafficWithController();
     setState(() {});
   }
 
   Offset _cameraFollowOffset(BuildContext ctx) {
-    final h = MediaQuery.maybeOf(ctx)?.size.height ?? 800.0;
-    return Offset(0, h * 0.14);
+    final size = _mapViewportSize.height > 0
+        ? _mapViewportSize
+        : (MediaQuery.maybeOf(ctx)?.size ?? const Size(400.0, 800.0));
+    return NavigationCameraMath.computeFollowCenterOffset(
+      size,
+      isNavigationActive: _isAutoCenter,
+      tiltFraction: _tiltAnimController.value,
+    );
   }
 
   void _syncRouteTrafficWithController() {
@@ -404,21 +564,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     );
   }
 
-  void _fitRoute() {
-    final cur = _controller.currentLocation;
-    final dest = _controller.destination;
-    if (cur == null || dest == null) return;
-    try {
-      _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints([cur, dest]),
-          padding: const EdgeInsets.fromLTRB(50, 150, 50, 320),
-          maxZoom: 16.0,
-        ),
-      );
-    } catch (_) {}
-  }
-
   String? _orderValue(List<String> keys) {
     for (final k in keys) {
       final v = widget.order[k];
@@ -508,21 +653,83 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   void _recenterCamera() {
     setState(() {
       _isAutoCenter = true;
+      _userAdjustedZoom = false;
     });
+    _controller.setCompassHeadingUp(true);
     final cur = _controller.snappedLocation ?? _controller.currentLocation;
-    if (cur != null) {
-      try {
-        _mapController.move(
-          cur,
-          math.max(_mapController.camera.zoom, 16.5),
-          offset: _cameraFollowOffset(context),
+    if (cur != null && _isMapReady) {
+      _animateCameraTo(
+        targetAnchor: cur,
+        targetZoom: math.max(_mapController.camera.zoom, 17.0),
+        targetRotationDeg: -_controller.effectiveVehicleHeading,
+        targetOffset: _cameraFollowOffset(context),
+      );
+    }
+  }
+
+  void _onCompassPressed() {
+    if (!_isMapReady) {
+      _controller.toggleCompassMode();
+      return;
+    }
+    _cameraAnimController.stop();
+    final isOffNorth = _mapController.camera.rotation.abs() > 2.0;
+    final cur = _controller.snappedLocation ?? _controller.currentLocation;
+    final followOffset = _isAutoCenter ? _cameraFollowOffset(context) : Offset.zero;
+    final anchor = (_isAutoCenter && cur != null)
+        ? cur
+        : _currentAnchorAtOffset(followOffset);
+
+    if (isOffNorth) {
+      // Kembali menghadap Utara (0°), nonaktifkan auto-rotate sampai diaktifkan lagi.
+      _controller.setCompassHeadingUp(false);
+      _animateCameraTo(
+        targetAnchor: anchor,
+        targetZoom: _mapController.camera.zoom,
+        targetRotationDeg: 0.0,
+        targetOffset: followOffset,
+      );
+    } else {
+      // Sudah Utara-atas -> kembali ke mode navigasi mengikuti kendaraan & arah perjalanan.
+      setState(() {
+        _isAutoCenter = true;
+      });
+      _controller.setCompassHeadingUp(true);
+      _animateCameraTo(
+        targetAnchor: cur ?? anchor,
+        targetZoom: math.max(_mapController.camera.zoom, 17.0),
+        targetRotationDeg: -_controller.effectiveVehicleHeading,
+        targetOffset: _cameraFollowOffset(context),
+      );
+    }
+  }
+
+  void _toggle3dTilt() {
+    setState(() {
+      _is3dEnabled = !_is3dEnabled;
+    });
+    if (_is3dEnabled) {
+      _tiltAnimController.forward();
+    } else {
+      _tiltAnimController.reverse();
+    }
+    if (_isMapReady && _isAutoCenter) {
+      final cur = _controller.snappedLocation ?? _controller.currentLocation;
+      if (cur != null) {
+        final targetOffset = NavigationCameraMath.computeFollowCenterOffset(
+          _mapViewportSize,
+          isNavigationActive: true,
+          tiltFraction: _is3dEnabled ? 1.0 : 0.0,
         );
-        if (_controller.isCompassHeadingUp) {
-          _mapController.rotate(-_controller.effectiveVehicleHeading);
-        } else {
-          _mapController.rotate(0.0);
-        }
-      } catch (_) {}
+        _animateCameraTo(
+          targetAnchor: cur,
+          targetZoom: _mapController.camera.zoom,
+          targetRotationDeg: _controller.isCompassHeadingUp
+              ? -_controller.effectiveVehicleHeading
+              : _mapController.camera.rotation,
+          targetOffset: targetOffset,
+        );
+      }
     }
   }
 
@@ -566,6 +773,44 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   // ------------------------------------------------------------- map
 
   Widget _buildMap() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : (MediaQuery.maybeOf(context)?.size.width ?? 400.0);
+        final h = constraints.maxHeight.isFinite && constraints.maxHeight > 0
+            ? constraints.maxHeight
+            : (MediaQuery.maybeOf(context)?.size.height ?? 800.0);
+        _mapViewportSize = Size(w, h);
+
+        return AnimatedBuilder(
+          animation: _tiltAnimController,
+          builder: (context, child) {
+            final tilt = _tiltAnimController.value;
+            final overscan = NavigationCameraMath.computeOverscanFactor(tilt);
+            final matrix = NavigationCameraMath.buildPerspectiveMatrix(tilt);
+            return ClipRect(
+              child: Transform(
+                alignment: const Alignment(0.0, 0.32),
+                transform: matrix,
+                child: OverflowBox(
+                  alignment: Alignment.center,
+                  minWidth: w * overscan.width,
+                  maxWidth: w * overscan.width,
+                  minHeight: h * overscan.height,
+                  maxHeight: h * overscan.height,
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: _buildFlutterMap(),
+        );
+      },
+    );
+  }
+
+  Widget _buildFlutterMap() {
     final dest = _controller.destination ?? const LatLng(-7.2575, 112.7521);
     final cur = _controller.snappedLocation ?? _controller.currentLocation;
     final center = cur ?? dest;
@@ -575,11 +820,29 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
       mapController: _mapController,
       options: MapOptions(
         initialCenter: center,
-        initialZoom: 14.0,
+        initialZoom: cur != null ? 17.0 : 15.0,
         minZoom: 3.0,
         maxZoom: 22.0,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+          enableMultiFingerGestureRace: false,
+          rotationThreshold: 8.0,
+        ),
         onMapReady: () {
+          _isMapReady = true;
           try {
+            final liveCur =
+                _controller.snappedLocation ?? _controller.currentLocation;
+            if (liveCur != null) {
+              _applyImmediateCameraPose(
+                liveCur,
+                17.0,
+                _controller.isCompassHeadingUp
+                    ? -_controller.effectiveVehicleHeading
+                    : 0.0,
+                _cameraFollowOffset(context),
+              );
+            }
             _trafficController.onViewportChanged(
               _mapController.camera.visibleBounds,
               _mapController.camera.zoom,
@@ -599,8 +862,57 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
             );
           }
         },
+        onMapEvent: (event) {
+          if (event.source == MapEventSource.nonRotatedSizeChange ||
+              event.source == MapEventSource.fitCamera) {
+            return;
+          }
+
+          final rot = event.camera.rotation;
+          if ((rot - _currentMapRotationDeg).abs() > 0.25 && mounted) {
+            setState(() {
+              _currentMapRotationDeg = rot;
+            });
+          }
+
+          if (_isProgrammaticCameraMove ||
+              event.source == MapEventSource.mapController) {
+            return;
+          }
+
+          if (_cameraAnimController.isAnimating) {
+            _cameraAnimController.stop();
+          }
+
+          if (event is MapEventRotateStart ||
+              (event is MapEventRotate &&
+                  (event.source == MapEventSource.onMultiFinger ||
+                      event.source == MapEventSource.cursorKeyboardRotation))) {
+            _controller.setCompassHeadingUp(false);
+          }
+
+          if (event is MapEventMoveStart ||
+              event is MapEventFlingAnimationStart ||
+              (event is MapEventMove &&
+                  (event.source == MapEventSource.onDrag ||
+                      event.source == MapEventSource.flingAnimationController))) {
+            if (_isAutoCenter && mounted) {
+              setState(() {
+                _isAutoCenter = false;
+              });
+            }
+          }
+
+          if (event is MapEventDoubleTapZoom ||
+              event is MapEventScrollWheelZoom ||
+              (event is MapEventMove &&
+                  event.source == MapEventSource.onMultiFinger &&
+                  (event.camera.zoom - event.oldCamera.zoom).abs() > 0.03)) {
+            _userAdjustedZoom = true;
+          }
+        },
         onPositionChanged: (pos, hasGesture) {
-          if (hasGesture && _isAutoCenter) {
+          if (!_isProgrammaticCameraMove && hasGesture && _isAutoCenter) {
             setState(() {
               _isAutoCenter = false;
             });
@@ -656,19 +968,35 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   }
 
   void _zoomIn() {
+    if (!_isMapReady) return;
+    _userAdjustedZoom = true;
     try {
       final currentZoom = _mapController.camera.zoom;
       if (currentZoom < 22.0) {
-        _mapController.move(_mapController.camera.center, currentZoom + 1);
+        final offset = _isAutoCenter ? _cameraFollowOffset(context) : Offset.zero;
+        _animateCameraTo(
+          targetAnchor: _currentAnchorAtOffset(offset),
+          targetZoom: math.min(22.0, currentZoom + 1.0),
+          targetRotationDeg: _mapController.camera.rotation,
+          targetOffset: offset,
+        );
       }
     } catch (_) {}
   }
 
   void _zoomOut() {
+    if (!_isMapReady) return;
+    _userAdjustedZoom = true;
     try {
       final currentZoom = _mapController.camera.zoom;
       if (currentZoom > 3.0) {
-        _mapController.move(_mapController.camera.center, currentZoom - 1);
+        final offset = _isAutoCenter ? _cameraFollowOffset(context) : Offset.zero;
+        _animateCameraTo(
+          targetAnchor: _currentAnchorAtOffset(offset),
+          targetZoom: math.max(3.0, currentZoom - 1.0),
+          targetRotationDeg: _mapController.camera.rotation,
+          targetOffset: offset,
+        );
       }
     } catch (_) {}
   }
@@ -803,8 +1131,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     final isSoundEnabled = _controller.soundEnabled;
     final isHeadingUp = _controller.isCompassHeadingUp;
     final overlayBottom = _bottomOverlayClearance();
+    final isCameraLockedToNav = _isAutoCenter && isHeadingUp;
     final recenterAccent =
-        _isAutoCenter ? const Color(0xFF0F172A) : AppColors.primaryOrange;
+        isCameraLockedToNav ? const Color(0xFF0F172A) : AppColors.primaryOrange;
 
     return Positioned.fill(
       child: SafeArea(
@@ -881,10 +1210,10 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: _isAutoCenter
+                            color: isCameraLockedToNav
                                 ? const Color(0xFFE2E8F0)
                                 : AppColors.primaryOrange,
-                            width: _isAutoCenter ? 1.0 : 1.4,
+                            width: isCameraLockedToNav ? 1.0 : 1.5,
                           ),
                           boxShadow: const [
                             BoxShadow(
@@ -920,29 +1249,33 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               ),
             ),
 
-            // Bottom-right: Compact circular controls (Compass, Sound, Zoom, Incident)
+            // Bottom-right: Dynamic Google Maps Compass, 2D/3D Tilt, Sound, Zoom, Incident
             Positioned(
               right: 16,
               bottom: overlayBottom,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _mapFab(isHeadingUp ? Icons.explore : Icons.explore_off, () {
-                    _controller.toggleCompassMode();
-                    if (!_isAutoCenter) {
-                      setState(() {
-                        _isAutoCenter = true;
-                      });
-                    }
-                  }),
-                  const SizedBox(height: 8),
+                  NavigationCompassButton(
+                    key: const Key('nav_compass_button'),
+                    mapRotationDeg: _currentMapRotationDeg,
+                    isAutoRotateActive: isHeadingUp,
+                    onTap: _onCompassPressed,
+                  ),
+                  const SizedBox(height: 6),
+                  NavigationTiltToggleButton(
+                    key: const Key('nav_tilt_toggle_button'),
+                    is3dEnabled: _is3dEnabled,
+                    onTap: _toggle3dTilt,
+                  ),
+                  const SizedBox(height: 6),
                   _mapFab(
                     isSoundEnabled
                         ? Icons.volume_up_rounded
                         : Icons.volume_off_rounded,
                     _controller.toggleSound,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Container(
                     width: 40,
                     decoration: BoxDecoration(
@@ -1053,6 +1386,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
           width: 100,
           height: 100,
           alignment: Alignment.topCenter,
+          rotate: true,
           child: _markerBadge(
             icon: Icons.inventory_2_outlined,
             color: AppColors.primaryBlue,
@@ -1070,6 +1404,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
           width: 100,
           height: 100,
           alignment: Alignment.topCenter,
+          rotate: true,
           child: _markerBadge(
             icon: isPickup ? Icons.inventory_2_outlined : Icons.home_outlined,
             color: AppColors.primaryOrange,
@@ -1082,7 +1417,13 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     final cur = _controller.snappedLocation ?? _controller.currentLocation;
     if (cur != null) {
       markers.add(
-        Marker(point: cur, width: 100, height: 100, child: _driverMarker()),
+        Marker(
+          point: cur,
+          width: 100,
+          height: 100,
+          rotate: false,
+          child: _driverMarker(),
+        ),
       );
     }
 
@@ -1136,28 +1477,20 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   }
 
   Widget _driverMarker() {
-    // Saat bergerak gunakan GPS bearing agar arah marker akurat terhadap jalan;
-    // hanya gunakan kompas ketika diam dan peta mengikuti heading-up.
+    // Orientasi geografis kendaraan mengikuti heading aktual pada koordinat peta
+    // dengan unwrapping sudut terpendek agar tidak pernah berputar balik saat melewati 0°/360°.
     final vehicleHeadingDeg = _controller.effectiveVehicleHeading;
-    final vehicleTurns = vehicleHeadingDeg / 360.0;
-
-    double relativeTurns = 0.0;
-    if (_controller.isCompassHeadingUp) {
-      if (_controller.speedKmH < 3.5 && _controller.deviceHeading != null) {
-        relativeTurns = _controller.deviceHeadingTurns - vehicleTurns;
-      } else {
-        relativeTurns = 0.0;
-      }
-    } else {
-      relativeTurns = vehicleTurns;
-    }
+    _unwrappedDriverTurns = NavigationCameraMath.unwrapTurns(
+      _unwrappedDriverTurns,
+      vehicleHeadingDeg,
+    );
 
     // Kalibrasi orientasi awal ikon Kurir.png
-    final turns = relativeTurns + 0.90;
+    final turns = _unwrappedDriverTurns! + 0.90;
 
     return AnimatedRotation(
       turns: turns,
-      duration: const Duration(milliseconds: 280),
+      duration: const Duration(milliseconds: 240),
       curve: Curves.easeOut,
       child: Image.asset('assets/Icon/Kurir.png', width: 80, height: 80),
     );
