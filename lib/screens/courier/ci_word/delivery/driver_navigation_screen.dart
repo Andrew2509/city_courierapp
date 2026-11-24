@@ -9,8 +9,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/controllers/navigation_controller.dart';
+import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
+import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/widgets/map_arrow_marker.dart';
+import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_delivery_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
@@ -27,15 +30,26 @@ import 'package:city_courierapp/services/courier/courier_order_service.dart';
 class DriverNavigationScreen extends StatefulWidget {
   final Map<String, dynamic> order;
   final NavigationPhase? phase;
+  final TrafficService? trafficService;
+  final bool initialTrafficEnabled;
 
-  const DriverNavigationScreen({super.key, required this.order, this.phase});
+  const DriverNavigationScreen({
+    super.key,
+    required this.order,
+    this.phase,
+    this.trafficService,
+    this.initialTrafficEnabled = true,
+  });
 
   @override
   State<DriverNavigationScreen> createState() => _DriverNavigationScreenState();
 }
 
-class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
+class _DriverNavigationScreenState extends State<DriverNavigationScreen>
+    with WidgetsBindingObserver {
   late final NavigationController _controller;
+  late final TrafficService _trafficService;
+  late final TrafficController _trafficController;
   late final MapController _mapController;
   bool _didFitRoute = false;
   bool _confirming = false;
@@ -44,7 +58,13 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mapController = MapController();
+    _trafficService = widget.trafficService ?? TrafficService();
+    _trafficController = TrafficController(
+      service: _trafficService,
+      initialEnabled: widget.initialTrafficEnabled,
+    )..addListener(_onTrafficChanged);
     _controller = NavigationController(
       order: widget.order,
       phase: widget.phase ?? _derivePhase(widget.order),
@@ -61,7 +81,19 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _trafficController.setMapActive(state == AppLifecycleState.resumed);
+  }
+
+  void _onTrafficChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _trafficController.removeListener(_onTrafficChanged);
+    _trafficController.dispose();
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _mapController.dispose();
@@ -216,6 +248,21 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
               _controller.status == NavigationStatus.rerouting)
             _buildOffRouteBanner(),
           _buildHeader(),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 132,
+            left: 16,
+            right: 16,
+            child: TrafficMapFloatingControls(controller: _trafficController),
+          ),
+          if (_trafficController.isTrafficEnabled &&
+              (_trafficController.selectedRoad != null ||
+                  _trafficController.selectedIncident != null))
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 148,
+              child: TrafficSelectionOverlay(controller: _trafficController),
+            ),
           ..._buildStateOverlays(),
           if (_confirming) _buildConfirmingOverlay(),
           _buildBottom(),
@@ -239,12 +286,34 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         initialZoom: 14.0,
         minZoom: 3.0,
         maxZoom: 22.0,
+        onMapReady: () {
+          try {
+            _trafficController.onViewportChanged(
+              _mapController.camera.visibleBounds,
+              _mapController.camera.zoom,
+            );
+          } catch (_) {}
+        },
+        onTap: (_, point) {
+          if (_trafficController.isTrafficEnabled) {
+            final fallbackName =
+                _controller.currentStep?.roadName ?? _controller.nextStep?.roadName;
+            unawaited(
+              _trafficController.selectRoadAt(
+                point,
+                zoom: _mapController.camera.zoom,
+                fallbackRoadName: fallbackName,
+              ),
+            );
+          }
+        },
         onPositionChanged: (pos, hasGesture) {
           if (hasGesture && _isAutoCenter) {
             setState(() {
               _isAutoCenter = false;
             });
           }
+          _trafficController.onViewportChanged(pos.visibleBounds, pos.zoom);
         },
       ),
       children: [
@@ -253,6 +322,10 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
           userAgentPackageName: 'com.citycourier.app',
           maxNativeZoom: 19,
           maxZoom: 22.0,
+        ),
+        ...buildTrafficOverlayLayers(
+          controller: _trafficController,
+          trafficService: _trafficService,
         ),
         if (route != null && route.coordinates.length >= 2)
           Builder(

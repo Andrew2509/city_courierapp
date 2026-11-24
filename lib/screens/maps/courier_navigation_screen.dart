@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../controllers/navigation_controller.dart';
+import '../../controllers/traffic_controller.dart';
 import '../../core/config/map_config.dart';
+import '../../services/maps/traffic_service.dart';
+import '../../widgets/maps/traffic_overlay_widgets.dart';
 
 /// Courier navigation screen (PRD §25–§31).
 ///
@@ -17,11 +22,15 @@ import '../../core/config/map_config.dart';
 class CourierNavigationScreen extends StatefulWidget {
   final Map<String, dynamic> order;
   final NavigationPhase initialPhase;
+  final TrafficService? trafficService;
+  final bool initialTrafficEnabled;
 
   const CourierNavigationScreen({
     Key? key,
     required this.order,
     this.initialPhase = NavigationPhase.pickup,
+    this.trafficService,
+    this.initialTrafficEnabled = true,
   }) : super(key: key);
 
   @override
@@ -29,14 +38,23 @@ class CourierNavigationScreen extends StatefulWidget {
       _CourierNavigationScreenState();
 }
 
-class _CourierNavigationScreenState extends State<CourierNavigationScreen> {
+class _CourierNavigationScreenState extends State<CourierNavigationScreen>
+    with WidgetsBindingObserver {
   late NavigationController _navController;
+  late final TrafficService _trafficService;
+  late final TrafficController _trafficController;
   final MapController _mapController = MapController();
   bool _isFollowingMode = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _trafficService = widget.trafficService ?? TrafficService();
+    _trafficController = TrafficController(
+      service: _trafficService,
+      initialEnabled: widget.initialTrafficEnabled,
+    )..addListener(_onTrafficUpdate);
     _navController = NavigationController(
       order: widget.order,
       phase: widget.initialPhase,
@@ -49,7 +67,19 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _trafficController.setMapActive(state == AppLifecycleState.resumed);
+  }
+
+  void _onTrafficUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _trafficController.removeListener(_onTrafficUpdate);
+    _trafficController.dispose();
     _navController.removeListener(_onNavUpdate);
     _navController.dispose();
     super.dispose();
@@ -378,18 +408,48 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen> {
                   MapConfig.defaultLongitude,
                 ),
             initialZoom: 17.0,
+            onMapReady: () {
+              try {
+                _trafficController.onViewportChanged(
+                  _mapController.camera.visibleBounds,
+                  _mapController.camera.zoom,
+                );
+              } catch (_) {}
+            },
+            onTap: (_, point) {
+              if (_trafficController.isTrafficEnabled) {
+                final fallbackName =
+                    _navController.currentStep?.roadName ??
+                    _navController.nextStep?.roadName;
+                unawaited(
+                  _trafficController.selectRoadAt(
+                    point,
+                    zoom: _mapController.camera.zoom,
+                    fallbackRoadName: fallbackName,
+                  ),
+                );
+              }
+            },
             onPositionChanged: (MapCamera camera, bool hasGesture) {
               if (hasGesture && _isFollowingMode) {
                 setState(() {
                   _isFollowingMode = false;
                 });
               }
+              _trafficController.onViewportChanged(
+                camera.visibleBounds,
+                camera.zoom,
+              );
             },
           ),
           children: [
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.citycourier.app',
+            ),
+            ...buildTrafficOverlayLayers(
+              controller: _trafficController,
+              trafficService: _trafficService,
             ),
 
             // ── Route Polyline (PRD §24) ──
@@ -609,6 +669,26 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen> {
                 ],
               ),
             ),
+          ),
+
+        // ── Traffic Toggle, Legend & Status ──
+        Positioned(
+          top: (step != null && !hasArrived)
+              ? (isOffRoute ? 168 : 104)
+              : (isOffRoute || hasArrived ? 80 : 16),
+          left: 16,
+          right: 16,
+          child: TrafficMapFloatingControls(controller: _trafficController),
+        ),
+
+        if (_trafficController.isTrafficEnabled &&
+            (_trafficController.selectedRoad != null ||
+                _trafficController.selectedIncident != null))
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: hasArrived ? 170 : 136,
+            child: TrafficSelectionOverlay(controller: _trafficController),
           ),
 
         // ── Recenter Button (PRD §31, §48) ──

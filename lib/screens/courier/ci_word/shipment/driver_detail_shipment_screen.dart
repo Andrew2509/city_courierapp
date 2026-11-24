@@ -1,18 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/services/maps/location_repository.dart';
+import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
+import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 
 class DriverDetailShipmentScreen extends StatefulWidget {
   final Map<String, dynamic> shipment;
+  final TrafficService? trafficService;
+  final bool initialTrafficEnabled;
+  final bool enableAutoTrafficSummary;
 
-  const DriverDetailShipmentScreen({super.key, required this.shipment});
+  const DriverDetailShipmentScreen({
+    super.key,
+    required this.shipment,
+    this.trafficService,
+    this.initialTrafficEnabled = false,
+    this.enableAutoTrafficSummary = true,
+  });
 
   @override
   State<DriverDetailShipmentScreen> createState() =>
@@ -20,8 +34,11 @@ class DriverDetailShipmentScreen extends StatefulWidget {
 }
 
 class _DriverDetailShipmentScreenState
-    extends State<DriverDetailShipmentScreen> {
+    extends State<DriverDetailShipmentScreen>
+    with WidgetsBindingObserver {
   final MapController _mapController = MapController();
+  late final TrafficService _trafficService;
+  late final TrafficController _trafficController;
 
   late double _pickupLat;
   late double _pickupLng;
@@ -45,7 +62,31 @@ class _DriverDetailShipmentScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _trafficService = widget.trafficService ?? TrafficService();
+    _trafficController = TrafficController(
+      service: _trafficService,
+      initialEnabled: widget.initialTrafficEnabled,
+    )..addListener(_onTrafficUpdated);
     _initLocations();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _trafficController.setMapActive(state == AppLifecycleState.resumed);
+  }
+
+  void _onTrafficUpdated() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _trafficController.removeListener(_onTrafficUpdated);
+    _trafficController.dispose();
+    _mapController.dispose();
+    super.dispose();
   }
 
   Future<void> _initLocations() async {
@@ -113,7 +154,20 @@ class _DriverDetailShipmentScreenState
         _isLoadingLocation = false;
       });
       Future.delayed(const Duration(milliseconds: 300), _fitBounds);
+      if (widget.enableAutoTrafficSummary) {
+        unawaited(_loadDeliveryTrafficSummary());
+      }
     }
+  }
+
+  Future<void> _loadDeliveryTrafficSummary({bool force = false}) async {
+    await _trafficController.loadDeliverySummary(
+      pickup: LatLng(_pickupLat, _pickupLng),
+      dropoff: LatLng(_dropoffLat, _dropoffLng),
+      pickupRoadHint: widget.shipment['pickup_address']?.toString(),
+      dropoffRoadHint: widget.shipment['dropoff_address']?.toString(),
+      force: force,
+    );
   }
 
   /// Sederhanakan alamat untuk geocoding.
@@ -255,6 +309,28 @@ class _DriverDetailShipmentScreenState
                           const Duration(milliseconds: 300),
                           _fitBounds,
                         );
+                        try {
+                          _trafficController.onViewportChanged(
+                            _mapController.camera.visibleBounds,
+                            _mapController.camera.zoom,
+                          );
+                        } catch (_) {}
+                      },
+                      onTap: (_, point) {
+                        if (_trafficController.isTrafficEnabled) {
+                          unawaited(
+                            _trafficController.selectRoadAt(
+                              point,
+                              zoom: _mapController.camera.zoom,
+                            ),
+                          );
+                        }
+                      },
+                      onPositionChanged: (pos, _) {
+                        _trafficController.onViewportChanged(
+                          pos.visibleBounds,
+                          pos.zoom,
+                        );
                       },
                     ),
                     children: [
@@ -262,6 +338,10 @@ class _DriverDetailShipmentScreenState
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.citycourier.app',
+                      ),
+                      ...buildTrafficOverlayLayers(
+                        controller: _trafficController,
+                        trafficService: _trafficService,
                       ),
                       PolylineLayer(
                         polylines: [
@@ -459,6 +539,17 @@ class _DriverDetailShipmentScreenState
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // Map Controls: Traffic Layer Toggle & Legend
+          Positioned(
+            left: 16,
+            top: 106,
+            right: 68,
+            child: TrafficMapFloatingControls(
+              controller: _trafficController,
+              compact: true,
             ),
           ),
 
@@ -1100,6 +1191,23 @@ class _DriverDetailShipmentScreenState
                               ),
                             ),
                           ],
+
+                          // 7. Ringkasan Kondisi Lalu Lintas Penjemputan & Tujuan (TomTom Traffic)
+                          if (_trafficController.isTrafficEnabled &&
+                              (_trafficController.selectedRoad != null ||
+                                  _trafficController.selectedIncident != null)) ...[
+                            const SizedBox(height: 10),
+                            TrafficSelectionOverlay(
+                              controller: _trafficController,
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          TrafficDeliverySummaryCard(
+                            controller: _trafficController,
+                            onRetry: () => unawaited(
+                              _loadDeliveryTrafficSummary(force: true),
+                            ),
+                          ),
                         ],
                       ),
                     ),

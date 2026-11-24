@@ -43,4 +43,13 @@ class MapConfig {
   static const double defaultZoom = 15.0;
   static const double searchResultZoom = 17.0;
   static const double navigationZoom = 16.0;
+
+  // TomTom Traffic Integration (via Backend Laravel Proxy)
+  static const Duration trafficRefreshInterval = Duration(seconds: 60);
+  static const Duration trafficMapMoveDebounce = Duration(milliseconds: 900);
+  static const Duration trafficClientCacheTtl = Duration(seconds: 60);
+  static const int trafficFlowZoom = 15;
+  static const String trafficTileStyle = 'relative0';
+  static const int trafficTileSize = 256;
+  static const int trafficTileThickness = 4;
 }

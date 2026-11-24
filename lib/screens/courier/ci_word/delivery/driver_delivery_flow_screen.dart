@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/services/maps/location_repository.dart';
+import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
+import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_confirm_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
@@ -24,24 +29,40 @@ enum DeliveryFlowState { pickingUp, pickedUp, delivering, arrived }
 class DriverDeliveryFlowScreen extends StatefulWidget {
   final Map<String, dynamic> order;
   final DeliveryFlowState initialState;
+  final TrafficService? trafficService;
+  final bool initialTrafficEnabled;
+  final bool enableAutoTrafficSummary;
 
   const DriverDeliveryFlowScreen({
     super.key,
     required this.order,
     this.initialState = DeliveryFlowState.pickingUp,
+    this.trafficService,
+    this.initialTrafficEnabled = false,
+    this.enableAutoTrafficSummary = true,
   });
 
   @override
   State<DriverDeliveryFlowScreen> createState() => _DriverDeliveryFlowScreenState();
 }
 
-class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
+class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
+    with WidgetsBindingObserver {
   late DeliveryFlowState _currentState;
   bool _isLoading = false;
+  final MapController _flowMapController = MapController();
+  late final TrafficService _trafficService;
+  late final TrafficController _trafficController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _trafficService = widget.trafficService ?? TrafficService();
+    _trafficController = TrafficController(
+      service: _trafficService,
+      initialEnabled: widget.initialTrafficEnabled,
+    )..addListener(_onTrafficChanged);
     final status = widget.order['status']?.toString().toLowerCase();
     if (status == 'delivering' || status == 'in_transit') {
       _currentState = DeliveryFlowState.delivering;
@@ -53,6 +74,24 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
       _currentState = widget.initialState;
     }
     _initMapLocations();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _trafficController.setMapActive(state == AppLifecycleState.resumed);
+  }
+
+  void _onTrafficChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _trafficController.removeListener(_onTrafficChanged);
+    _trafficController.dispose();
+    _flowMapController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleConfirmPickup() async {
@@ -358,7 +397,22 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                               children: [
                                 _buildStatusCard(),
                                 const SizedBox(height: 12),
+                                if (_trafficController.isTrafficEnabled &&
+                                    (_trafficController.selectedRoad != null ||
+                                        _trafficController.selectedIncident != null)) ...[
+                                  TrafficSelectionOverlay(
+                                    controller: _trafficController,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                                 _buildOrderInfoCard(),
+                                const SizedBox(height: 12),
+                                TrafficDeliverySummaryCard(
+                                  controller: _trafficController,
+                                  onRetry: () => unawaited(
+                                    _loadFlowTrafficSummary(force: true),
+                                  ),
+                                ),
                                 if (_currentState == DeliveryFlowState.delivering) ...[
                                   const SizedBox(height: 12),
                                   _buildDeliveryInfoCard(),
@@ -645,7 +699,20 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
       setState(() {
         _isMapLoading = false;
       });
+      if (widget.enableAutoTrafficSummary) {
+        unawaited(_loadFlowTrafficSummary());
+      }
     }
+  }
+
+  Future<void> _loadFlowTrafficSummary({bool force = false}) async {
+    await _trafficController.loadDeliverySummary(
+      pickup: LatLng(_pickupLat, _pickupLng),
+      dropoff: LatLng(_dropoffLat, _dropoffLng),
+      pickupRoadHint: widget.order['pickup_address']?.toString(),
+      dropoffRoadHint: widget.order['dropoff_address']?.toString(),
+      force: force,
+    );
   }
 
   /// Sederhanakan alamat untuk geocoding.
@@ -761,15 +828,44 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
       child: Stack(
         children: [
           FlutterMap(
+            mapController: _flowMapController,
             options: MapOptions(
               initialCenter: origin,
               initialZoom: 14.0,
               maxZoom: 18.0,
+              onMapReady: () {
+                try {
+                  _trafficController.onViewportChanged(
+                    _flowMapController.camera.visibleBounds,
+                    _flowMapController.camera.zoom,
+                  );
+                } catch (_) {}
+              },
+              onTap: (_, point) {
+                if (_trafficController.isTrafficEnabled) {
+                  unawaited(
+                    _trafficController.selectRoadAt(
+                      point,
+                      zoom: _flowMapController.camera.zoom,
+                    ),
+                  );
+                }
+              },
+              onPositionChanged: (pos, _) {
+                _trafficController.onViewportChanged(
+                  pos.visibleBounds,
+                  pos.zoom,
+                );
+              },
             ),
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.citycourier.app',
+              ),
+              ...buildTrafficOverlayLayers(
+                controller: _trafficController,
+                trafficService: _trafficService,
               ),
               PolylineLayer(
                 polylines: [
@@ -901,6 +997,15 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen> {
                 ],
               ),
             ],
+          ),
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: TrafficMapFloatingControls(
+              controller: _trafficController,
+              compact: true,
+            ),
           ),
           Positioned(
             bottom: 16,
