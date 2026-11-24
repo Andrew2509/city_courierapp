@@ -129,14 +129,16 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     try {
       final cur = _controller.snappedLocation ?? _controller.currentLocation;
       if (cur != null && _isAutoCenter) {
-        // Pindahkan map ke posisi saat ini agar selalu mengikuti kursor (seperti navigasi)
-        _mapController.move(cur, _mapController.camera.zoom);
+        // Posisikan kendaraan di bagian bawah-tengah layar agar jalur di depan terlihat luas
+        _mapController.move(
+          cur,
+          _mapController.camera.zoom,
+          offset: _cameraFollowOffset(context),
+        );
       }
 
       if (_controller.isCompassHeadingUp) {
-        // Gunakan routeHeading agar peta berputar lurus sejajar dengan garis rute biru
-        final headingToUse =
-            _controller.routeHeading ?? _controller.heading ?? 0.0;
+        final headingToUse = _controller.effectiveVehicleHeading;
         _mapController.rotate(-headingToUse);
       } else {
         _mapController.rotate(0.0);
@@ -145,6 +147,11 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
 
     _syncRouteTrafficWithController();
     setState(() {});
+  }
+
+  Offset _cameraFollowOffset(BuildContext ctx) {
+    final h = MediaQuery.maybeOf(ctx)?.size.height ?? 800.0;
+    return Offset(0, h * 0.14);
   }
 
   void _syncRouteTrafficWithController() {
@@ -161,7 +168,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
             routeCoordinates: route.coordinates,
             courierLocation: cur,
             destination: dest,
-            travelMode: 'motorcycle',
+            travelMode: _controller.travelMode,
+            initialSegments:
+                route.trafficSegments.isNotEmpty ? route.trafficSegments : null,
           )
           .then((_) {
             if (!mounted) return;
@@ -293,6 +302,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   }
 
   Future<void> _confirmArrival() async {
+    _controller.stopTracking();
+    _trafficController.setMapActive(false);
+
     if (_controller.phase == NavigationPhase.delivery) {
       final order = widget.order;
       Navigator.pushReplacement(
@@ -345,7 +357,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
           if (_controller.accuracyWarning) _buildAccuracyBanner(),
           if (_controller.status == NavigationStatus.offRoute ||
               _controller.status == NavigationStatus.rerouting)
-            _buildOffRouteBanner(),
+            _buildOffRouteBanner()
+          else if (_controller.isApproachingDestination)
+            _buildApproachingBanner(),
           _buildHeader(),
           Positioned(
             top: MediaQuery.of(context).padding.top + 132,
@@ -495,6 +509,29 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     } catch (_) {}
   }
 
+  void _zoomOut() {
+    try {
+      final currentZoom = _mapController.camera.zoom;
+      if (currentZoom > 3.0) {
+        _mapController.move(_mapController.camera.center, currentZoom - 1);
+      }
+    } catch (_) {}
+  }
+
+  void _openReportIncident() {
+    final cur = _controller.snappedLocation ??
+        _controller.currentLocation ??
+        _mapController.camera.center;
+    final roadName = _controller.currentStep?.roadName ??
+        _controller.nextStep?.roadName;
+    showRoadIncidentReportSheet(
+      context: context,
+      controller: _trafficController,
+      courierLocation: cur,
+      currentRoadName: roadName,
+    );
+  }
+
   void _confirmCancelNavigation() {
     showDialog(
       context: context,
@@ -509,6 +546,8 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
+              _controller.stopTracking();
+              _trafficController.setMapActive(false);
               Navigator.pop(context); // tutup dialog
               Navigator.pop(context); // tutup navigasi
             },
@@ -620,7 +659,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
 
   Widget _buildMapOverlays() {
     final speed = _controller.speedKmH.round().toString();
-    final isMicEnabled = _controller.isMicEnabled;
     final isSoundEnabled = _controller.soundEnabled;
     final isHeadingUp = _controller.isCompassHeadingUp;
 
@@ -702,29 +740,39 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                             _controller.snappedLocation ??
                             _controller.currentLocation;
                         if (cur != null) {
-                          _mapController.move(cur, _mapController.camera.zoom);
+                          _mapController.move(
+                            cur,
+                            _mapController.camera.zoom,
+                            offset: _cameraFollowOffset(context),
+                          );
                         }
                       });
                     }, color: AppColors.primaryOrange),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                   ],
                   _mapFab(isHeadingUp ? Icons.explore : Icons.explore_off, () {
                     _controller.toggleCompassMode();
-                    // Jika user menekan tombol compass, kembalikan ke auto-center juga
                     if (!_isAutoCenter) {
                       setState(() {
                         _isAutoCenter = true;
                       });
                     }
                   }),
-
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _mapFab(
                     isSoundEnabled ? Icons.volume_up : Icons.volume_off,
                     _controller.toggleSound,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _mapFab(Icons.add, _zoomIn),
+                  const SizedBox(height: 10),
+                  _mapFab(Icons.remove, _zoomOut),
+                  const SizedBox(height: 10),
+                  _mapFab(
+                    Icons.report_problem_outlined,
+                    _openReportIncident,
+                    color: const Color(0xFFEA580C),
+                  ),
                 ],
               ),
             ),
@@ -900,25 +948,28 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   }
 
   Widget _driverMarker() {
-    // Jika compass mode (map berputar mengikuti rute), map dirotasi sebesar -routeHeading.
-    // Agar kurir berputar mengikuti arah HP relatif terhadap rute, kita gunakan:
-    // deviceHeadingTurns - (routeHeading / 360)
-    // Jika map fix utara di atas (icon 2), user minta kurir "tidak bergerak" berputar-putar sembarangan,
-    // jadi kita arahkan saja lurus atau searah rute.
-    final routeHeadingTurns =
-        (_controller.routeHeading ?? _controller.heading ?? 0.0) / 360.0;
+    // Saat bergerak gunakan GPS bearing agar arah marker akurat terhadap jalan;
+    // hanya gunakan kompas ketika diam dan peta mengikuti heading-up.
+    final vehicleHeadingDeg = _controller.effectiveVehicleHeading;
+    final vehicleTurns = vehicleHeadingDeg / 360.0;
 
-    final baseTurns = _controller.isCompassHeadingUp
-        ? (_controller.deviceHeadingTurns - routeHeadingTurns)
-        : 0.0;
+    double relativeTurns = 0.0;
+    if (_controller.isCompassHeadingUp) {
+      if (_controller.speedKmH < 3.5 && _controller.deviceHeading != null) {
+        relativeTurns = _controller.deviceHeadingTurns - vehicleTurns;
+      } else {
+        relativeTurns = 0.0;
+      }
+    } else {
+      relativeTurns = vehicleTurns;
+    }
 
-    // Karena default gambar Kurir.png menghadap ke KIRI,
-    // kita tambahkan rotasi +90 derajat (0.25 turns) + kompensasi (0.40).
-    final turns = baseTurns + 0.90;
+    // Kalibrasi orientasi awal ikon Kurir.png
+    final turns = relativeTurns + 0.90;
 
     return AnimatedRotation(
       turns: turns,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
       child: Image.asset('assets/Icon/Kurir.png', width: 80, height: 80),
     );
@@ -927,102 +978,106 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   // ------------------------------------------------------- header & banner
 
   Widget _buildHeader() {
-    final nextStep = _controller.nextStep;
     final currentStep = _controller.currentStep;
+    final thenStep = _controller.thenStep;
     final fallbackInstruction = _controller.title;
 
     final distanceToShow = _controller.distanceToNextManeuver;
-    final instructionText = nextStep?.instruction ?? fallbackInstruction;
-    final maneuver = nextStep?.maneuver ?? currentStep?.maneuver;
+    final instructionText = currentStep?.instruction ?? fallbackInstruction;
+    final maneuver = currentStep?.maneuver;
+    final formattedDist =
+        distanceToShow > 0 ? _formatDistance(distanceToShow) : '';
+    final distParts = formattedDist.isNotEmpty ? formattedDist.split(' ') : <String>[];
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 16,
+      top: MediaQuery.of(context).padding.top + 12,
       left: 16,
       right: 16,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F7B4A),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 10,
-              offset: Offset(0, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F7B4A),
+              borderRadius: thenStep != null
+                  ? const BorderRadius.vertical(top: Radius.circular(16))
+                  : BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  maneuver != null ? _maneuverIcon(maneuver) : Icons.navigation,
+                  navigationManeuverIcon(maneuver),
                   color: Colors.white,
                   size: 40,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (distanceToShow > 0)
+                      if (distParts.isNotEmpty)
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.baseline,
                           textBaseline: TextBaseline.alphabetic,
                           children: [
                             Text(
-                              _formatDistance(distanceToShow).split(' ')[0],
+                              distParts[0],
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDistance(
-                                        distanceToShow,
-                                      ).split(' ').length >
-                                      1
-                                  ? _formatDistance(
-                                      distanceToShow,
-                                    ).split(' ')[1]
-                                  : '',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                            if (distParts.length > 1) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                distParts[1],
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       Text(
                         instructionText,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (nextStep != null &&
-                          nextStep.roadName != null &&
-                          nextStep.roadName!.isNotEmpty)
+                      if (currentStep != null &&
+                          currentStep.roadName != null &&
+                          currentStep.roadName!.isNotEmpty)
                         Text(
-                          nextStep.roadName!,
+                          currentStep.roadName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 15,
+                            fontSize: 14,
                           ),
                         ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 InkWell(
                   onTap: _controller.toggleMic,
                   child: Container(
@@ -1038,46 +1093,60 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                       color: _controller.isMicEnabled
                           ? Colors.red
                           : Colors.grey.shade700,
-                      size: 28,
+                      size: 26,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
+          ),
+          if (thenStep != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0A5C37),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(14)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    'Kemudian',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    navigationManeuverIcon(thenStep.maneuver),
                     color: Colors.white,
-                    shape: BoxShape.circle,
+                    size: 18,
                   ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      thenStep.instruction,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -1135,6 +1204,18 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
       'Lokasi kurang akurat\nPastikan GPS aktif dan Anda berada di area terbuka.',
       AppColors.warningColor,
       Icons.gps_off,
+    );
+  }
+
+  Widget _buildApproachingBanner() {
+    final target = _controller.phase == NavigationPhase.pickup
+        ? 'pengirim'
+        : 'penerima';
+    final dist = _formatDistance(_controller.distanceRemaining);
+    return _buildAlertBanner(
+      'Mendekati lokasi $target ($dist)',
+      const Color(0xFF047857),
+      Icons.near_me_rounded,
     );
   }
 
@@ -1713,17 +1794,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   }
 
   // ------------------------------------------------------- formatters
-
-  IconData _maneuverIcon(String? maneuver) {
-    final m = maneuver ?? '';
-    if (m.contains('left')) return Icons.turn_left;
-    if (m.contains('right')) return Icons.turn_right;
-    if (m.contains('uturn')) return Icons.u_turn_left;
-    if (m.contains('roundabout') || m == 'via') return Icons.rotate_right;
-    if (m == 'arrive') return Icons.place;
-    if (m == 'depart') return Icons.play_arrow;
-    return Icons.navigation;
-  }
 
   String _formatDistance(double meters) {
     if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(1)} km';

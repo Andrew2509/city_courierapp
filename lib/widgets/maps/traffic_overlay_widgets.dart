@@ -1621,3 +1621,157 @@ Future<void> showRouteAlternativesSheet({
   );
 }
 
+/// Memetakan kode maneuver (TomTom uppercase maupun OSRM/Mapbox lowercase) ke ikon arah yang akurat.
+IconData navigationManeuverIcon(String? maneuver) {
+  final m = (maneuver ?? '').toLowerCase();
+  if (m.contains('uturn') || m.contains('u-turn')) return Icons.u_turn_left;
+  if (m.contains('roundabout')) return Icons.roundabout_right;
+  if (m == 'arrive' || m.contains('arrive')) return Icons.place;
+  if (m == 'depart' || m.contains('depart')) return Icons.navigation;
+  if (m.contains('sharp_left') || m.contains('sharp-left')) {
+    return Icons.turn_sharp_left;
+  }
+  if (m.contains('sharp_right') || m.contains('sharp-right')) {
+    return Icons.turn_sharp_right;
+  }
+  if (m.contains('slight_left') ||
+      m.contains('slight-left') ||
+      m.contains('bear_left') ||
+      m.contains('keep_left')) {
+    return Icons.turn_slight_left;
+  }
+  if (m.contains('slight_right') ||
+      m.contains('slight-right') ||
+      m.contains('bear_right') ||
+      m.contains('keep_right')) {
+    return Icons.turn_slight_right;
+  }
+  if (m.contains('left')) return Icons.turn_left;
+  if (m.contains('right')) return Icons.turn_right;
+  if (m.contains('exit')) return Icons.fork_right;
+  if (m.contains('straight') || m.contains('continue') || m.contains('follow')) {
+    return Icons.straight;
+  }
+  return Icons.navigation;
+}
+
+/// Bottom sheet untuk memantau atau melaporkan insiden jalan di rute aktif kurir.
+Future<void> showRoadIncidentReportSheet({
+  required BuildContext context,
+  required TrafficController controller,
+  required LatLng courierLocation,
+  String? currentRoadName,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Row(
+              children: [
+                Icon(Icons.report_problem_rounded, color: Color(0xFFEA580C)),
+                SizedBox(width: 8),
+                Text(
+                  'Laporkan Insiden Jalan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              currentRoadName != null && currentRoadName.isNotEmpty
+                  ? 'Lokasi laporan: $currentRoadName'
+                  : 'Tandai gangguan lalu lintas pada jalur aktif saat ini.',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final item in const [
+                  ('jam', 'Kemacetan Parah', Icons.traffic_rounded, Color(0xFFDC2626)),
+                  ('accident', 'Kecelakaan', Icons.car_crash_rounded, Color(0xFFDC2626)),
+                  ('road_closed', 'Jalan Ditutup', Icons.block_rounded, Color(0xFF991B1B)),
+                  ('road_works', 'Perbaikan Jalan', Icons.construction_rounded, Color(0xFFF97316)),
+                  ('flooding', 'Banjir / Genangan', Icons.water_damage_rounded, Color(0xFF2563EB)),
+                ])
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      controller.reportLocalIncident(
+                        point: courierLocation,
+                        category: item.$1,
+                        categoryLabel: item.$2,
+                        roadName: currentRoadName,
+                      );
+                      Navigator.of(sheetCtx).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Insiden "${item.$2}" ditandai pada peta jalur.'),
+                          backgroundColor: const Color(0xFF0F7B4A),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: item.$4.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: item.$4.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(item.$3, size: 18, color: item.$4),
+                          const SizedBox(width: 6),
+                          Text(
+                            item.$2,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: item.$4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+

@@ -1,5 +1,6 @@
 import 'package:latlong2/latlong.dart';
 
+import 'package:city_courierapp/models/maps/traffic_models.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
 import 'package:city_courierapp/services/provider_availability_service.dart';
 import 'package:city_courierapp/services/shipping/map_service.dart';
@@ -44,6 +45,7 @@ class CityCourierRoutingService implements RoutingService {
       vias: waypoints
           .map((w) => '${w.longitude},${w.latitude}')
           .toList(),
+      travelMode: profile,
     );
     if (raw == null) {
       throw const RoutingException('Tidak dapat menentukan rute');
@@ -76,6 +78,7 @@ class RouteParser {
     }
 
     final data = _unwrap(json.cast<String, dynamic>());
+    final String rootProvider = (data['provider'] ?? '').toString();
 
     final routesList = _asList(data['routes']) ?? _asList(data['paths']);
     if (routesList != null && routesList.isNotEmpty) {
@@ -85,6 +88,7 @@ class RouteParser {
           r.cast<String, dynamic>(),
           origin: origin,
           destination: destination,
+          providerHint: rootProvider,
         );
         if (route != null) return route;
       }
@@ -168,6 +172,7 @@ class RouteParser {
     Map<String, dynamic> r, {
     required LatLng origin,
     required LatLng destination,
+    String providerHint = '',
   }) {
     final coordsRaw = _readCoordinates(r);
     if (coordsRaw == null || coordsRaw.isEmpty) return null;
@@ -251,6 +256,20 @@ class RouteParser {
       if (key is String && key.isNotEmpty) summary = key;
     }
 
+    final trafficDelay = _anyNumber(r['traffic_delay_seconds'])?.toInt();
+    final provider = (r['provider'] ??
+            (providerHint.isNotEmpty ? providerHint : 'osrm'))
+        .toString();
+
+    final trafficSegments = (_asList(r['traffic_segments']) ?? const [])
+        .whereType<Map>()
+        .map(
+          (e) => RouteTrafficSegment.fromJson(
+            e.cast<String, dynamic>(),
+          ),
+        )
+        .toList();
+
     final steps = _parseSteps(r);
 
     return RouteModel(
@@ -258,8 +277,11 @@ class RouteParser {
       distanceMeters: dist,
       durationSeconds: dur.roundToDouble(),
       trafficDurationSeconds: traffic,
+      trafficDelaySeconds: trafficDelay,
       summary: summary,
+      provider: provider,
       steps: steps,
+      trafficSegments: trafficSegments,
     );
   }
 
@@ -393,6 +415,7 @@ class RouteParser {
     String? type;
     String? modifier;
     String? instruction;
+    LatLng? maneuverLoc;
     final mvr = s['maneuver'];
     if (mvr is String) {
       type = mvr;
@@ -401,6 +424,25 @@ class RouteParser {
       modifier = mvr['modifier'] as String?;
       final ins = mvr['instruction'];
       if (ins is String) instruction = ins;
+      final locRaw = mvr['location'];
+      if (locRaw is List && locRaw.length >= 2) {
+        final a = _anyNumber(locRaw[0]);
+        final b = _anyNumber(locRaw[1]);
+        // OSRM/Mapbox maneuver.location adalah [lng, lat]
+        if (a != null && b != null) {
+          maneuverLoc = (a.abs() > 90) ? LatLng(b, a) : LatLng(b, a);
+        }
+      }
+    }
+    if (s['location'] is Map) {
+      final lm = (s['location'] as Map).cast<String, dynamic>();
+      final lat = _anyNumber(lm['lat']) ?? _anyNumber(lm['latitude']);
+      final lng = _anyNumber(lm['lng']) ??
+          _anyNumber(lm['lon']) ??
+          _anyNumber(lm['longitude']);
+      if (lat != null && lng != null) {
+        maneuverLoc = LatLng(lat, lng);
+      }
     }
     String? signType;
     if (s['sign'] is num) {
@@ -418,7 +460,9 @@ class RouteParser {
       if (first is String && first.isNotEmpty) roadName = first;
     }
 
-    var text = s['html_instructions'];
+    var text = s['instruction'] is String && (s['instruction'] as String).trim().isNotEmpty
+        ? (s['instruction'] as String).trim()
+        : s['html_instructions'];
     if (text is String) {
       text = text.replaceAll(RegExp(r'<[^>]*>'), '').replaceAll('&nbsp;', ' ');
       text = text.trim();
@@ -433,12 +477,20 @@ class RouteParser {
     if (text == null || text.isEmpty) text = fallback;
     if (text == null || text.isEmpty) return null;
 
+    final offsetMeters = _anyNumber(s['route_offset_meters']);
+    final exitNum = _anyNumber(s['roundabout_exit_number'])?.toInt();
+    final isTomTomStep = s['is_tomtom_step'] == true || offsetMeters != null;
+
     return RouteStep(
       instruction: text,
       maneuver: modifier ?? signType ?? type,
       roadName: roadName.isEmpty ? null : roadName,
       distanceMeters: dist,
       durationSeconds: dur,
+      location: maneuverLoc,
+      routeOffsetMeters: offsetMeters,
+      roundaboutExitNumber: exitNum,
+      isTomTomStep: isTomTomStep,
     );
   }
 

@@ -129,11 +129,13 @@ class TrafficController extends ChangeNotifier {
     return a;
   }
 
+  final List<TrafficIncident> _localReportedIncidents = [];
   List<TrafficIncident> get incidents {
-    if (_routeMonitoringMode) {
-      return routeAnalysis?.incidents ?? const [];
-    }
-    return isDataExpired ? const [] : _incidents;
+    final List<TrafficIncident> base = _routeMonitoringMode
+        ? (routeAnalysis?.incidents ?? const <TrafficIncident>[])
+        : (isDataExpired ? const <TrafficIncident>[] : _incidents);
+    if (_localReportedIncidents.isEmpty) return base;
+    return <TrafficIncident>[...base, ..._localReportedIncidents];
   }
 
   TrafficFlowSegment? get selectedRoad =>
@@ -483,6 +485,7 @@ class TrafficController extends ChangeNotifier {
     LatLng? courierLocation,
     LatLng? destination,
     String travelMode = 'motorcycle',
+    List<RouteTrafficSegment>? initialSegments,
     bool force = false,
   }) async {
     if (_disposed) return;
@@ -507,6 +510,33 @@ class TrafficController extends ChangeNotifier {
     if (routeChanged) {
       _alternativesResult = null;
       _alternativesError = null;
+      if (initialSegments != null && initialSegments.isNotEmpty) {
+        final now = DateTime.now().toUtc();
+        _routeAnalysis = RouteTrafficAnalysis(
+          routeSignature: sig,
+          routeCoordinates: _activeRouteCoords,
+          routeDistanceMeters: 0,
+          remainingDistanceMeters: 0,
+          courierIndex: 0,
+          sampledPointsCount: initialSegments.length,
+          availableSamplesCount: initialSegments.length,
+          unknownSamplesCount: 0,
+          congestedSegmentsCount:
+              initialSegments.where((s) => s.classification.isCongested).length,
+          hasCongestion:
+              initialSegments.any((s) => s.classification.isCongested),
+          hasRoadClosure: initialSegments.any(
+            (s) => s.classification.level == TrafficConditionLevel.roadClosed,
+          ),
+          overallStatus: initialSegments.first.classification.level,
+          overallStatusLabel: initialSegments.first.classification.label,
+          segments: initialSegments,
+          incidents: const [],
+          fetchedAt: now,
+          expiresAt: now.add(const Duration(seconds: 12)),
+          source: 'tomtom_routing_seed',
+        );
+      }
     }
 
     if (!_isTrafficEnabled || !_isMapActive) {
@@ -742,6 +772,36 @@ class TrafficController extends ChangeNotifier {
       _isLoadingAlternatives = false;
       _safeNotify();
     }
+  }
+
+  /// Mencatat laporan insiden jalan langsung dari kurir untuk sesi navigasi aktif.
+  void reportLocalIncident({
+    required LatLng point,
+    required String category,
+    required String categoryLabel,
+    String? roadName,
+    String description = 'Dilaporkan langsung oleh kurir di lapangan',
+  }) {
+    if (_disposed) return;
+    final inc = TrafficIncident(
+      id: 'courier-${DateTime.now().millisecondsSinceEpoch}',
+      category: category,
+      categoryLabel: categoryLabel,
+      severity: category == 'road_closed' ? 'closure' : 'moderate',
+      severityLabel: category == 'road_closed' ? 'Penutupan Jalan' : 'Laporan Kurir',
+      description: description,
+      from: roadName,
+      roadLabel: roadName,
+      point: point,
+      coordinates: [point],
+      startTime: DateTime.now(),
+    );
+    _localReportedIncidents.insert(0, inc);
+    if (_localReportedIncidents.length > 10) {
+      _localReportedIncidents.removeLast();
+    }
+    _selectedIncident = inc;
+    _safeNotify();
   }
 
   static double _haversineMeters(LatLng a, LatLng b) {

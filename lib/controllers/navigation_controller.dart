@@ -47,13 +47,47 @@ enum NavigationStatus {
   error,
 }
 
+class _ManeuverCheckpoint {
+  final RouteStep step;
+  final double triggerOffsetMeters;
+
+  const _ManeuverCheckpoint({
+    required this.step,
+    required this.triggerOffsetMeters,
+  });
+}
+
+class _PolylineProjection {
+  final LatLng snappedPoint;
+  final double distanceToPolylineMeters;
+  final double remainingMeters;
+  final double alongMeters;
+  final double segmentBearing;
+
+  const _PolylineProjection({
+    required this.snappedPoint,
+    required this.distanceToPolylineMeters,
+    required this.remainingMeters,
+    required this.alongMeters,
+    required this.segmentBearing,
+  });
+}
+
 /// Controller navigasi (PRD §35): memisahkan routing logic dari widget UI.
 ///
-/// Menjalankan live location, deteksi off-route, rerouting dengan cooldown,
-/// ETA, dan progress perjalanan.
+/// Menjalankan live location (GPS filtering + Android foreground service),
+/// map matching kondisional, turn-by-turn dengan histeresis persimpangan,
+/// progressive Indonesian TTS, deteksi off-route multi-pembacaan + rerouting,
+/// dan arrival verification.
 class NavigationController extends ChangeNotifier {
   final Map<String, dynamic> order;
   final RoutingService routingService;
+  final double arrivalRadiusMeters;
+  final double approachingRadiusMeters;
+  final int requiredArrivalReadings;
+  final int requiredOffRouteReadings;
+  final String travelMode;
+  final Duration rerouteCooldownDuration;
 
   /// Fase saat ini — dapat berubah setelah paket diambil (PRD §7).
   NavigationPhase phase;
@@ -62,66 +96,11 @@ class NavigationController extends ChangeNotifier {
   Function(String command)? onVoiceCommand;
 
   LatLng? currentLocation;
-  
-  LatLng? get snappedLocation {
-    final cur = currentLocation;
-    if (cur == null) return null;
-    final pts = route?.coordinates;
-    if (pts == null || pts.isEmpty) return cur;
-    return _snapToPolyline(cur, pts);
-  }
-
-  /// Mendapatkan arah (bearing) dari segmen rute saat ini agar peta bisa diluruskan dengan garis biru
-  double? get routeHeading {
-    final cur = currentLocation;
-    final pts = route?.coordinates;
-    if (cur == null || pts == null || pts.length < 2) return null;
-
-    const mPerDegLat = 111320.0;
-    final latRad = cur.latitude * math.pi / 180.0;
-    final mPerDegLng = 111320.0 * math.cos(latRad);
-
-    double sx(LatLng c) => (c.longitude - cur.longitude) * mPerDegLng;
-    double sy(LatLng c) => (c.latitude - cur.latitude) * mPerDegLat;
-
-    double minDist = double.infinity;
-    double? heading;
-
-    for (var i = 0; i < pts.length - 1; i++) {
-      final a = pts[i];
-      final b = pts[i + 1];
-
-      final ax = sx(a);
-      final ay = sy(a);
-      final bx = sx(b);
-      final by = sy(b);
-      final dx = bx - ax;
-      final dy = by - ay;
-      final lenSq = dx * dx + dy * dy;
-      
-      double d;
-      if (lenSq == 0) {
-        d = math.sqrt(ax * ax + ay * ay);
-      } else {
-        var t = ((-ax) * dx + (-ay) * dy) / lenSq;
-        t = t.clamp(0.0, 1.0);
-        final cx = ax + t * dx;
-        final cy = ay + t * dy;
-        d = math.sqrt(cx * cx + cy * cy);
-      }
-
-      if (d < minDist) {
-        minDist = d;
-        heading = _bearing(a, b);
-      }
-    }
-    return heading;
-  }
-
   double? heading;
+  double? gpsHeading;
   double? gpsAccuracy;
   double? headingAccuracy;
-  
+
   double? deviceHeading;
   double deviceHeadingTurns = 0.0;
 
@@ -137,33 +116,49 @@ class NavigationController extends ChangeNotifier {
   bool soundEnabled = true;
   bool isCompassHeadingUp = true;
   bool isMicEnabled = false;
-  double currentSpeedMs = 0.0; // speed in meters per second
+  double currentSpeedMs = 0.0;
 
-
-  /// Radius kedatangan (meter) — hanya untuk menampilkan "Anda telah tiba",
-  /// tidak otomatis menyelesaikan pengiriman (PRD §32).
+  /// Radius kedatangan (meter) default.
   static const double arrivalRadius = 40.0;
 
-  /// Jarak penyimpangan dari jalur yang memicu rerouting (PRD §15).
+  /// Jarak penyimpangan dari jalur yang memicu rerouting (meter).
   static const double offRouteThreshold = 40.0;
 
-  /// Cooldown antar rerouting agar tidak membanjiri API (PRD §16).
+  /// Jarak maksimal snap-to-road agar marker keluar jalur tidak dipaksa kembali ke polyline.
+  static const double maxSnapDistanceMeters = 28.0;
+
+  /// Cooldown antar rerouting agar tidak membanjiri API.
   static const Duration rerouteCooldown = Duration(seconds: 15);
 
   final Distance _distance = const Distance();
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<CompassEvent>? _compassSub;
   DateTime? _lastRouteAt;
+  DateTime? _lastValidFixAt;
   bool _rerouteInFlight = false;
   bool _disposed = false;
-  double? _lastLat;
-  double? _lastLng;
-  RouteStep? _lastSpokenStep;
+  LatLng? _bearingAnchor;
+
+  List<double> _polyCumDist = const [];
+  List<_ManeuverCheckpoint> _checkpoints = const [];
+  int _activeCheckpointIdx = 0;
+  int _routeVersion = 0;
+  final Set<String> _spokenCueKeys = <String>{};
+
+  _PolylineProjection? _lastProjection;
+  int _consecutiveOffRouteCount = 0;
+  int _consecutiveArrivalCount = 0;
 
   NavigationController({
     required this.order,
     required this.phase,
     RoutingService? routingService,
+    this.arrivalRadiusMeters = arrivalRadius,
+    this.approachingRadiusMeters = 120.0,
+    this.requiredArrivalReadings = 2,
+    this.requiredOffRouteReadings = 3,
+    this.travelMode = 'motorcycle',
+    this.rerouteCooldownDuration = rerouteCooldown,
   }) : routingService = routingService ?? CityCourierRoutingService() {
     VoiceService().onStatusChanged = (status) {
       if (status == 'notListening' && isMicEnabled) {
@@ -173,9 +168,47 @@ class NavigationController extends ChangeNotifier {
     };
   }
 
+  /// True hanya ketika kurir masih berada di koridor jalan rute (<= 28 m).
+  bool get isSnappedToRoute {
+    final proj = _lastProjection;
+    if (route == null || currentLocation == null || proj == null) return false;
+    if (status == NavigationStatus.offRoute ||
+        status == NavigationStatus.rerouting) {
+      return false;
+    }
+    return proj.distanceToPolylineMeters <= maxSnapDistanceMeters;
+  }
+
+  /// Posisi marker di peta: snap ke garis bila masih di jalur, atau GPS aktual bila keluar jalur.
+  LatLng? get snappedLocation {
+    final cur = currentLocation;
+    if (cur == null) return null;
+    if (isSnappedToRoute && _lastProjection != null) {
+      return _lastProjection!.snappedPoint;
+    }
+    return cur;
+  }
+
+  /// Arah (bearing) dari segmen rute terdekat saat ini.
+  double? get routeHeading => _lastProjection?.segmentBearing;
+
+  /// Prioritas arah kendaraan: GPS course/bearing saat bergerak, lalu segmen rute / kompas saat diam.
+  double get effectiveVehicleHeading {
+    if (speedKmH >= 3.5 && gpsHeading != null) {
+      return gpsHeading!;
+    }
+    return routeHeading ?? gpsHeading ?? heading ?? deviceHeading ?? 0.0;
+  }
+
   bool get hasRoute => route != null;
   bool get hasArrived => status == NavigationStatus.arrived;
   bool get isOnRoute => status == NavigationStatus.navigating;
+  bool get isApproachingDestination =>
+      status == NavigationStatus.navigating &&
+      distanceRemaining > arrivalRadiusMeters &&
+      distanceRemaining <= approachingRadiusMeters;
+  int get offRouteReadingCount => _consecutiveOffRouteCount;
+  int get arrivalReadingCount => _consecutiveArrivalCount;
 
   /// Peringatan GPS kurang akurat (PRD §25).
   bool get accuracyWarning {
@@ -186,17 +219,14 @@ class NavigationController extends ChangeNotifier {
   String get title =>
       phase == NavigationPhase.pickup ? 'Menuju Pengirim' : 'Menuju Penerima';
 
-  /// Progres 0..1 sepanjang rute.
+  /// Progres 0..1 sepanjang rute aktual.
   double get progress {
     final r = route;
-    final cur = currentLocation;
-    if (r == null || cur == null || r.coordinates.isEmpty) return 0;
-    final remaining = _routeRemainingMeters(cur, r.coordinates);
-    final total = r.distanceMeters > 0
-        ? r.distanceMeters
-        : _geomLength(r.coordinates);
+    if (r == null || r.coordinates.isEmpty) return 0;
+    final total = _totalRouteDistanceMeters(r);
     if (total <= 0) return 0;
-    return ((total - remaining) / total).clamp(0.0, 1.0);
+    final along = _lastProjection?.alongMeters ?? (total - distanceRemaining);
+    return (along / total).clamp(0.0, 1.0);
   }
 
   /// Jarak tersisa menuju tujuan (meter).
@@ -208,13 +238,18 @@ class NavigationController extends ChangeNotifier {
           ? _distance.as(LengthUnit.Meter, cur, dest)
           : 0;
     }
-    return _routeRemainingMeters(cur, route!.coordinates);
+    return _lastProjection?.remainingMeters ??
+        _projectOntoPolyline(cur, route!.coordinates, _polyCumDist)
+            .remainingMeters;
   }
 
   double? get durationRemainingSeconds {
     final r = route;
     if (r == null) return null;
-    return r.durationSeconds * (1 - progress);
+    final totalDist = _totalRouteDistanceMeters(r);
+    if (totalDist <= 0) return r.durationSeconds;
+    final fracRemaining = (distanceRemaining / totalDist).clamp(0.0, 1.0);
+    return r.durationSeconds * fracRemaining;
   }
 
   DateTime? get eta {
@@ -243,13 +278,15 @@ class NavigationController extends ChangeNotifier {
     isCompassHeadingUp = !isCompassHeadingUp;
     notifyListeners();
   }
-  
+
   void toggleMic() {
     isMicEnabled = !isMicEnabled;
     if (isMicEnabled) {
       VoiceService().startListening((text) {
         final lower = text.toLowerCase();
-        if (lower.contains('selesai') || lower.contains('tiba') || lower.contains('sampai')) {
+        if (lower.contains('selesai') ||
+            lower.contains('tiba') ||
+            lower.contains('sampai')) {
           onVoiceCommand?.call('arrive');
         }
       }).then((started) {
@@ -264,58 +301,37 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Instruksi turun berikutnya (P1 turn-by-turn, dasar dari steps).
+  /// Instruksi manuver berikutnya yang harus segera dijalankan kurir (dengan histeresis).
   RouteStep? get currentStep {
+    if (_checkpoints.isNotEmpty) {
+      return _checkpoints[_activeCheckpointIdx.clamp(0, _checkpoints.length - 1)]
+          .step;
+    }
     final r = route;
     if (r == null || r.steps.isEmpty) return null;
-    final traveled = r.distanceMeters * progress.clamp(0.0, 1.0);
-    double cum = 0;
-    for (final s in r.steps) {
-      if (s.distanceMeters > 0) {
-        cum += s.distanceMeters;
-        if (traveled <= cum) return s;
-      }
-    }
-    return r.steps.last;
+    return r.steps.first;
   }
 
-  /// Jarak tersisa di step saat ini (menuju maneuver berikutnya)
+  /// Jarak tersisa menuju titik belokan / manuver aktif (meter).
   double get distanceToNextManeuver {
     final r = route;
-    if (r == null || r.steps.isEmpty) return 0;
-    final traveled = r.distanceMeters * progress.clamp(0.0, 1.0);
-    double cum = 0;
-    for (final s in r.steps) {
-      if (s.distanceMeters > 0) {
-        cum += s.distanceMeters;
-        if (traveled <= cum) {
-          return (cum - traveled).clamp(0.0, s.distanceMeters);
-        }
-      }
-    }
-    return 0;
+    if (r == null || _checkpoints.isEmpty) return 0;
+    final idx = _activeCheckpointIdx.clamp(0, _checkpoints.length - 1);
+    final trigger = _checkpoints[idx].triggerOffsetMeters;
+    final along = _lastProjection?.alongMeters ?? (r.distanceMeters * progress);
+    return math.max(0.0, trigger - along);
   }
 
-  /// Step berikutnya (maneuver yang akan datang)
-  RouteStep? get nextStep {
-    final r = route;
-    if (r == null || r.steps.isEmpty) return null;
-    final traveled = r.distanceMeters * progress.clamp(0.0, 1.0);
-    double cum = 0;
-    for (int i = 0; i < r.steps.length; i++) {
-      final s = r.steps[i];
-      if (s.distanceMeters > 0) {
-        cum += s.distanceMeters;
-        if (traveled <= cum) {
-          if (i + 1 < r.steps.length) {
-            return r.steps[i + 1];
-          }
-          return s; // If it's the last step, just return it
-        }
-      }
-    }
-    return r.steps.last;
+  /// Manuver SETELAH belokan aktif ("Kemudian: ..."), untuk sub-panel hijau gelap ala Google Maps.
+  RouteStep? get thenStep {
+    if (_checkpoints.isEmpty) return null;
+    final nextIdx = _activeCheckpointIdx + 1;
+    if (nextIdx >= _checkpoints.length) return null;
+    return _checkpoints[nextIdx].step;
   }
+
+  /// Manuver berikutnya (alias konsisten untuk widget eksternal).
+  RouteStep? get nextStep => thenStep ?? currentStep;
 
   /// Memulai alur navigasi: cek GPS, minta izin, ambil posisi, request rute.
   Future<void> start() async {
@@ -429,16 +445,40 @@ class NavigationController extends ChangeNotifier {
     return true;
   }
 
-  Future<void> _startListening() async {
-    const settings = LocationSettings(
-      accuracy: LocationAccuracy.best,
-      distanceFilter: 8,
+  LocationSettings _buildLocationSettings() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+        intervalDuration: const Duration(seconds: 1),
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationTitle: 'Navigasi City Courier Aktif',
+          notificationText: phase == NavigationPhase.pickup
+              ? 'Menuju lokasi penjemputan pengirim...'
+              : 'Menuju alamat penerima paket...',
+          notificationChannelName: 'Navigasi Kurir',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    }
+
+    return const LocationSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
       timeLimit: Duration(seconds: 30),
     );
+  }
+
+  Future<void> _startListening() async {
+    final settings = _buildLocationSettings();
 
     try {
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: settings,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          timeLimit: Duration(seconds: 20),
+        ),
       );
       _onPosition(pos);
     } catch (_) {
@@ -446,11 +486,9 @@ class NavigationController extends ChangeNotifier {
     }
 
     if (_disposed) return;
+    await _positionSub?.cancel();
     _positionSub = Geolocator.getPositionStream(
-      locationSettings: LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 8,
-      ),
+      locationSettings: settings,
     ).listen(
       _onPosition,
       onError: (Object _) {
@@ -461,12 +499,14 @@ class NavigationController extends ChangeNotifier {
       },
     );
 
+    await _compassSub?.cancel();
     _compassSub = FlutterCompass.events?.listen((CompassEvent event) {
       if (_disposed) return;
       if (event.heading != null) {
-        final newHeading = event.heading! >= 0 ? event.heading! : 360 + event.heading!;
+        final newHeading =
+            event.heading! >= 0 ? event.heading! : 360 + event.heading!;
         deviceHeading = newHeading;
-        
+
         // Calculate shortest path for turns
         if (deviceHeadingTurns == 0.0) {
           deviceHeadingTurns = newHeading / 360.0;
@@ -486,20 +526,79 @@ class NavigationController extends ChangeNotifier {
   }
 
   void _onPosition(Position p) {
-    if (_disposed) return;
-    currentLocation = LatLng(p.latitude, p.longitude);
-    gpsAccuracy = p.accuracy;
     headingAccuracy = p.headingAccuracy;
-    currentSpeedMs = p.speed;
+    ingestGpsSample(
+      latitude: p.latitude,
+      longitude: p.longitude,
+      accuracy: p.accuracy,
+      speedMs: p.speed,
+      headingDeg: p.heading,
+      timestamp: p.timestamp,
+    );
+  }
 
-    if (p.heading >= 0) {
-      heading = p.heading;
+  /// Memproses pembacaan GPS dengan noise filtering, smoothing kecepatan/bearing,
+  /// evaluasi progres turn-by-turn, rerouting multi-pembacaan, dan arrival verification.
+  @visibleForTesting
+  void ingestGpsSample({
+    required double latitude,
+    required double longitude,
+    double accuracy = 10.0,
+    double speedMs = 0.0,
+    double headingDeg = -1.0,
+    DateTime? timestamp,
+  }) {
+    if (_disposed || latitude.isNaN || longitude.isNaN) return;
+
+    final now = timestamp ?? DateTime.now();
+    final rawPoint = LatLng(latitude, longitude);
+    gpsAccuracy = accuracy;
+
+    // Abaikan pembacaan GPS yang sangat tidak akurat ketika posisi sebelumnya sudah ada.
+    if (currentLocation != null && route != null && accuracy > 65.0) {
+      notifyListeners();
+      return;
     }
-    final derived = _deriveHeadingFromMovement();
-    if (derived != null) heading = derived;
 
-    _lastLat = p.latitude;
-    _lastLng = p.longitude;
+    // Tolak lompatan koordinat yang tidak masuk akal (GPS spike > 55 m/s saat akurasi buruk).
+    if (currentLocation != null && _lastValidFixAt != null) {
+      final dtSec = now.difference(_lastValidFixAt!).inMilliseconds / 1000.0;
+      final jump = _distance.as(LengthUnit.Meter, currentLocation!, rawPoint);
+      if (dtSec > 0 && dtSec <= 5.0 && (jump / dtSec) > 55.0 && accuracy > 20.0) {
+        return;
+      }
+
+      // Perhalus jitter kecil ketika kendaraan berhenti / akurasi moderat.
+      if (jump < 3.5 && accuracy > 15.0) {
+        currentLocation = LatLng(
+          currentLocation!.latitude * 0.65 + rawPoint.latitude * 0.35,
+          currentLocation!.longitude * 0.65 + rawPoint.longitude * 0.35,
+        );
+      } else {
+        currentLocation = rawPoint;
+      }
+    } else {
+      currentLocation = rawPoint;
+    }
+
+    _lastValidFixAt = now;
+    currentSpeedMs = speedMs >= 0 ? speedMs : 0.0;
+
+    // Prioritaskan course/bearing GPS saat kendaraan bergerak sebelum fallback ke pergerakan/kompas.
+    if (currentSpeedMs >= 1.5 && headingDeg >= 0 && headingDeg <= 360.0) {
+      gpsHeading = _smoothAngleDeg(gpsHeading, headingDeg);
+      heading = gpsHeading;
+    } else if (_bearingAnchor != null) {
+      final moved = _distance.as(LengthUnit.Meter, _bearingAnchor!, currentLocation!);
+      if (moved >= 6.0 && accuracy <= 35.0) {
+        final derived = _bearing(_bearingAnchor!, currentLocation!);
+        gpsHeading = _smoothAngleDeg(gpsHeading, derived);
+        heading = gpsHeading;
+        _bearingAnchor = currentLocation!;
+      }
+    } else {
+      _bearingAnchor = currentLocation!;
+    }
 
     if (route == null) {
       unawaited(_requestRoute());
@@ -509,14 +608,10 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  double? _deriveHeadingFromMovement() {
-    final lat = _lastLat;
-    final lng = _lastLng;
-    final cur = currentLocation;
-    if (lat == null || lng == null || cur == null) return null;
-    final moved = _distance.as(LengthUnit.Meter, LatLng(lat, lng), cur);
-    if (moved < 5) return null;
-    return _bearing(LatLng(lat, lng), cur);
+  static double _smoothAngleDeg(double? currentDeg, double targetDeg) {
+    if (currentDeg == null) return (targetDeg + 360) % 360;
+    var diff = (targetDeg - currentDeg + 540) % 360 - 180;
+    return (currentDeg + diff * 0.45 + 360) % 360;
   }
 
   static double _bearing(LatLng a, LatLng b) {
@@ -538,54 +633,118 @@ class NavigationController extends ChangeNotifier {
     final r = route;
     if (cur == null || dest == null) return;
 
-    final destDist = _distance.as(LengthUnit.Meter, cur, dest);
-    if (destDist <= arrivalRadius) {
-      status = NavigationStatus.arrived;
-      return;
-    }
-
     if (r == null) {
       unawaited(_requestRoute());
       return;
     }
 
+    final proj = _projectOntoPolyline(cur, r.coordinates, _polyCumDist);
+    _lastProjection = proj;
+
     if (status == NavigationStatus.arrived) return;
 
-    final offDist = _distanceFromPolylineMeters(cur, r.coordinates);
-    if (offDist > offRouteThreshold && _canReroute()) {
-      status = NavigationStatus.offRoute;
-      unawaited(_requestRoute());
-    } else if (status == NavigationStatus.offRoute ||
-        status == NavigationStatus.rerouting) {
-      // Tetap menampilkan banner selama proses validasi/rerouting.
-      if (status != NavigationStatus.rerouting) {
-        status = NavigationStatus.navigating;
+    // 1. Cek kedatangan (butuh beberapa pembacaan valid berturut-turut untuk hindari false arrival).
+    final destDist = _distance.as(LengthUnit.Meter, cur, dest);
+    final validAccuracyForArrival = gpsAccuracy == null || gpsAccuracy! <= 50.0;
+    if (destDist <= arrivalRadiusMeters && validAccuracyForArrival) {
+      _consecutiveArrivalCount++;
+      if (_consecutiveArrivalCount >= requiredArrivalReadings) {
+        status = NavigationStatus.arrived;
+        _consecutiveOffRouteCount = 0;
+        _checkVoiceInstructions();
+        return;
       }
-    } else if (status == NavigationStatus.loadingRoute) {
-      status = NavigationStatus.navigating;
+    } else {
+      _consecutiveArrivalCount = 0;
+    }
+
+    // 2. Maju step navigasi turn-by-turn secara monotonik (histeresis 14 meter setelah titik manuver).
+    if (_checkpoints.isNotEmpty) {
+      while (_activeCheckpointIdx < _checkpoints.length - 1) {
+        final cp = _checkpoints[_activeCheckpointIdx];
+        if (proj.alongMeters > cp.triggerOffsetMeters + 14.0) {
+          _activeCheckpointIdx++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // 3. Deteksi keluar jalur (butuh akurasi memadai & beberapa pembacaan berturut-turut sebelum reroute).
+    final offDist = proj.distanceToPolylineMeters;
+    final validAccuracyForReroute = gpsAccuracy == null || gpsAccuracy! <= 45.0;
+    if (offDist > offRouteThreshold && validAccuracyForReroute) {
+      _consecutiveOffRouteCount++;
+      if (_consecutiveOffRouteCount >= requiredOffRouteReadings && _canReroute()) {
+        status = NavigationStatus.offRoute;
+        _consecutiveOffRouteCount = 0;
+        unawaited(_requestRoute(isReroute: true));
+      }
+    } else {
+      _consecutiveOffRouteCount = 0;
+      if (status == NavigationStatus.offRoute ||
+          status == NavigationStatus.loadingRoute) {
+        if (!_rerouteInFlight) {
+          status = NavigationStatus.navigating;
+        }
+      }
     }
 
     _checkVoiceInstructions();
   }
 
-  RouteStep? _lastSpokenNextStep;
-
   void _checkVoiceInstructions() {
     if (!soundEnabled) return;
-    final step = currentStep;
-    if (step != null && _lastSpokenStep != step) {
-      // Bacakan instruksi jalan saat ini (misal "Terus di Jalan A")
-      VoiceService().speak(step.instruction);
-      _lastSpokenStep = step;
+
+    if (status == NavigationStatus.arrived) {
+      final arrKey = 'arrived_${phase.name}_$_routeVersion';
+      if (_spokenCueKeys.add(arrKey)) {
+        final target = phase == NavigationPhase.pickup ? 'pengirim' : 'penerima';
+        VoiceService().speak(
+          'Anda telah tiba di lokasi $target.',
+          interrupt: true,
+        );
+      }
+      return;
     }
-    
-    // Bacakan peringatan belokan saat jarak mendekati 100 meter
-    final next = nextStep;
+
+    if (isApproachingDestination) {
+      final nearKey = 'approaching_${phase.name}_$_routeVersion';
+      if (_spokenCueKeys.add(nearKey)) {
+        final target = phase == NavigationPhase.pickup ? 'pengirim' : 'penerima';
+        VoiceService().speak('Anda sudah dekat dengan lokasi $target.');
+        return;
+      }
+    }
+
+    final step = currentStep;
+    if (step == null || _checkpoints.isEmpty) return;
+
+    final idx = _activeCheckpointIdx;
     final dist = distanceToNextManeuver;
-    if (next != null && dist > 0 && dist < 100) {
-      if (_lastSpokenNextStep != next) {
-        VoiceService().speak("Dalam ${dist.round()} meter, ${next.instruction}");
-        _lastSpokenNextStep = next;
+
+    if (dist <= 35.0) {
+      final nowKey = 'now_${_routeVersion}_$idx';
+      if (_spokenCueKeys.add(nowKey)) {
+        VoiceService().speak(step.instruction, interrupt: true);
+      }
+      return;
+    }
+
+    if (dist <= 150.0 && dist >= 65.0) {
+      final prepKey = 'prep_${_routeVersion}_$idx';
+      if (_spokenCueKeys.add(prepKey)) {
+        final rounded = (dist / 10).round() * 10;
+        VoiceService().speak('Dalam $rounded meter, ${step.instruction}');
+      }
+      return;
+    }
+
+    if (dist <= 480.0 && dist >= 240.0) {
+      final farKey = 'far_${_routeVersion}_$idx';
+      if (_spokenCueKeys.add(farKey)) {
+        final rounded = (dist / 50).round() * 50;
+        VoiceService().speak('Dalam $rounded meter, ${step.instruction}');
       }
     }
   }
@@ -593,30 +752,45 @@ class NavigationController extends ChangeNotifier {
   bool _canReroute() {
     if (_rerouteInFlight) return false;
     if (_lastRouteAt == null) return true;
-    return DateTime.now().difference(_lastRouteAt!) >= rerouteCooldown;
+    return DateTime.now().difference(_lastRouteAt!) >= rerouteCooldownDuration;
   }
 
-  Future<void> _requestRoute() async {
+  Future<void> _requestRoute({bool isReroute = false}) async {
     if (_rerouteInFlight) return;
     final cur = currentLocation;
     final dest = destination;
     if (cur == null || dest == null) return;
 
     _rerouteInFlight = true;
-    final isFirst = route == null;
+    final isFirst = route == null && !isReroute;
     status = isFirst ? NavigationStatus.loadingRoute : NavigationStatus.rerouting;
     notifyListeners();
 
     try {
-      final r = await routingService.getRoute(origin: cur, destination: dest);
+      final r = await routingService.getRoute(
+        origin: cur,
+        destination: dest,
+        profile: travelMode,
+      );
       if (_disposed) return;
-      route = r;
+
+      _assignActiveRoute(r, fromReroute: isReroute);
       _lastRouteAt = DateTime.now();
 
-      if (_distance.as(LengthUnit.Meter, cur, dest) <= arrivalRadius) {
+      final destDist = _distance.as(LengthUnit.Meter, cur, dest);
+      if (destDist <= arrivalRadiusMeters) {
+        _consecutiveArrivalCount = requiredArrivalReadings;
         status = NavigationStatus.arrived;
+        _checkVoiceInstructions();
       } else {
         status = NavigationStatus.navigating;
+        if (isReroute && soundEnabled) {
+          final rerouteKey = 'reroute_$_routeVersion';
+          if (_spokenCueKeys.add(rerouteKey)) {
+            VoiceService().speak('Rute diperbarui.', interrupt: true);
+          }
+        }
+        _evaluateNavigation();
       }
     } catch (e) {
       if (_disposed) return;
@@ -626,7 +800,6 @@ class NavigationController extends ChangeNotifier {
             : 'Tidak dapat menentukan rute.\nPeriksa koneksi internet Anda dan coba lagi.';
         status = NavigationStatus.error;
       } else {
-        // Rerouting gagal → tetap pakai rute lama.
         status = NavigationStatus.navigating;
       }
     } finally {
@@ -635,15 +808,103 @@ class NavigationController extends ChangeNotifier {
     }
   }
 
-  /// Terapkan rute alternatif yang dipilih langsung oleh kurir.
+  void _assignActiveRoute(RouteModel r, {bool fromReroute = false}) {
+    route = r;
+    _routeVersion++;
+    _activeCheckpointIdx = 0;
+    _consecutiveOffRouteCount = 0;
+    _consecutiveArrivalCount = 0;
+    _spokenCueKeys.clear();
+    if (!fromReroute) {
+      // Jangan putar suara duplikat saat baru masuk
+    }
+    _polyCumDist = _buildCumulativeDistances(r.coordinates);
+    _checkpoints = _buildManeuverCheckpoints(r);
+    if (currentLocation != null && r.coordinates.isNotEmpty) {
+      _lastProjection =
+          _projectOntoPolyline(currentLocation!, r.coordinates, _polyCumDist);
+      // Skip checkpoint awal yang sudah terlewati oleh posisi start.
+      while (_activeCheckpointIdx < _checkpoints.length - 1 &&
+          _lastProjection!.alongMeters >
+              _checkpoints[_activeCheckpointIdx].triggerOffsetMeters + 14.0) {
+        _activeCheckpointIdx++;
+      }
+    } else {
+      _lastProjection = null;
+    }
+  }
+
+  List<_ManeuverCheckpoint> _buildManeuverCheckpoints(RouteModel r) {
+    final steps = r.steps;
+    if (steps.isEmpty) return const [];
+
+    final totalDist = _totalRouteDistanceMeters(r);
+    final checkpoints = <_ManeuverCheckpoint>[];
+    final usesTomTomOffsets = steps.any((s) => s.isTomTomStep);
+
+    if (usesTomTomOffsets) {
+      double fallbackCum = 0.0;
+      for (int i = 0; i < steps.length; i++) {
+        final s = steps[i];
+        final offset = s.routeOffsetMeters ?? fallbackCum;
+        fallbackCum += s.distanceMeters;
+        final isTrivialDepart =
+            i == 0 && steps.length > 1 && offset <= 10.0 && (steps[1].routeOffsetMeters ?? 0) > 15.0;
+        if (isTrivialDepart) continue;
+        checkpoints.add(
+          _ManeuverCheckpoint(
+            step: s,
+            triggerOffsetMeters: offset.clamp(0.0, totalDist > 0 ? totalDist : offset),
+          ),
+        );
+      }
+    } else {
+      if (steps.length == 1) {
+        checkpoints.add(
+          _ManeuverCheckpoint(
+            step: steps.first,
+            triggerOffsetMeters: totalDist,
+          ),
+        );
+      } else {
+        double cum = 0.0;
+        for (int i = 0; i < steps.length - 1; i++) {
+          cum += math.max(0.0, steps[i].distanceMeters);
+          checkpoints.add(
+            _ManeuverCheckpoint(
+              step: steps[i + 1],
+              triggerOffsetMeters: cum.clamp(0.0, totalDist > 0 ? totalDist : cum),
+            ),
+          );
+        }
+      }
+    }
+
+    if (checkpoints.isEmpty) {
+      checkpoints.add(
+        _ManeuverCheckpoint(
+          step: steps.last,
+          triggerOffsetMeters: totalDist,
+        ),
+      );
+    }
+
+    return checkpoints;
+  }
+
+  /// Menerapkan rute alternatif atau rute simulasi/eksternal yang dipilih secara sadar oleh kurir.
   void applyAlternativeRoute(RouteModel selectedRoute) {
     if (_disposed || selectedRoute.coordinates.length < 2) return;
-    route = selectedRoute;
+    _assignActiveRoute(selectedRoute);
     _lastRouteAt = DateTime.now();
-    _lastSpokenStep = null;
-    _lastSpokenNextStep = null;
     status = NavigationStatus.navigating;
     _evaluateNavigation();
+    if (soundEnabled) {
+      final routeKey = 'reroute_$_routeVersion';
+      if (_spokenCueKeys.add(routeKey)) {
+        VoiceService().speak('Rute alternatif diaktifkan.', interrupt: true);
+      }
+    }
     notifyListeners();
   }
 
@@ -714,6 +975,12 @@ class NavigationController extends ChangeNotifier {
 
   // ---------------------------------------------------------------- jarak
 
+  double _totalRouteDistanceMeters(RouteModel r) {
+    if (r.distanceMeters > 0) return r.distanceMeters;
+    if (_polyCumDist.isNotEmpty) return _polyCumDist.last;
+    return _geomLength(r.coordinates);
+  }
+
   static double _geomLength(List<LatLng> pts) {
     if (pts.length < 2) return 0;
     const d = Distance();
@@ -724,51 +991,41 @@ class NavigationController extends ChangeNotifier {
     return sum;
   }
 
-  /// Jarak (meter) dari titik ke polyline rute.
-  double _distanceFromPolylineMeters(LatLng p, List<LatLng> pts) {
-    if (pts.length < 2) {
-      return pts.isEmpty ? 0 : _distance.as(LengthUnit.Meter, p, pts.first);
+  List<double> _buildCumulativeDistances(List<LatLng> pts) {
+    if (pts.isEmpty) return const [];
+    final cum = List<double>.filled(pts.length, 0.0);
+    for (var i = 1; i < pts.length; i++) {
+      cum[i] = cum[i - 1] + _distance.as(LengthUnit.Meter, pts[i - 1], pts[i]);
     }
-    double min = double.infinity;
-    for (var i = 0; i < pts.length - 1; i++) {
-      final d = _pointSegmentMeters(p, pts[i], pts[i + 1]);
-      if (d < min) min = d;
-    }
-    return min;
+    return cum;
   }
 
-  /// Jarak (meter) titik ke ruas garis AB (proyeksi ekuirektangular lokal).
-  double _pointSegmentMeters(LatLng p, LatLng a, LatLng b) {
-    const mPerDegLat = 111320.0;
-    final latRad = p.latitude * math.pi / 180.0;
-    final mPerDegLng = 111320.0 * math.cos(latRad);
-
-    double sx(LatLng c) => (c.longitude - p.longitude) * mPerDegLng;
-    double sy(LatLng c) => (c.latitude - p.latitude) * mPerDegLat;
-
-    final ax = sx(a);
-    final ay = sy(a);
-    final bx = sx(b);
-    final by = sy(b);
-    final dx = bx - ax;
-    final dy = by - ay;
-    final lenSq = dx * dx + dy * dy;
-
-    if (lenSq == 0) {
-      return math.sqrt(ax * ax + ay * ay);
+  /// Proyeksi tunggal GPS ke polyline rute: jarak tegak lurus, titik snap,
+  /// jarak tempuh dari awal, sisa jarak ke tujuan, dan bearing segmen.
+  _PolylineProjection _projectOntoPolyline(
+    LatLng p,
+    List<LatLng> pts,
+    List<double> cumDist,
+  ) {
+    if (pts.isEmpty) {
+      return _PolylineProjection(
+        snappedPoint: p,
+        distanceToPolylineMeters: 0.0,
+        remainingMeters: 0.0,
+        alongMeters: 0.0,
+        segmentBearing: heading ?? 0.0,
+      );
     }
-
-    var t = ((-ax) * dx + (-ay) * dy) / lenSq;
-    t = t.clamp(0.0, 1.0);
-    final cx = ax + t * dx;
-    final cy = ay + t * dy;
-    return math.sqrt(cx * cx + cy * cy);
-  }
-
-  /// Jarak sisa (meter) di sepanjang polyline dari titik terdekat.
-  double _routeRemainingMeters(LatLng p, List<LatLng> pts) {
-    if (pts.isEmpty) return 0;
-    if (pts.length == 1) return _distance.as(LengthUnit.Meter, p, pts.first);
+    if (pts.length == 1) {
+      final d = _distance.as(LengthUnit.Meter, p, pts.first);
+      return _PolylineProjection(
+        snappedPoint: pts.first,
+        distanceToPolylineMeters: d,
+        remainingMeters: d,
+        alongMeters: 0.0,
+        segmentBearing: heading ?? 0.0,
+      );
+    }
 
     const mPerDegLat = 111320.0;
     final latRad = p.latitude * math.pi / 180.0;
@@ -777,81 +1034,18 @@ class NavigationController extends ChangeNotifier {
     double sx(LatLng c) => (c.longitude - p.longitude) * mPerDegLng;
     double sy(LatLng c) => (c.latitude - p.latitude) * mPerDegLat;
 
-    final segs = <double>[];
-    for (var i = 0; i < pts.length - 1; i++) {
-      segs.add(_distance.as(LengthUnit.Meter, pts[i], pts[i + 1]));
-    }
-    final suffix = List<double>.filled(segs.length, 0);
-    double acc = 0;
-    for (var i = segs.length - 1; i >= 0; i--) {
-      suffix[i] = acc;
-      acc += segs[i];
-    }
-
+    final totalDist = cumDist.length == pts.length ? cumDist.last : _geomLength(pts);
     double minDist = double.infinity;
-    double remaining = acc; // total panjang rute sebagai default
+    LatLng snapped = pts.first;
+    double alongBest = 0.0;
+    double bestBearing = heading ?? 0.0;
 
     for (var i = 0; i < pts.length - 1; i++) {
       final a = pts[i];
       final b = pts[i + 1];
-      final segLen = segs[i];
-
-      // jarak titik ke segmen
-      final ax = sx(a);
-      final ay = sy(a);
-      final bx = sx(b);
-      final by = sy(b);
-      final dx = bx - ax;
-      final dy = by - ay;
-      final lenSq = dx * dx + dy * dy;
-      double d;
-      if (lenSq == 0) {
-        d = math.sqrt(ax * ax + ay * ay);
-      } else {
-        var t = ((-ax) * dx + (-ay) * dy) / lenSq;
-        t = t.clamp(0.0, 1.0);
-        final cx = ax + t * dx;
-        final cy = ay + t * dy;
-        d = math.sqrt(cx * cx + cy * cy);
-      }
-
-      if (d < minDist) {
-        minDist = d;
-        double along = 0;
-        if (segLen > 0) {
-          // proyeksi jarak dari a
-          double alongT;
-          if (lenSq == 0) {
-            alongT = 0;
-          } else {
-            alongT = ((-ax) * dx + (-ay) * dy) / lenSq;
-            alongT = alongT.clamp(0.0, 1.0);
-          }
-          along = alongT * segLen;
-        }
-        remaining = (segLen - along) + suffix[i];
-      }
-    }
-    return math.max(0.0, remaining);
-  }
-
-  /// Memproyeksikan (snap) posisi ke garis rute terdekat
-  LatLng _snapToPolyline(LatLng p, List<LatLng> pts) {
-    if (pts.length < 2) return pts.isNotEmpty ? pts.first : p;
-
-    const mPerDegLat = 111320.0;
-    final latRad = p.latitude * math.pi / 180.0;
-    final mPerDegLng = 111320.0 * math.cos(latRad);
-
-    double sx(LatLng c) => (c.longitude - p.longitude) * mPerDegLng;
-    double sy(LatLng c) => (c.latitude - p.latitude) * mPerDegLat;
-
-    double minDist = double.infinity;
-    LatLng snapped = p;
-
-    for (var i = 0; i < pts.length - 1; i++) {
-      final a = pts[i];
-      final b = pts[i + 1];
+      final segStartAlong = i < cumDist.length ? cumDist[i] : 0.0;
+      final segEndAlong = (i + 1) < cumDist.length ? cumDist[i + 1] : totalDist;
+      final segLen = math.max(0.0, segEndAlong - segStartAlong);
 
       final ax = sx(a);
       final ay = sy(a);
@@ -860,19 +1054,13 @@ class NavigationController extends ChangeNotifier {
       final dx = bx - ax;
       final dy = by - ay;
       final lenSq = dx * dx + dy * dy;
-      
-      double d;
-      double t;
-      if (lenSq == 0) {
-        d = math.sqrt(ax * ax + ay * ay);
-        t = 0;
-      } else {
-        t = ((-ax) * dx + (-ay) * dy) / lenSq;
-        t = t.clamp(0.0, 1.0);
-        final cx = ax + t * dx;
-        final cy = ay + t * dy;
-        d = math.sqrt(cx * cx + cy * cy);
-      }
+
+      final double t = lenSq == 0
+          ? 0.0
+          : (((-ax) * dx + (-ay) * dy) / lenSq).clamp(0.0, 1.0);
+      final cx = ax + t * dx;
+      final cy = ay + t * dy;
+      final d = math.sqrt(cx * cx + cy * cy);
 
       if (d < minDist) {
         minDist = d;
@@ -880,20 +1068,34 @@ class NavigationController extends ChangeNotifier {
           a.latitude + t * (b.latitude - a.latitude),
           a.longitude + t * (b.longitude - a.longitude),
         );
+        alongBest = segStartAlong + (t * segLen);
+        bestBearing = _bearing(a, b);
       }
     }
-    
-    // Snap ke rute (jangan gunakan offRouteThreshold agar selalu di garis biru)
-    return snapped;
+
+    return _PolylineProjection(
+      snappedPoint: snapped,
+      distanceToPolylineMeters: minDist,
+      remainingMeters: math.max(0.0, totalDist - alongBest),
+      alongMeters: alongBest,
+      segmentBearing: bestBearing,
+    );
+  }
+
+  /// Hentikan tracking GPS & panduan suara ketika navigasi berakhir.
+  void stopTracking() {
+    VoiceService().stopSpeaking();
+    VoiceService().stopListening();
+    _positionSub?.cancel();
+    _positionSub = null;
+    _compassSub?.cancel();
+    _compassSub = null;
   }
 
   @override
   void dispose() {
-    VoiceService().stopSpeaking();
-    VoiceService().stopListening();
+    stopTracking();
     _disposed = true;
-    _positionSub?.cancel();
-    _compassSub?.cancel();
     super.dispose();
   }
 }

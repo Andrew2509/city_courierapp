@@ -9,16 +9,7 @@ import '../../core/config/map_config.dart';
 import '../../services/maps/traffic_service.dart';
 import '../../widgets/maps/traffic_overlay_widgets.dart';
 
-/// Courier navigation screen (PRD §25–§31).
-///
-/// Features:
-/// - Turn-by-turn instructions (PRD §26)
-/// - GPS tracking with marker movement
-/// - Off-route detection + rerouting (PRD §27, §28)
-/// - Rerouting UI feedback (PRD §29)
-/// - Destination arrival detection (PRD §30)
-/// - Recenter / follow mode (PRD §48)
-/// - All buttons functional (PRD §31)
+
 class CourierNavigationScreen extends StatefulWidget {
   final Map<String, dynamic> order;
   final NavigationPhase initialPhase;
@@ -88,16 +79,23 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
   void _onNavUpdate() {
     if (!mounted) return;
 
-    // Update map camera in follow mode
-    if (_isFollowingMode && _navController.currentLocation != null) {
+    // Update map camera in follow mode (lower-center offset + heading-up)
+    final cur = _navController.snappedLocation ?? _navController.currentLocation;
+    if (_isFollowingMode && cur != null) {
+      final h = MediaQuery.maybeOf(context)?.size.height ?? 800.0;
       _mapController.move(
-        _navController.currentLocation!,
-        17.0,
+        cur,
+        _mapController.camera.zoom,
+        offset: Offset(0, h * 0.14),
       );
+      if (_navController.isCompassHeadingUp) {
+        _mapController.rotate(-_navController.effectiveVehicleHeading);
+      } else {
+        _mapController.rotate(0);
+      }
     }
 
     final route = _navController.route;
-    final cur = _navController.snappedLocation ?? _navController.currentLocation;
     final dest = _navController.destination;
     if (route != null && route.coordinates.length >= 2) {
       unawaited(
@@ -105,7 +103,9 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
           routeCoordinates: route.coordinates,
           courierLocation: cur,
           destination: dest,
-          travelMode: 'motorcycle',
+          travelMode: _navController.travelMode,
+          initialSegments:
+              route.trafficSegments.isNotEmpty ? route.trafficSegments : null,
         ),
       );
     }
@@ -135,6 +135,8 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
           ),
           TextButton(
             onPressed: () {
+              _navController.stopTracking();
+              _trafficController.setMapActive(false);
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Close navigation
             },
@@ -507,32 +509,39 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
                   ),
                 ),
 
-              // Current position marker
-              if (currentLoc != null)
-                Marker(
-                  point: currentLoc,
-                  width: 40,
-                  height: 40,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
+                // Current position marker (pakai snappedLocation bila di koridor rute)
+                if ((_navController.snappedLocation ?? currentLoc) != null)
+                  Marker(
+                    point: _navController.snappedLocation ?? currentLoc!,
+                    width: 44,
+                    height: 44,
+                    child: Transform.rotate(
+                      angle: _navController.isCompassHeadingUp
+                          ? 0
+                          : (_navController.effectiveVehicleHeading *
+                              3.141592653589793 /
+                              180.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.navigation,
-                      color: Colors.white,
-                      size: 20,
+                        child: const Icon(
+                          Icons.navigation,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
                     ),
                   ),
-                ),
             ]),
           ],
         ),
@@ -649,7 +658,7 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      _getManeuverIcon(step.maneuver),
+                      navigationManeuverIcon(step.maneuver),
                       color: Colors.white,
                       size: 22,
                     ),
@@ -913,6 +922,8 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
                         elevation: 2,
                       ),
                       onPressed: () {
+                        _navController.stopTracking();
+                        _trafficController.setMapActive(false);
                         Navigator.pop(context, true);
                       },
                       icon: const Icon(Icons.check, size: 20),
@@ -965,32 +976,7 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
     );
   }
 
-  // ── Helpers ──
-
-  IconData _getManeuverIcon(String? maneuver) {
-    switch (maneuver) {
-      case 'right':
-        return Icons.turn_right;
-      case 'left':
-        return Icons.turn_left;
-      case 'slight-right':
-        return Icons.subdirectory_arrow_right;
-      case 'slight-left':
-        return Icons.subdirectory_arrow_left;
-      case 'sharp-right':
-        return Icons.turn_right;
-      case 'sharp-left':
-        return Icons.turn_left;
-      case 'uturn':
-        return Icons.u_turn_left;
-      case 'arrive':
-        return Icons.flag;
-      case 'roundabout':
-        return Icons.roundabout_right;
-      default:
-        return Icons.straight;
-    }
-  }
+        // ── Helpers ──
 
   String _formatDistance(double meters) {
     if (meters >= 1000) {

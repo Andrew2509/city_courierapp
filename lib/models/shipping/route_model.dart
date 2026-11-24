@@ -1,5 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
+import 'package:city_courierapp/models/maps/traffic_models.dart';
+
 /// Representasi rute hasil routing engine (PRD §37).
 ///
 /// Geometry selalu berasal dari routing engine — bukan garis lurus antara
@@ -9,16 +11,22 @@ class RouteModel {
   final double distanceMeters;
   final double durationSeconds;
   final double? trafficDurationSeconds;
+  final int? trafficDelaySeconds;
   final String? summary;
+  final String provider;
   final List<RouteStep> steps;
+  final List<RouteTrafficSegment> trafficSegments;
 
   const RouteModel({
     required this.coordinates,
     required this.distanceMeters,
     required this.durationSeconds,
     this.trafficDurationSeconds,
+    this.trafficDelaySeconds,
     this.summary,
+    this.provider = 'unknown',
     this.steps = const [],
+    this.trafficSegments = const [],
   });
 }
 
@@ -29,6 +37,10 @@ class RouteStep {
   final String? roadName;
   final double distanceMeters;
   final double durationSeconds;
+  final LatLng? location;
+  final double? routeOffsetMeters;
+  final int? roundaboutExitNumber;
+  final bool isTomTomStep;
 
   const RouteStep({
     required this.instruction,
@@ -36,5 +48,9 @@ class RouteStep {
     this.roadName,
     this.distanceMeters = 0,
     this.durationSeconds = 0,
+    this.location,
+    this.routeOffsetMeters,
+    this.roundaboutExitNumber,
+    this.isTomTomStep = false,
   });
 }

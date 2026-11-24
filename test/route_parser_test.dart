@@ -202,6 +202,88 @@ void main() {
       expect(route.durationSeconds, closeTo(300.0, 1e-6));
       expect(route.summary, 'Jalan Contoh');
     });
+
+    test('TomTom Routing v1 proxy: parses steps, offset, location, and traffic segments', () {
+      final json = {
+        'success': true,
+        'data': {
+          'code': 'Ok',
+          'provider': 'tomtom_routing_v1',
+          'routes': [
+            {
+              'geometry': {
+                'type': 'LineString',
+                'coordinates': [
+                  [106.8500, -6.2000],
+                  [106.8475, -6.2070],
+                  [106.8451, -6.2146],
+                ],
+              },
+              'distance': 2400.0,
+              'duration': 360.0,
+              'traffic_duration': 360.0,
+              'traffic_delay_seconds': 90,
+              'summary': 'Jalan Semolowaru',
+              'traffic_segments': [
+                {
+                  'start_index': 1,
+                  'end_index': 2,
+                  'status': 'congested',
+                  'status_label': 'Macet',
+                  'color_hex': '#DC2626',
+                  'is_available': true,
+                  'is_congested': true,
+                },
+              ],
+              'legs': [
+                {
+                  'distance': 2400.0,
+                  'duration': 360.0,
+                  'steps': [
+                    {
+                      'instruction': 'Berangkat ke selatan',
+                      'distance': 1100.0,
+                      'duration': 150.0,
+                      'name': 'Jalan Garuda',
+                      'route_offset_meters': 0.0,
+                      'is_tomtom_step': true,
+                      'location': {'lat': -6.2000, 'lng': 106.8500},
+                      'maneuver': {'type': 'DEPART'},
+                    },
+                    {
+                      'instruction': 'Belok kiri ke Jalan Semolowaru',
+                      'distance': 1300.0,
+                      'duration': 210.0,
+                      'name': 'Jalan Semolowaru',
+                      'route_offset_meters': 1100.0,
+                      'is_tomtom_step': true,
+                      'location': {'lat': -6.2070, 'lng': 106.8475},
+                      'maneuver': {'type': 'TURN_LEFT'},
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      final route = RouteParser.parse(
+        json,
+        origin: origin,
+        destination: destination,
+      );
+
+      expect(route.provider, 'tomtom_routing_v1');
+      expect(route.trafficDelaySeconds, 90);
+      expect(route.trafficSegments.length, 1);
+      expect(route.trafficSegments.first.startIndex, 1);
+      expect(route.steps.length, 2);
+      expect(route.steps[1].isTomTomStep, isTrue);
+      expect(route.steps[1].routeOffsetMeters, 1100.0);
+      expect(route.steps[1].location?.latitude, closeTo(-6.2070, 1e-6));
+      expect(route.steps[1].maneuver, 'TURN_LEFT');
+    });
   });
 }
 

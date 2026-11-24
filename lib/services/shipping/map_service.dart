@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../core/config/map_config.dart';
 import '../api_service.dart';
 import '../token_store.dart';
 
@@ -63,20 +64,24 @@ class MapService {
     String origin,
     String destination, {
     List<String> vias = const [],
+    String travelMode = 'motorcycle',
   }) async {
     try {
       final headers = await _getHeaders();
       final body = jsonEncode({
         'origin': origin,
         'destination': destination,
+        'travel_mode': travelMode == 'car' ? 'car' : 'motorcycle',
         if (vias.isNotEmpty) 'vias': vias,
       });
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/shipping/map/routing'),
-        headers: headers,
-        body: body,
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/shipping/map/routing'),
+            headers: headers,
+            body: body,
+          )
+          .timeout(MapConfig.networkTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
