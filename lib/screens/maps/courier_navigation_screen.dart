@@ -90,9 +90,23 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
 
     // Update map camera in follow mode
     if (_isFollowingMode && _navController.currentLocation != null) {
-        _mapController.move(
+      _mapController.move(
         _navController.currentLocation!,
         17.0,
+      );
+    }
+
+    final route = _navController.route;
+    final cur = _navController.snappedLocation ?? _navController.currentLocation;
+    final dest = _navController.destination;
+    if (route != null && route.coordinates.length >= 2) {
+      unawaited(
+        _trafficController.syncRouteTraffic(
+          routeCoordinates: route.coordinates,
+          courierLocation: cur,
+          destination: dest,
+          travelMode: 'motorcycle',
+        ),
       );
     }
 
@@ -452,16 +466,17 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
               trafficService: _trafficService,
             ),
 
-            // ── Route Polyline (PRD §24) ──
-            if (route != null)
+            // ── Route Polyline (PRD §24 + Traffic Segment Colors) ──
+            if (route != null && route.coordinates.length >= 2)
               PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: route.coordinates,
-                    color: const Color(0xFF3B82F6),
-                    strokeWidth: 6.0,
-                  ),
-                ],
+                polylines: buildTrafficColoredRoutePolylines(
+                  coordinates: route.coordinates,
+                  segments: _trafficController.routeSegments,
+                  trafficEnabled: _trafficController.isTrafficEnabled,
+                  baseColor: const Color(0xFF3B82F6),
+                  casingWidth: 9.0,
+                  lineWidth: 6.0,
+                ),
               ),
 
             // ── Markers ──
@@ -671,14 +686,63 @@ class _CourierNavigationScreenState extends State<CourierNavigationScreen>
             ),
           ),
 
-        // ── Traffic Toggle, Legend & Status ──
+        // ── Traffic Toggle, Legend & Route Congestion Alert ──
         Positioned(
           top: (step != null && !hasArrived)
               ? (isOffRoute ? 168 : 104)
               : (isOffRoute || hasArrived ? 80 : 16),
           left: 16,
           right: 16,
-          child: TrafficMapFloatingControls(controller: _trafficController),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TrafficMapFloatingControls(controller: _trafficController),
+              if (_trafficController.isTrafficEnabled &&
+                  _trafficController.closestCongestion != null) ...[
+                const SizedBox(height: 8),
+                RouteCongestionAlertCard(
+                  alert: _trafficController.closestCongestion!,
+                  fasterAlternative:
+                      _trafficController.alternativesResult?.recommendedRoute,
+                  onViewAlternativesTap:
+                      (route != null && _navController.destination != null)
+                          ? () {
+                              final origin = _navController.snappedLocation ??
+                                  _navController.currentLocation ??
+                                  route.coordinates.first;
+                              final dest = _navController.destination!;
+                              showRouteAlternativesSheet(
+                                context: context,
+                                controller: _trafficController,
+                                origin: origin,
+                                destination: dest,
+                                currentRouteSignature:
+                                    TrafficService.buildRouteSignature(
+                                  route.coordinates,
+                                ),
+                                onConfirmAlternative: (alt) {
+                                  if (!mounted || alt.coordinates.length < 2) {
+                                    return;
+                                  }
+                                  final newRoute = routeModelFromAlternative(alt);
+                                  _navController.applyAlternativeRoute(newRoute);
+                                  unawaited(
+                                    _trafficController.syncRouteTraffic(
+                                      routeCoordinates: newRoute.coordinates,
+                                      courierLocation: origin,
+                                      destination: dest,
+                                      travelMode: 'motorcycle',
+                                    ),
+                                  );
+                                },
+                              );
+                            }
+                          : null,
+                ),
+              ],
+            ],
+          ),
         ),
 
         if (_trafficController.isTrafficEnabled &&

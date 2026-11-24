@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/models/maps/traffic_models.dart';
+import 'package:city_courierapp/models/shipping/route_model.dart';
 import 'package:city_courierapp/services/maps/traffic_classifier_service.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 
@@ -983,5 +985,639 @@ class TrafficSelectionOverlay extends StatelessWidget {
 
     return const SizedBox.shrink();
   }
+}
+
+/// Membangun layer polyline rute navigasi yang mempertahankan warna biru utama
+/// pada bagian lancar/normal dan mewarnai HANYA sub-segmen `[startIndex..endIndex]`
+/// yang terdeteksi padat/macet (kuning, oranye, merah) di dalam casing putih.
+List<Polyline> buildTrafficColoredRoutePolylines({
+  required List<LatLng> coordinates,
+  required List<RouteTrafficSegment> segments,
+  bool trafficEnabled = true,
+  Color baseColor = AppColors.primaryBlue,
+  double casingWidth = 10.0,
+  double lineWidth = 6.5,
+}) {
+  if (coordinates.length < 2) return const [];
+
+  final polylines = <Polyline>[
+    Polyline(
+      points: coordinates,
+      strokeWidth: casingWidth,
+      color: Colors.white.withValues(alpha: 0.9),
+    ),
+    Polyline(
+      points: coordinates,
+      strokeWidth: lineWidth,
+      color: baseColor,
+    ),
+  ];
+
+  if (!trafficEnabled || segments.isEmpty) {
+    return polylines;
+  }
+
+  final highlighted = segments.where((s) => s.shouldHighlightOnRoute).toList()
+    ..sort((a, b) => _severityOrder(a.classification.level)
+        .compareTo(_severityOrder(b.classification.level)));
+
+  final maxIdx = coordinates.length - 1;
+  for (final seg in highlighted) {
+    int s = seg.startIndex.clamp(0, maxIdx);
+    int e = seg.endIndex.clamp(s, maxIdx);
+    if (e == s) {
+      if (e + 1 <= maxIdx) {
+        e = e + 1;
+      } else if (s > 0) {
+        s = s - 1;
+      } else {
+        continue;
+      }
+    }
+
+    final subPoints = coordinates.sublist(s, e + 1);
+    if (subPoints.length < 2) continue;
+
+    polylines.add(
+      Polyline(
+        points: subPoints,
+        strokeWidth: lineWidth,
+        color: seg.routeLineColor,
+      ),
+    );
+  }
+
+  return polylines;
+}
+
+int _severityOrder(TrafficConditionLevel level) {
+  switch (level) {
+    case TrafficConditionLevel.moderate:
+      return 1;
+    case TrafficConditionLevel.heavy:
+      return 2;
+    case TrafficConditionLevel.congested:
+      return 3;
+    case TrafficConditionLevel.roadClosed:
+      return 4;
+    case TrafficConditionLevel.smooth:
+    case TrafficConditionLevel.unknown:
+      return 0;
+  }
+}
+
+/// Mengonversi opsi `TrafficAlternativeRoute` menjadi `RouteModel` siap navigasi.
+RouteModel routeModelFromAlternative(TrafficAlternativeRoute alt) {
+  return RouteModel(
+    coordinates: alt.coordinates,
+    distanceMeters: alt.distanceMeters,
+    durationSeconds: alt.travelTimeSeconds.toDouble(),
+    trafficDurationSeconds: alt.travelTimeSeconds.toDouble(),
+    summary: alt.viaRoad,
+    steps: alt.steps
+        .map(
+          (s) => RouteStep(
+            instruction: s.instruction,
+            maneuver: s.maneuverType,
+            roadName: s.roadName.isNotEmpty ? s.roadName : null,
+            distanceMeters: s.distanceMeters,
+            durationSeconds: s.durationSeconds,
+          ),
+        )
+        .toList(),
+  );
+}
+
+/// Banner ringkas "Peringatan Kemacetan" yang menampilkan info kemacetan terdekat
+/// pada jalur pengiriman aktif (nama jalan, jarak dari kurir, status, kecepatan aktual/normal, delay).
+class RouteCongestionAlertCard extends StatelessWidget {
+  final RouteCongestionAlert alert;
+  final TrafficAlternativeRoute? fasterAlternative;
+  final VoidCallback? onViewAlternativesTap;
+  final VoidCallback? onDismiss;
+
+  const RouteCongestionAlertCard({
+    super.key,
+    required this.alert,
+    this.fasterAlternative,
+    this.onViewAlternativesTap,
+    this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isClosed = alert.level == TrafficConditionLevel.roadClosed;
+    final String title =
+        isClosed ? 'Penutupan Jalan di Jalur' : 'Peringatan Kemacetan';
+    final String roadText =
+        (alert.roadName != null && alert.roadName!.trim().isNotEmpty)
+            ? alert.roadName!.trim()
+            : 'Ruas jalan di jalur aktif';
+
+    final speedParts = <String>[];
+    if (alert.currentSpeedKmh != null && alert.freeFlowSpeedKmh != null) {
+      speedParts.add(
+        'Aktual ${alert.currentSpeedKmh} km/jam • Normal ${alert.freeFlowSpeedKmh} km/jam',
+      );
+    } else if (alert.description != null &&
+        alert.description!.trim().isNotEmpty) {
+      speedParts.add(alert.description!.trim());
+    }
+
+    final savedMinutes = fasterAlternative != null &&
+            fasterAlternative!.timeSavedSeconds >= 60
+        ? (fasterAlternative!.timeSavedSeconds / 60.0).round()
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: alert.color.withValues(alpha: 0.55),
+          width: 1.3,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: alert.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '$title • ${alert.formattedDistance}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: alert.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  alert.statusLabel,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: alert.color,
+                  ),
+                ),
+              ),
+              if (alert.formattedDelay != null) ...[
+                const SizedBox(width: 5),
+                Text(
+                  alert.formattedDelay!,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFDC2626),
+                  ),
+                ),
+              ],
+              if (onDismiss != null) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: onDismiss,
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                    color: Colors.black45,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Jalan: $roadText',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          if (speedParts.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              speedParts.first,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ],
+          if (onViewAlternativesTap != null) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: onViewAlternativesTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: savedMinutes != null
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: savedMinutes != null
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFCBD5E1),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.alt_route_rounded,
+                      size: 14,
+                      color: savedMinutes != null
+                          ? const Color(0xFF047857)
+                          : const Color(0xFF334155),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      savedMinutes != null
+                          ? 'Lihat Rute Alternatif (Hemat ~$savedMinutes mnt)'
+                          : 'Periksa Rute Alternatif',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: savedMinutes != null
+                            ? const Color(0xFF047857)
+                            : const Color(0xFF334155),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Membuka bottom sheet perbandingan rute utama vs rute alternatif berbasis TomTom Traffic.
+/// Rute baru hanya diterapkan setelah kurir menekan tombol konfirmasi secara eksplisit.
+Future<void> showRouteAlternativesSheet({
+  required BuildContext context,
+  required TrafficController controller,
+  required LatLng origin,
+  required LatLng destination,
+  required String currentRouteSignature,
+  required ValueChanged<TrafficAlternativeRoute> onConfirmAlternative,
+}) {
+  if (controller.alternativesResult == null ||
+      controller.alternativesResult!.isExpired) {
+    controller.loadTrafficAlternatives(
+      origin: origin,
+      destination: destination,
+    );
+  }
+
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) {
+      return AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final result = controller.alternativesResult;
+          final loading = controller.isLoadingAlternatives;
+          final err = controller.alternativesError;
+
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.72,
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.alt_route_rounded,
+                      color: Color(0xFF0F7B4A),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Rute & Alternatif Lalu Lintas',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: loading
+                          ? null
+                          : () => controller.loadTrafficAlternatives(
+                                origin: origin,
+                                destination: destination,
+                                force: true,
+                              ),
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                    ),
+                  ],
+                ),
+                const Text(
+                  'Perbandingan estimasi waktu tempuh real-time TomTom. Pilih rute secara manual untuk mengganti jalur navigasi.',
+                  style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 12),
+                if (loading && result == null)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 28),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: Color(0xFF0F7B4A)),
+                          SizedBox(height: 10),
+                          Text(
+                            'Menganalisa rute alternatif berbasis kemacetan...',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (err != null && result == null)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Color(0xFFDC2626)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            err,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF991B1B),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (result == null || result.routes.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        'Belum ada rute alternatif tersedia untuk jalur ini.',
+                        style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: result.routes.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (_, idx) {
+                        final opt = result.routes[idx];
+                        final optSig =
+                            TrafficService.buildRouteSignature(opt.coordinates);
+                        final isCurrent = optSig == currentRouteSignature ||
+                            (idx == 0 &&
+                                result.routes.every(
+                                  (r) =>
+                                      TrafficService.buildRouteSignature(
+                                        r.coordinates,
+                                      ) !=
+                                      currentRouteSignature,
+                                ));
+                        final mins = (opt.travelTimeSeconds / 60.0).ceil();
+                        final km =
+                            (opt.distanceMeters / 1000.0).toStringAsFixed(1);
+                        final delayMin = (opt.trafficDelaySeconds ?? 0) >= 60
+                            ? '+${((opt.trafficDelaySeconds ?? 0) / 60.0).ceil()} mnt macet'
+                            : 'Arus lancar';
+                        final savedMin = opt.timeSavedSeconds >= 60
+                            ? (opt.timeSavedSeconds / 60.0).round()
+                            : null;
+
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: opt.isRecommended
+                                ? const Color(0xFFF0FDF4)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isCurrent
+                                  ? AppColors.primaryBlue
+                                  : (opt.isRecommended
+                                        ? const Color(0xFF16A34A)
+                                        : const Color(0xFFE2E8F0)),
+                              width: (isCurrent || opt.isRecommended) ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      opt.viaRoad != null
+                                          ? '${opt.label} • via ${opt.viaRoad}'
+                                          : opt.label,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                  if (opt.isRecommended && savedMin != null)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF16A34A),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        'Hemat $savedMin mnt',
+                                        style: const TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  else if (isCurrent)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryBlue,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Text(
+                                        'Rute Aktif',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Text(
+                                    '$mins menit',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF0F7B4A),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${km.replaceAll('.', ',')} km • $delayMin',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF475569),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: opt.overallColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        opt.overallStatusLabel,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: opt.overallColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (!isCurrent)
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0F7B4A),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 8,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(sheetCtx).pop();
+                                        onConfirmAlternative(opt);
+                                      },
+                                      child: const Text(
+                                        'Gunakan Rute Ini',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
 }
 

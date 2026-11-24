@@ -311,6 +311,452 @@ class DeliveryTrafficSummary {
   bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt.toUtc());
 }
 
+/// Segmen lalu lintas yang dipetakan tepat pada rentang indeks polyline rute aktif.
+class RouteTrafficSegment {
+  final int startIndex;
+  final int endIndex;
+  final TrafficClassification classification;
+  final int? currentSpeedKmh;
+  final int? freeFlowSpeedKmh;
+  final int? estimatedDelaySeconds;
+  final double? distanceFromCourierMeters;
+  final bool isAhead;
+  final String? roadName;
+  final LatLng? point;
+  final String sourceType;
+
+  const RouteTrafficSegment({
+    required this.startIndex,
+    required this.endIndex,
+    required this.classification,
+    this.currentSpeedKmh,
+    this.freeFlowSpeedKmh,
+    this.estimatedDelaySeconds,
+    this.distanceFromCourierMeters,
+    this.isAhead = true,
+    this.roadName,
+    this.point,
+    this.sourceType = 'flow',
+  });
+
+  /// Di garis navigasi, segmen dengan data lalu lintas tersedia selain lancar (`>=70%`)
+  /// akan merubah warna sub-segmen polyline (kuning / oranye / merah).
+  bool get shouldHighlightOnRoute =>
+      classification.isAvailable &&
+      classification.level != TrafficConditionLevel.smooth;
+
+  Color get routeLineColor {
+    switch (classification.level) {
+      case TrafficConditionLevel.moderate:
+        return const Color(0xFFEAB308);
+      case TrafficConditionLevel.heavy:
+        return const Color(0xFFF97316);
+      case TrafficConditionLevel.congested:
+      case TrafficConditionLevel.roadClosed:
+        return const Color(0xFFDC2626);
+      case TrafficConditionLevel.smooth:
+      case TrafficConditionLevel.unknown:
+        return const Color(0xFF2563EB);
+    }
+  }
+
+  RouteTrafficSegment copyWithDistance({
+    required double distanceFromCourierMeters,
+    required bool isAhead,
+  }) {
+    return RouteTrafficSegment(
+      startIndex: startIndex,
+      endIndex: endIndex,
+      classification: classification,
+      currentSpeedKmh: currentSpeedKmh,
+      freeFlowSpeedKmh: freeFlowSpeedKmh,
+      estimatedDelaySeconds: estimatedDelaySeconds,
+      distanceFromCourierMeters: distanceFromCourierMeters,
+      isAhead: isAhead,
+      roadName: roadName,
+      point: point,
+      sourceType: sourceType,
+    );
+  }
+
+  factory RouteTrafficSegment.fromJson(Map<String, dynamic> json) {
+    final level = TrafficClassification.parseLevel(json['status']?.toString());
+    final colorHex = (json['color_hex'] ?? '').toString();
+    final Color color = switch (level) {
+      TrafficConditionLevel.smooth => const Color(0xFF16A34A),
+      TrafficConditionLevel.moderate => const Color(0xFFEAB308),
+      TrafficConditionLevel.heavy => const Color(0xFFF97316),
+      TrafficConditionLevel.congested || TrafficConditionLevel.roadClosed =>
+        const Color(0xFFDC2626),
+      TrafficConditionLevel.unknown =>
+        colorHex == '#DC2626' ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+    };
+
+    final ptRaw = json['point'] is Map
+        ? Map<String, dynamic>.from(json['point'] as Map)
+        : null;
+    final ptLat = (ptRaw?['lat'] as num?)?.toDouble();
+    final ptLng = (ptRaw?['lng'] as num?)?.toDouble();
+
+    final isAvailable = json['is_available'] == true;
+    final isCongested = json['is_congested'] == true ||
+        level == TrafficConditionLevel.heavy ||
+        level == TrafficConditionLevel.congested ||
+        level == TrafficConditionLevel.roadClosed;
+
+    final rawRoad = json['road_name']?.toString().trim();
+
+    return RouteTrafficSegment(
+      startIndex: (json['start_index'] as num?)?.toInt() ?? 0,
+      endIndex: (json['end_index'] as num?)?.toInt() ?? 0,
+      classification: TrafficClassification(
+        level: level,
+        statusKey: (json['status'] ?? 'unknown').toString(),
+        label: (json['status_label'] ?? 'Data Tidak Tersedia').toString(),
+        color: color,
+        speedRatioPercent: (json['speed_ratio_percent'] as num?)?.toDouble(),
+        congestionPercent: (json['congestion_percent'] as num?)?.toDouble(),
+        isAvailable: isAvailable,
+        isCongested: isCongested,
+      ),
+      currentSpeedKmh: (json['current_speed_kmh'] as num?)?.toInt(),
+      freeFlowSpeedKmh: (json['free_flow_speed_kmh'] as num?)?.toInt(),
+      estimatedDelaySeconds: (json['estimated_delay_seconds'] as num?)?.toInt(),
+      distanceFromCourierMeters:
+          (json['distance_from_courier_meters'] as num?)?.toDouble(),
+      isAhead: json['is_ahead'] != false,
+      roadName: (rawRoad != null && rawRoad.isNotEmpty) ? rawRoad : null,
+      point: (ptLat != null && ptLng != null) ? LatLng(ptLat, ptLng) : null,
+      sourceType: (json['source_type'] ?? 'flow').toString(),
+    );
+  }
+}
+
+/// Informasi kemacetan terdekat di depan kurir di sepanjang rute aktif.
+class RouteCongestionAlert {
+  final String type;
+  final String? roadName;
+  final double distanceFromCourierMeters;
+  final TrafficConditionLevel level;
+  final String statusLabel;
+  final Color color;
+  final int? currentSpeedKmh;
+  final int? freeFlowSpeedKmh;
+  final double? speedRatioPercent;
+  final double? congestionPercent;
+  final int? estimatedDelaySeconds;
+  final String? description;
+  final int startIndex;
+  final int endIndex;
+  final LatLng? point;
+
+  const RouteCongestionAlert({
+    required this.type,
+    this.roadName,
+    required this.distanceFromCourierMeters,
+    required this.level,
+    required this.statusLabel,
+    required this.color,
+    this.currentSpeedKmh,
+    this.freeFlowSpeedKmh,
+    this.speedRatioPercent,
+    this.congestionPercent,
+    this.estimatedDelaySeconds,
+    this.description,
+    required this.startIndex,
+    required this.endIndex,
+    this.point,
+  });
+
+  String get formattedDistance {
+    if (distanceFromCourierMeters < 1000) {
+      return '${distanceFromCourierMeters.round()} m';
+    }
+    final km = (distanceFromCourierMeters / 1000.0).toStringAsFixed(1);
+    return '${km.replaceAll('.', ',')} km';
+  }
+
+  String? get formattedDelay {
+    final sec = estimatedDelaySeconds;
+    if (sec == null || sec < 30) return null;
+    final mins = (sec / 60.0).ceil();
+    return '+$mins mnt';
+  }
+
+  RouteCongestionAlert copyWithDistance(double newDistanceMeters) {
+    return RouteCongestionAlert(
+      type: type,
+      roadName: roadName,
+      distanceFromCourierMeters: newDistanceMeters,
+      level: level,
+      statusLabel: statusLabel,
+      color: color,
+      currentSpeedKmh: currentSpeedKmh,
+      freeFlowSpeedKmh: freeFlowSpeedKmh,
+      speedRatioPercent: speedRatioPercent,
+      congestionPercent: congestionPercent,
+      estimatedDelaySeconds: estimatedDelaySeconds,
+      description: description,
+      startIndex: startIndex,
+      endIndex: endIndex,
+      point: point,
+    );
+  }
+
+  factory RouteCongestionAlert.fromJson(Map<String, dynamic> json) {
+    final level = TrafficClassification.parseLevel(json['status']?.toString());
+    final color = switch (level) {
+      TrafficConditionLevel.moderate => const Color(0xFFEAB308),
+      TrafficConditionLevel.heavy => const Color(0xFFF97316),
+      TrafficConditionLevel.congested || TrafficConditionLevel.roadClosed =>
+        const Color(0xFFDC2626),
+      TrafficConditionLevel.smooth => const Color(0xFF16A34A),
+      TrafficConditionLevel.unknown => const Color(0xFF64748B),
+    };
+
+    final ptRaw = json['point'] is Map
+        ? Map<String, dynamic>.from(json['point'] as Map)
+        : null;
+    final ptLat = (ptRaw?['lat'] as num?)?.toDouble();
+    final ptLng = (ptRaw?['lng'] as num?)?.toDouble();
+    final rawRoad = json['road_name']?.toString().trim();
+
+    return RouteCongestionAlert(
+      type: (json['type'] ?? 'flow').toString(),
+      roadName: (rawRoad != null && rawRoad.isNotEmpty) ? rawRoad : null,
+      distanceFromCourierMeters:
+          (json['distance_from_courier_meters'] as num?)?.toDouble() ?? 0.0,
+      level: level,
+      statusLabel: (json['status_label'] ?? 'Padat').toString(),
+      color: color,
+      currentSpeedKmh: (json['current_speed_kmh'] as num?)?.toInt(),
+      freeFlowSpeedKmh: (json['free_flow_speed_kmh'] as num?)?.toInt(),
+      speedRatioPercent: (json['speed_ratio_percent'] as num?)?.toDouble(),
+      congestionPercent: (json['congestion_percent'] as num?)?.toDouble(),
+      estimatedDelaySeconds: (json['estimated_delay_seconds'] as num?)?.toInt(),
+      description: json['description']?.toString(),
+      startIndex: (json['start_index'] as num?)?.toInt() ?? 0,
+      endIndex: (json['end_index'] as num?)?.toInt() ?? 0,
+      point: (ptLat != null && ptLng != null) ? LatLng(ptLat, ptLng) : null,
+    );
+  }
+}
+
+/// Hasil analisa lalu lintas khusus sepanjang polyline rute aktif kurir.
+class RouteTrafficAnalysis {
+  final String routeSignature;
+  final List<LatLng> routeCoordinates;
+  final double routeDistanceMeters;
+  final double remainingDistanceMeters;
+  final int courierIndex;
+  final int sampledPointsCount;
+  final int availableSamplesCount;
+  final int unknownSamplesCount;
+  final int congestedSegmentsCount;
+  final bool hasCongestion;
+  final bool hasRoadClosure;
+  final TrafficConditionLevel overallStatus;
+  final String overallStatusLabel;
+  final int? estimatedDelaySeconds;
+  final RouteCongestionAlert? closestCongestion;
+  final List<RouteTrafficSegment> segments;
+  final List<TrafficIncident> incidents;
+  final DateTime fetchedAt;
+  final DateTime expiresAt;
+  final String source;
+
+  const RouteTrafficAnalysis({
+    required this.routeSignature,
+    required this.routeCoordinates,
+    required this.routeDistanceMeters,
+    required this.remainingDistanceMeters,
+    required this.courierIndex,
+    required this.sampledPointsCount,
+    required this.availableSamplesCount,
+    required this.unknownSamplesCount,
+    required this.congestedSegmentsCount,
+    required this.hasCongestion,
+    required this.hasRoadClosure,
+    required this.overallStatus,
+    required this.overallStatusLabel,
+    this.estimatedDelaySeconds,
+    this.closestCongestion,
+    required this.segments,
+    required this.incidents,
+    required this.fetchedAt,
+    required this.expiresAt,
+    this.source = 'tomtom_live',
+  });
+
+  bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt.toUtc());
+}
+
+/// Langkah instruksi pada opsi rute alternatif TomTom Routing.
+class TrafficRouteStepData {
+  final String instruction;
+  final double distanceMeters;
+  final double durationSeconds;
+  final String roadName;
+  final String maneuverType;
+  final LatLng location;
+
+  const TrafficRouteStepData({
+    required this.instruction,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    required this.roadName,
+    required this.maneuverType,
+    required this.location,
+  });
+
+  factory TrafficRouteStepData.fromJson(Map<String, dynamic> json) {
+    final loc = json['location'] is Map
+        ? Map<String, dynamic>.from(json['location'] as Map)
+        : <String, dynamic>{};
+    return TrafficRouteStepData(
+      instruction: (json['instruction'] ?? '').toString(),
+      distanceMeters: (json['distance_meters'] as num?)?.toDouble() ?? 0.0,
+      durationSeconds: (json['duration_seconds'] as num?)?.toDouble() ?? 0.0,
+      roadName: (json['road_name'] ?? '').toString(),
+      maneuverType: (json['maneuver_type'] ?? 'STRAIGHT').toString(),
+      location: LatLng(
+        (loc['lat'] as num?)?.toDouble() ?? 0.0,
+        (loc['lng'] as num?)?.toDouble() ?? 0.0,
+      ),
+    );
+  }
+}
+
+/// Opsi rute (utama maupun alternatif) dari TomTom Routing v1 berbasis kondisi lalu lintas.
+class TrafficAlternativeRoute {
+  final int routeIndex;
+  final String label;
+  final String? viaRoad;
+  final double distanceMeters;
+  final int travelTimeSeconds;
+  final int? noTrafficTravelTimeSeconds;
+  final int? trafficDelaySeconds;
+  final int timeSavedSeconds;
+  final int delayReductionSeconds;
+  final bool isRecommended;
+  final TrafficConditionLevel overallStatus;
+  final String overallStatusLabel;
+  final Color overallColor;
+  final int congestedSegmentsCount;
+  final List<LatLng> coordinates;
+  final List<TrafficRouteStepData> steps;
+  final List<RouteTrafficSegment> segments;
+
+  const TrafficAlternativeRoute({
+    required this.routeIndex,
+    required this.label,
+    this.viaRoad,
+    required this.distanceMeters,
+    required this.travelTimeSeconds,
+    this.noTrafficTravelTimeSeconds,
+    this.trafficDelaySeconds,
+    required this.timeSavedSeconds,
+    required this.delayReductionSeconds,
+    required this.isRecommended,
+    required this.overallStatus,
+    required this.overallStatusLabel,
+    required this.overallColor,
+    required this.congestedSegmentsCount,
+    required this.coordinates,
+    required this.steps,
+    required this.segments,
+  });
+
+  factory TrafficAlternativeRoute.fromJson(Map<String, dynamic> json) {
+    final level =
+        TrafficClassification.parseLevel(json['overall_status']?.toString());
+    final color = switch (level) {
+      TrafficConditionLevel.moderate => const Color(0xFFEAB308),
+      TrafficConditionLevel.heavy => const Color(0xFFF97316),
+      TrafficConditionLevel.congested || TrafficConditionLevel.roadClosed =>
+        const Color(0xFFDC2626),
+      TrafficConditionLevel.smooth => const Color(0xFF16A34A),
+      TrafficConditionLevel.unknown => const Color(0xFF64748B),
+    };
+
+    final coords = (json['coordinates'] as List? ?? [])
+        .whereType<Map>()
+        .map((c) {
+          final lat = (c['lat'] as num?)?.toDouble();
+          final lng = (c['lng'] as num?)?.toDouble();
+          if (lat == null || lng == null) return null;
+          return LatLng(lat, lng);
+        })
+        .whereType<LatLng>()
+        .toList();
+
+    final steps = (json['steps'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => TrafficRouteStepData.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    final segments = (json['segments'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => RouteTrafficSegment.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    final via = json['via_road']?.toString().trim();
+
+    return TrafficAlternativeRoute(
+      routeIndex: (json['route_index'] as num?)?.toInt() ?? 0,
+      label: (json['label'] ?? 'Rute').toString(),
+      viaRoad: (via != null && via.isNotEmpty) ? via : null,
+      distanceMeters: (json['distance_meters'] as num?)?.toDouble() ?? 0.0,
+      travelTimeSeconds: (json['travel_time_seconds'] as num?)?.toInt() ?? 0,
+      noTrafficTravelTimeSeconds:
+          (json['no_traffic_travel_time_seconds'] as num?)?.toInt(),
+      trafficDelaySeconds: (json['traffic_delay_seconds'] as num?)?.toInt(),
+      timeSavedSeconds: (json['time_saved_seconds'] as num?)?.toInt() ?? 0,
+      delayReductionSeconds:
+          (json['delay_reduction_seconds'] as num?)?.toInt() ?? 0,
+      isRecommended: json['is_recommended'] == true,
+      overallStatus: level,
+      overallStatusLabel: (json['overall_status_label'] ?? 'Lancar').toString(),
+      overallColor: color,
+      congestedSegmentsCount:
+          (json['congested_segments_count'] as num?)?.toInt() ?? 0,
+      coordinates: coords,
+      steps: steps,
+      segments: segments,
+    );
+  }
+}
+
+class TrafficAlternativesResult {
+  final String routingEngine;
+  final String travelMode;
+  final bool autoSwitch;
+  final bool hasFasterAlternative;
+  final int? recommendedRouteIndex;
+  final List<TrafficAlternativeRoute> routes;
+  final DateTime fetchedAt;
+  final DateTime expiresAt;
+
+  const TrafficAlternativesResult({
+    required this.routingEngine,
+    required this.travelMode,
+    required this.autoSwitch,
+    required this.hasFasterAlternative,
+    this.recommendedRouteIndex,
+    required this.routes,
+    required this.fetchedAt,
+    required this.expiresAt,
+  });
+
+  bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt.toUtc());
+
+  TrafficAlternativeRoute? get recommendedRoute {
+    final idx = recommendedRouteIndex;
+    if (idx == null || idx < 0 || idx >= routes.length) return null;
+    return routes[idx];
+  }
+}
+
 /// Interface fondasi untuk ekspansi routing berbasis lalu lintas (misalnya TomTom Routing API)
 /// di masa depan. Belum memiliki implementasi aktif karena routing masih OSRM OSM.
 abstract class TrafficAwareRoutingHook {

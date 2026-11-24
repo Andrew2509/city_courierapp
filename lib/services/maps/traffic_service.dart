@@ -261,6 +261,201 @@ class TrafficService {
     );
   }
 
+  /// Menghitung signature deterministik dari polyline rute agar request
+  /// tidak diulang hanya karena jitter kecil pada koordinat GPS kurir.
+  static String buildRouteSignature(List<LatLng> routeCoordinates) {
+    final n = routeCoordinates.length;
+    if (n < 2) return 'empty';
+    final step = n <= 12 ? 1 : (n ~/ 10);
+    final parts = <String>[];
+    for (int i = 0; i < n; i += step) {
+      final p = routeCoordinates[i];
+      parts.add('${p.latitude.toStringAsFixed(4)},${p.longitude.toStringAsFixed(4)}');
+    }
+    final last = routeCoordinates.last;
+    parts.add('${last.latitude.toStringAsFixed(4)},${last.longitude.toStringAsFixed(4)}');
+    return '$n|${parts.join(';')}';
+  }
+
+  /// Analisa kemacetan TomTom SEPANJANG jalur rute aktif kurir menuju penerima.
+  Future<RouteTrafficAnalysis> analyzeRouteTraffic({
+    required List<LatLng> routeCoordinates,
+    LatLng? courierLocation,
+    String travelMode = 'motorcycle',
+  }) async {
+    if (routeCoordinates.length < 2) {
+      throw const TrafficApiException(
+        kind: TrafficErrorKind.invalidResponse,
+        message: 'Minimal dua titik rute diperlukan untuk analisa lalu lintas.',
+      );
+    }
+
+    // Jika rute sangat panjang (> 800 titik), pilih sampel berindeks seragam dan
+    // petakan kembali indeks respons ke koordinat asli agar pewarnaan tetap akurat.
+    final List<int> indexMap;
+    if (routeCoordinates.length <= 800) {
+      indexMap = List<int>.generate(routeCoordinates.length, (i) => i);
+    } else {
+      final step = (routeCoordinates.length / 798).ceil();
+      final mapped = <int>[0];
+      for (int i = step; i < routeCoordinates.length - 1; i += step) {
+        mapped.add(i);
+      }
+      mapped.add(routeCoordinates.length - 1);
+      indexMap = mapped;
+    }
+
+    final payloadCoords = indexMap
+        .map((i) => {
+              'lat': routeCoordinates[i].latitude,
+              'lng': routeCoordinates[i].longitude,
+            })
+        .toList(growable: false);
+
+    final uri = Uri.parse('$_baseUrl/shipping/map/traffic/route-analysis');
+    final data = await _postJsonData(uri, {
+      'coordinates': payloadCoords,
+      if (courierLocation != null) 'courier_lat': courierLocation.latitude,
+      if (courierLocation != null) 'courier_lng': courierLocation.longitude,
+      'travel_mode': travelMode == 'car' ? 'car' : 'motorcycle',
+    });
+
+    final timestamps = _parseFreshness(data);
+    final maxOriginalIdx = routeCoordinates.length - 1;
+    int mapIdx(int backendIdx) {
+      if (backendIdx <= 0) return 0;
+      if (backendIdx >= indexMap.length) return maxOriginalIdx;
+      return indexMap[backendIdx];
+    }
+
+    final segments = (data['segments'] as List? ?? [])
+        .whereType<Map>()
+        .map((raw) {
+          final parsed =
+              RouteTrafficSegment.fromJson(Map<String, dynamic>.from(raw));
+          final mappedStart = mapIdx(parsed.startIndex);
+          final mappedEnd = mapIdx(parsed.endIndex);
+          return RouteTrafficSegment(
+            startIndex: mappedStart,
+            endIndex: mappedEnd < mappedStart ? mappedStart : mappedEnd,
+            classification: parsed.classification,
+            currentSpeedKmh: parsed.currentSpeedKmh,
+            freeFlowSpeedKmh: parsed.freeFlowSpeedKmh,
+            estimatedDelaySeconds: parsed.estimatedDelaySeconds,
+            distanceFromCourierMeters: parsed.distanceFromCourierMeters,
+            isAhead: parsed.isAhead,
+            roadName: parsed.roadName,
+            point: parsed.point,
+            sourceType: parsed.sourceType,
+          );
+        })
+        .toList();
+
+    final incidents = (data['incidents'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => TrafficIncident.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    final closestRaw = data['closest_congestion'] is Map
+        ? Map<String, dynamic>.from(data['closest_congestion'] as Map)
+        : null;
+    RouteCongestionAlert? closestAlert;
+    if (closestRaw != null) {
+      final parsedAlert = RouteCongestionAlert.fromJson(closestRaw);
+      final mappedStart = mapIdx(parsedAlert.startIndex);
+      final mappedEnd = mapIdx(parsedAlert.endIndex);
+      closestAlert = RouteCongestionAlert(
+        type: parsedAlert.type,
+        roadName: parsedAlert.roadName,
+        distanceFromCourierMeters: parsedAlert.distanceFromCourierMeters,
+        level: parsedAlert.level,
+        statusLabel: parsedAlert.statusLabel,
+        color: parsedAlert.color,
+        currentSpeedKmh: parsedAlert.currentSpeedKmh,
+        freeFlowSpeedKmh: parsedAlert.freeFlowSpeedKmh,
+        speedRatioPercent: parsedAlert.speedRatioPercent,
+        congestionPercent: parsedAlert.congestionPercent,
+        estimatedDelaySeconds: parsedAlert.estimatedDelaySeconds,
+        description: parsedAlert.description,
+        startIndex: mappedStart,
+        endIndex: mappedEnd < mappedStart ? mappedStart : mappedEnd,
+        point: parsedAlert.point,
+      );
+    }
+
+    final overallStatus =
+        TrafficClassification.parseLevel(data['overall_status']?.toString());
+
+    return RouteTrafficAnalysis(
+      routeSignature: buildRouteSignature(routeCoordinates),
+      routeCoordinates: List<LatLng>.unmodifiable(routeCoordinates),
+      routeDistanceMeters:
+          (data['route_distance_meters'] as num?)?.toDouble() ?? 0.0,
+      remainingDistanceMeters:
+          (data['remaining_distance_meters'] as num?)?.toDouble() ?? 0.0,
+      courierIndex: mapIdx((data['courier_index'] as num?)?.toInt() ?? 0),
+      sampledPointsCount:
+          (data['sampled_points_count'] as num?)?.toInt() ?? 0,
+      availableSamplesCount:
+          (data['available_samples_count'] as num?)?.toInt() ?? 0,
+      unknownSamplesCount:
+          (data['unknown_samples_count'] as num?)?.toInt() ?? 0,
+      congestedSegmentsCount:
+          (data['congested_segments_count'] as num?)?.toInt() ??
+              segments.where((s) => s.classification.isCongested).length,
+      hasCongestion: data['has_congestion'] == true,
+      hasRoadClosure: data['has_road_closure'] == true,
+      overallStatus: overallStatus,
+      overallStatusLabel:
+          (data['overall_status_label'] ?? 'Data Tidak Tersedia').toString(),
+      estimatedDelaySeconds:
+          (data['estimated_delay_seconds'] as num?)?.toInt(),
+      closestCongestion: closestAlert,
+      segments: segments,
+      incidents: incidents,
+      fetchedAt: timestamps.$1,
+      expiresAt: timestamps.$2,
+      source: (data['source'] ?? 'tomtom_live').toString(),
+    );
+  }
+
+  /// Meminta daftar rute utama + alternatif berbasis lalu lintas real-time TomTom.
+  Future<TrafficAlternativesResult> getTrafficAlternatives({
+    required LatLng origin,
+    required LatLng destination,
+    String travelMode = 'motorcycle',
+    int maxAlternatives = 2,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/shipping/map/traffic/alternatives');
+    final data = await _postJsonData(uri, {
+      'origin_lat': origin.latitude,
+      'origin_lng': origin.longitude,
+      'destination_lat': destination.latitude,
+      'destination_lng': destination.longitude,
+      'travel_mode': travelMode == 'car' ? 'car' : 'motorcycle',
+      'max_alternatives': maxAlternatives.clamp(1, 3),
+    });
+
+    final timestamps = _parseFreshness(data);
+    final routes = (data['routes'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => TrafficAlternativeRoute.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    return TrafficAlternativesResult(
+      routingEngine:
+          (data['routing_engine'] ?? 'tomtom_routing_v1').toString(),
+      travelMode: (data['travel_mode'] ?? travelMode).toString(),
+      autoSwitch: false,
+      hasFasterAlternative: data['has_faster_alternative'] == true,
+      recommendedRouteIndex:
+          (data['recommended_route_index'] as num?)?.toInt(),
+      routes: routes,
+      fetchedAt: timestamps.$1,
+      expiresAt: timestamps.$2,
+    );
+  }
+
   Future<Map<String, dynamic>> _getJsonData(Uri uri) async {
     try {
       final response = await _client

@@ -54,6 +54,8 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   bool _didFitRoute = false;
   bool _confirming = false;
   bool _isAutoCenter = true;
+  String? _dismissedAlertSignature;
+  String? _lastAltPrefetchSignature;
 
   @override
   void initState() {
@@ -64,6 +66,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
     _trafficController = TrafficController(
       service: _trafficService,
       initialEnabled: widget.initialTrafficEnabled,
+      initialShowLegend: false,
     )..addListener(_onTrafficChanged);
     _controller = NavigationController(
       order: widget.order,
@@ -140,7 +143,103 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
       }
     } catch (_) {}
 
+    _syncRouteTrafficWithController();
     setState(() {});
+  }
+
+  void _syncRouteTrafficWithController() {
+    final route = _controller.route;
+    if (route == null || route.coordinates.length < 2) return;
+
+    final cur = _controller.snappedLocation ?? _controller.currentLocation;
+    final dest = _controller.destination;
+    final sig = TrafficService.buildRouteSignature(route.coordinates);
+
+    unawaited(
+      _trafficController
+          .syncRouteTraffic(
+            routeCoordinates: route.coordinates,
+            courierLocation: cur,
+            destination: dest,
+            travelMode: 'motorcycle',
+          )
+          .then((_) {
+            if (!mounted) return;
+            final analysis = _trafficController.routeAnalysis;
+            if (analysis != null &&
+                analysis.hasCongestion &&
+                cur != null &&
+                dest != null &&
+                _lastAltPrefetchSignature != sig &&
+                _trafficController.alternativesResult == null) {
+              _lastAltPrefetchSignature = sig;
+              unawaited(
+                _trafficController.loadTrafficAlternatives(
+                  origin: cur,
+                  destination: dest,
+                  travelMode: 'motorcycle',
+                ),
+              );
+            }
+          }),
+    );
+  }
+
+  void _openRouteAlternatives() {
+    final route = _controller.route;
+    final origin = _controller.snappedLocation ??
+        _controller.currentLocation ??
+        (route != null && route.coordinates.isNotEmpty
+            ? route.coordinates.first
+            : null);
+    final dest = _controller.destination ??
+        (route != null && route.coordinates.isNotEmpty
+            ? route.coordinates.last
+            : null);
+
+    if (origin == null || dest == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Koordinat rute belum siap untuk mencari alternatif.'),
+        ),
+      );
+      return;
+    }
+
+    final activeSig = route != null && route.coordinates.length >= 2
+        ? TrafficService.buildRouteSignature(route.coordinates)
+        : '';
+
+    showRouteAlternativesSheet(
+      context: context,
+      controller: _trafficController,
+      origin: origin,
+      destination: dest,
+      currentRouteSignature: activeSig,
+      onConfirmAlternative: (alt) {
+        if (!mounted || alt.coordinates.length < 2) return;
+        final newRoute = routeModelFromAlternative(alt);
+        _dismissedAlertSignature = null;
+        _lastAltPrefetchSignature = null;
+        _controller.applyAlternativeRoute(newRoute);
+        unawaited(
+          _trafficController.syncRouteTraffic(
+            routeCoordinates: newRoute.coordinates,
+            courierLocation: origin,
+            destination: dest,
+            travelMode: 'motorcycle',
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Beralih ke ${alt.label}${alt.viaRoad != null ? ' via ${alt.viaRoad}' : ''}',
+            ),
+            backgroundColor: const Color(0xFF0F7B4A),
+          ),
+        );
+      },
+    );
   }
 
   void _fitRoute() {
@@ -252,7 +351,31 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
             top: MediaQuery.of(context).padding.top + 132,
             left: 16,
             right: 16,
-            child: TrafficMapFloatingControls(controller: _trafficController),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TrafficMapFloatingControls(controller: _trafficController),
+                if (_trafficController.isTrafficEnabled &&
+                    _trafficController.closestCongestion != null &&
+                    _dismissedAlertSignature !=
+                        _trafficController.routeAnalysis?.routeSignature) ...[
+                  const SizedBox(height: 8),
+                  RouteCongestionAlertCard(
+                    alert: _trafficController.closestCongestion!,
+                    fasterAlternative:
+                        _trafficController.alternativesResult?.recommendedRoute,
+                    onViewAlternativesTap: _openRouteAlternatives,
+                    onDismiss: () {
+                      setState(() {
+                        _dismissedAlertSignature =
+                            _trafficController.routeAnalysis?.routeSignature;
+                      });
+                    },
+                  ),
+                ],
+              ],
+            ),
           ),
           if (_trafficController.isTrafficEnabled &&
               (_trafficController.selectedRoad != null ||
@@ -347,18 +470,14 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               double whiteWidth = blueWidth + 3.0; // Casing putih +3px
 
               return PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: route.coordinates,
-                    strokeWidth: whiteWidth,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
-                  Polyline(
-                    points: route.coordinates,
-                    strokeWidth: blueWidth,
-                    color: AppColors.primaryBlue,
-                  ),
-                ],
+                polylines: buildTrafficColoredRoutePolylines(
+                  coordinates: route.coordinates,
+                  segments: _trafficController.routeSegments,
+                  trafficEnabled: _trafficController.isTrafficEnabled,
+                  baseColor: AppColors.primaryBlue,
+                  casingWidth: whiteWidth,
+                  lineWidth: blueWidth,
+                ),
               );
             },
           ),
@@ -404,12 +523,16 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   }
 
   void _showSummary() {
+    final routeTraffic = _trafficController.routeAnalysis;
+    final closest = _trafficController.closestCongestion;
+    final delaySec = routeTraffic?.estimatedDelaySeconds;
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
+      builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
@@ -435,11 +558,44 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               'Waktu perjalanan',
               _formatDuration(_controller.durationRemainingSeconds ?? 0),
             ),
-            const SizedBox(height: 20),
+            if (routeTraffic != null) ...[
+              _summaryRow('Kondisi lalu lintas', routeTraffic.overallStatusLabel),
+              if (closest != null)
+                _summaryRow(
+                  'Kemacetan terdekat',
+                  '${closest.roadName ?? 'Jalur aktif'} (${closest.formattedDistance})',
+                ),
+              if (delaySec != null && delaySec >= 30)
+                _summaryRow(
+                  'Perkiraan keterlambatan',
+                  '+${(delaySec / 60.0).ceil()} menit',
+                ),
+            ],
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  _openRouteAlternatives();
+                },
+                icon: const Icon(Icons.alt_route_rounded, size: 19),
+                label: const Text('Bandingkan Rute Alternatif (TomTom Traffic)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0F7B4A),
+                  side: const BorderSide(color: Color(0xFF0F7B4A)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(sheetCtx),
                 child: const Text('Tutup'),
               ),
             ),
@@ -1335,21 +1491,48 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
               children: [
                 // Y-route icon
                 InkWell(
-                  onTap: _showSummary,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
+                  onTap: _openRouteAlternatives,
+                  onLongPress: _showSummary,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.alt_route,
+                          color: Colors.black87,
+                          size: 28,
+                        ),
                       ),
-                    ),
-                    child: const Icon(
-                      Icons.alt_route,
-                      color: Colors.black87,
-                      size: 28,
-                    ),
+                      if (_trafficController.isTrafficEnabled &&
+                          (_trafficController.alternativesResult?.hasFasterAlternative ==
+                                  true ||
+                              _trafficController.closestCongestion != null))
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: (_trafficController.alternativesResult
+                                          ?.hasFasterAlternative ==
+                                      true)
+                                  ? const Color(0xFF16A34A)
+                                  : _trafficController.closestCongestion!.color,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 // Center ETA info

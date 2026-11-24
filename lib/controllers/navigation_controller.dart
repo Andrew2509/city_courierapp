@@ -635,6 +635,18 @@ class NavigationController extends ChangeNotifier {
     }
   }
 
+  /// Terapkan rute alternatif yang dipilih langsung oleh kurir.
+  void applyAlternativeRoute(RouteModel selectedRoute) {
+    if (_disposed || selectedRoute.coordinates.length < 2) return;
+    route = selectedRoute;
+    _lastRouteAt = DateTime.now();
+    _lastSpokenStep = null;
+    _lastSpokenNextStep = null;
+    status = NavigationStatus.navigating;
+    _evaluateNavigation();
+    notifyListeners();
+  }
+
   Future<void> _resolveDestination() async {
     if (phase == NavigationPhase.pickup) {
       pickupLocation = _orderLatLng(order, prefix: 'pickup');
