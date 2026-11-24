@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_photo_capture_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 
 class DriverDeliveryConfirmationScreen extends StatefulWidget {
@@ -287,6 +288,23 @@ class _DriverDeliveryConfirmationScreenState
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              CourierWhatsAppIconButton(
+                key: const Key('confirm_receiver_wa_top'),
+                size: 36,
+                iconSize: 18,
+                tooltip: 'Chat WA Penerima',
+                onTap: () => CourierContactHelper.openWhatsAppChat(
+                  context,
+                  phone: CourierContactHelper.extractReceiverPhone(
+                        widget.order,
+                      ) ??
+                      receiver['phone']?.toString(),
+                  isSender: false,
+                  order: widget.order,
+                ),
+              ),
+              const SizedBox(width: 6),
               OutlinedButton.icon(
                 onPressed: () => _callPhone(receiver['phone']),
                 icon: const Icon(Icons.phone, size: 16),
@@ -663,6 +681,22 @@ class _DriverDeliveryConfirmationScreenState
           // Secondary buttons row
           Row(
             children: [
+              CourierWhatsAppIconButton(
+                key: const Key('confirm_receiver_wa_bottom'),
+                size: 44,
+                iconSize: 20,
+                tooltip: 'Chat WA Penerima',
+                onTap: () => CourierContactHelper.openWhatsAppChat(
+                  context,
+                  phone: CourierContactHelper.extractReceiverPhone(
+                        widget.order,
+                      ) ??
+                      _orderDetail['receiver']['phone']?.toString(),
+                  isSender: false,
+                  order: widget.order,
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () =>
@@ -670,6 +704,8 @@ class _DriverDeliveryConfirmationScreenState
                   icon: const Icon(Icons.phone, size: 18),
                   label: Text(
                     'Hubungi Penerima',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTypography.caption.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -693,6 +729,8 @@ class _DriverDeliveryConfirmationScreenState
                   icon: const Icon(Icons.warning_amber_outlined, size: 18),
                   label: Text(
                     'Laporkan Masalah',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTypography.caption.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -725,10 +763,14 @@ class _DriverDeliveryConfirmationScreenState
                     color: AppColors.textSecondary,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Lengkapi verifikasi dan foto untuk melanjutkan',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.textSecondary,
+                  Flexible(
+                    child: Text(
+                      'Lengkapi verifikasi dan foto untuk melanjutkan',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
@@ -17,6 +18,7 @@ import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/earnings/driver_earnings_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
@@ -1462,6 +1464,86 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                   ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFF22C55E), width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('wa_flow_sender_button'),
+                  onPressed: () => CourierContactHelper.openWhatsAppChat(
+                    context,
+                    phone: CourierContactHelper.extractSenderPhone(widget.order),
+                    isSender: true,
+                    order: widget.order,
+                  ),
+                  icon: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    size: 15,
+                    color: CourierContactHelper.whatsappColor,
+                  ),
+                  label: const Text(
+                    'Chat WA Pengirim',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: CourierContactHelper.whatsappBgColor,
+                    side: const BorderSide(
+                      color: CourierContactHelper.whatsappBorderColor,
+                      width: 1.2,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('wa_flow_receiver_button'),
+                  onPressed: () => CourierContactHelper.openWhatsAppChat(
+                    context,
+                    phone: CourierContactHelper.extractReceiverPhone(widget.order),
+                    isSender: false,
+                    order: widget.order,
+                  ),
+                  icon: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    size: 15,
+                    color: CourierContactHelper.whatsappColor,
+                  ),
+                  label: const Text(
+                    'Chat WA Penerima',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: CourierContactHelper.whatsappBgColor,
+                    side: const BorderSide(
+                      color: CourierContactHelper.whatsappBorderColor,
+                      width: 1.2,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),

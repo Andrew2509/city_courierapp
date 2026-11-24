@@ -10,6 +10,7 @@ import 'package:city_courierapp/services/maps/location_repository.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
@@ -181,7 +182,7 @@ class _DriverDetailShipmentScreenState
   }
 
   void _fitBounds() {
-    if (!_isMapReady) return;
+    if (!mounted || !_isMapReady) return;
     final bounds = LatLngBounds.fromPoints([
       LatLng(_pickupLat, _pickupLng),
       LatLng(_dropoffLat, _dropoffLng),
@@ -988,6 +989,20 @@ class _DriverDetailShipmentScreenState
                                         child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFFFF5A00)),
                                       ),
                                     ),
+                                    const SizedBox(width: 6),
+                                    CourierWhatsAppIconButton(
+                                      key: const Key('wa_detail_sender_button'),
+                                      size: 30,
+                                      iconSize: 15,
+                                      isCircular: true,
+                                      tooltip: 'Chat WhatsApp Pengirim',
+                                      onTap: () => CourierContactHelper.openWhatsAppChat(
+                                        context,
+                                        phone: CourierContactHelper.extractSenderPhone(widget.shipment),
+                                        isSender: true,
+                                        order: widget.shipment,
+                                      ),
+                                    ),
                                   ],
                                 ),
 
@@ -1068,6 +1083,20 @@ class _DriverDetailShipmentScreenState
                                           ],
                                         ),
                                         child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF22C55E)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    CourierWhatsAppIconButton(
+                                      key: const Key('wa_detail_receiver_button'),
+                                      size: 30,
+                                      iconSize: 15,
+                                      isCircular: true,
+                                      tooltip: 'Chat WhatsApp Penerima',
+                                      onTap: () => CourierContactHelper.openWhatsAppChat(
+                                        context,
+                                        phone: CourierContactHelper.extractReceiverPhone(widget.shipment),
+                                        isSender: false,
+                                        order: widget.shipment,
                                       ),
                                     ),
                                   ],

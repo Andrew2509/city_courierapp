@@ -8,6 +8,7 @@ import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_s
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_detail_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 
 class DriverShipmentScreen extends StatefulWidget {
@@ -1032,6 +1033,8 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     bool canPickup,
   ) {
     final senderPhone = shipment['sender_phone'] ?? shipment['customer_phone'];
+    final waSenderPhone = CourierContactHelper.extractSenderPhone(shipment);
+    final waReceiverPhone = CourierContactHelper.extractReceiverPhone(shipment);
     final pLat = double.tryParse(shipment['pickup_latitude']?.toString() ?? '');
     final pLng = double.tryParse(shipment['pickup_longitude']?.toString() ?? '');
     final pAddress = shipment['pickup_address'];
@@ -1098,6 +1101,20 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
             ),
             const SizedBox(width: 6),
           ],
+          if (waSenderPhone != null) ...[
+            CourierWhatsAppIconButton(
+              size: 36,
+              iconSize: 17,
+              tooltip: 'Chat WA Pengirim',
+              onTap: () => CourierContactHelper.openWhatsAppChat(
+                context,
+                phone: waSenderPhone,
+                isSender: true,
+                order: shipment,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           IconButton(
             onPressed: () => _openMaps(pLat, pLng, pAddress),
             icon: const Icon(Icons.navigation, size: 18, color: Color(0xFF2563EB)),
@@ -1138,10 +1155,24 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       );
     }
 
-    // 3. Dalam Proses Pickup (status: picking_up) -> [Navigasi] & [Lanjut ke Pickup]
+    // 3. Dalam Proses Pickup (status: picking_up) -> [WA], [Navigasi] & [Lanjut ke Pickup]
     if (status == 'picking_up') {
       return Row(
         children: [
+          if (waSenderPhone != null) ...[
+            CourierWhatsAppIconButton(
+              size: 36,
+              iconSize: 17,
+              tooltip: 'Chat WA Pengirim',
+              onTap: () => CourierContactHelper.openWhatsAppChat(
+                context,
+                phone: waSenderPhone,
+                isSender: true,
+                order: shipment,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           IconButton(
             onPressed: () => _openMaps(pLat, pLng, pAddress),
             icon: const Icon(Icons.navigation, size: 18, color: Color(0xFF2563EB)),
@@ -1165,7 +1196,7 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF16A34A),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 elevation: 0,
               ),
@@ -1174,9 +1205,13 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
                 children: [
                   Icon(Icons.check_circle_outline, size: 16),
                   SizedBox(width: 4),
-                  Text(
-                    'Konfirmasi Barang Diambil',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                  Flexible(
+                    child: Text(
+                      'Konfirmasi Barang Diambil',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ],
               ),
@@ -1186,80 +1221,122 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       );
     }
 
-    // 4. Paket Telah Diambil (status: picked_up) -> [Mulai Antar Paket]
+    // 4. Paket Telah Diambil (status: picked_up) -> [WA Penerima] & [Mulai Antar Paket]
     if (status == 'picked_up') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () async {
-            final res = await CourierOrderService.updateOrderStatus(
-              orderId: shipment['id'].toString(),
-              status: 'delivering',
-            );
-            if (res['success'] == true && mounted) {
-              final updated = (res['data'] as Map<String, dynamic>?) ?? shipment;
-              Navigator.push(
+      return Row(
+        children: [
+          if (waReceiverPhone != null) ...[
+            CourierWhatsAppIconButton(
+              size: 38,
+              iconSize: 18,
+              tooltip: 'Chat WA Penerima',
+              onTap: () => CourierContactHelper.openWhatsAppChat(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => DriverDeliveryFlowScreen(order: updated),
-                ),
-              ).then((_) => _fetchShipments());
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5A00),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            elevation: 0,
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.local_shipping_outlined, size: 16),
-              SizedBox(width: 6),
-              Text(
-                'Mulai Antar ke Penerima',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                phone: waReceiverPhone,
+                isSender: false,
+                order: shipment,
               ),
-            ],
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () async {
+                final res = await CourierOrderService.updateOrderStatus(
+                  orderId: shipment['id'].toString(),
+                  status: 'delivering',
+                );
+                if (res['success'] == true && mounted) {
+                  final updated = (res['data'] as Map<String, dynamic>?) ?? shipment;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DriverDeliveryFlowScreen(order: updated),
+                    ),
+                  ).then((_) => _fetchShipments());
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5A00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.local_shipping_outlined, size: 16),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Mulai Antar ke Penerima',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
 
-    // 5. Sedang Mengantar (status: delivering) -> [Lanjutkan Pengantaran]
+    // 5. Sedang Mengantar (status: delivering) -> [WA Penerima] & [Lanjutkan Pengantaran]
     if (status == 'delivering') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DriverDeliveryFlowScreen(order: shipment),
+      return Row(
+        children: [
+          if (waReceiverPhone != null) ...[
+            CourierWhatsAppIconButton(
+              size: 38,
+              iconSize: 18,
+              tooltip: 'Chat WA Penerima',
+              onTap: () => CourierContactHelper.openWhatsAppChat(
+                context,
+                phone: waReceiverPhone,
+                isSender: false,
+                order: shipment,
               ),
-            ).then((_) => _fetchShipments());
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5A00),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            elevation: 0,
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.delivery_dining, size: 16),
-              SizedBox(width: 6),
-              Text(
-                'Lanjutkan Pengantaran',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DriverDeliveryFlowScreen(order: shipment),
+                  ),
+                ).then((_) => _fetchShipments());
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF5A00),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
               ),
-            ],
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delivery_dining, size: 16),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Lanjutkan Pengantaran',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
 

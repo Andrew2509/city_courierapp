@@ -15,6 +15,7 @@ import 'package:city_courierapp/widgets/map_arrow_marker.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 
 /// Memetakan fase navigasi ke halaman tujuan setelah kurir tiba di lokasi.
 Widget buildNavigationArrivalScreen({
@@ -1659,27 +1660,43 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
         ),
         if (phone != null) ...[
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _call(phone),
-              icon: const Icon(Icons.phone, size: 18),
-              label: Text(
-                isPickup ? 'Hubungi Pengirim' : 'Hubungi Penerima',
-                style: AppTypography.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryOrange,
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _call(phone),
+                  icon: const Icon(Icons.phone, size: 18),
+                  label: Text(
+                    isPickup ? 'Hubungi Pengirim' : 'Hubungi Penerima',
+                    style: AppTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryOrange,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryOrange,
+                    side: const BorderSide(color: AppColors.primaryOrange),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryOrange,
-                side: const BorderSide(color: AppColors.primaryOrange),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              const SizedBox(width: 8),
+              CourierWhatsAppIconButton(
+                key: const Key('nav_error_wa_button'),
+                size: 48,
+                iconSize: 21,
+                tooltip: isPickup ? 'Chat WA Pengirim' : 'Chat WA Penerima',
+                onTap: () => CourierContactHelper.openWhatsAppChat(
+                  context,
+                  phone: phone,
+                  isSender: isPickup,
+                  order: widget.order,
                 ),
               ),
-            ),
+            ],
           ),
         ],
         const SizedBox(height: 6),
@@ -2156,6 +2173,29 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                           ),
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      CourierWhatsAppIconButton(
+                        key: const Key('nav_wa_button'),
+                        size: 40,
+                        iconSize: 19,
+                        tooltip: isPickup
+                            ? 'Chat WA Pengirim'
+                            : 'Chat WA Penerima',
+                        onTap: () => CourierContactHelper.openWhatsAppChat(
+                          context,
+                          phone:
+                              phone ??
+                              (isPickup
+                                  ? CourierContactHelper.extractSenderPhone(
+                                      widget.order,
+                                    )
+                                  : CourierContactHelper.extractReceiverPhone(
+                                      widget.order,
+                                    )),
+                          isSender: isPickup,
+                          order: widget.order,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -2253,6 +2293,21 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
             Row(
               children: [
                 if (phone != null) ...[
+                  CourierWhatsAppIconButton(
+                    key: const Key('nav_arrived_wa_button'),
+                    size: 50,
+                    iconSize: 21,
+                    tooltip: isPickup
+                        ? 'Chat WA Pengirim'
+                        : 'Chat WA Penerima',
+                    onTap: () => CourierContactHelper.openWhatsAppChat(
+                      context,
+                      phone: phone,
+                      isSender: isPickup,
+                      order: widget.order,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _call(phone),

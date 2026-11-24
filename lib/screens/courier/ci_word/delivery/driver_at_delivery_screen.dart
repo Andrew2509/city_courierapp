@@ -12,6 +12,7 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_complete_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
@@ -528,6 +529,21 @@ class _DriverAtDeliveryScreenState extends State<DriverAtDeliveryScreen>
                   icon: const Icon(Icons.phone, color: AppColors.primaryOrange),
                   onPressed: () => _callPhone(
                     widget.order['receiver_phone'] ?? '+6281398765432',
+                  ),
+                ),
+                const SizedBox(width: 4),
+                CourierWhatsAppIconButton(
+                  key: const Key('at_delivery_wa_button'),
+                  size: 40,
+                  iconSize: 19,
+                  tooltip: 'Chat WA Penerima',
+                  onTap: () => CourierContactHelper.openWhatsAppChat(
+                    context,
+                    phone: CourierContactHelper.extractReceiverPhone(
+                      widget.order,
+                    ),
+                    isSender: false,
+                    order: widget.order,
                   ),
                 ),
               ],

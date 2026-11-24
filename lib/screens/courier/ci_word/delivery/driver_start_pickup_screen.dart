@@ -7,6 +7,7 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 
 class DriverStartPickupScreen extends StatefulWidget {
@@ -227,11 +228,15 @@ class _DriverStartPickupScreenState extends State<DriverStartPickupScreen> {
                           size: 20,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Menuju Titik Penjemputan',
-                          style: AppTypography.bodyMedium.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                        Flexible(
+                          child: Text(
+                            'Menuju Titik Penjemputan',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ],
@@ -283,25 +288,32 @@ class _DriverStartPickupScreenState extends State<DriverStartPickupScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Nomor Resi: ${widget.request['tracking_number'] ?? widget.request['order_number'] ?? widget.request['id'] ?? 'CC-09871'}',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Nomor Resi: ${widget.request['tracking_number'] ?? widget.request['order_number'] ?? widget.request['id'] ?? 'CC-09871'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.request['sender_name'] ?? 'PT Sentral Logistik',
-                            style: AppTypography.bodyLarge.copyWith(
-                              fontWeight: FontWeight.w700,
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.request['sender_name'] ?? 'PT Sentral Logistik',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyLarge.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -361,6 +373,8 @@ class _DriverStartPickupScreenState extends State<DriverStartPickupScreen> {
                             icon: const Icon(Icons.phone, size: 20),
                             label: Text(
                               'Hubungi',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: AppTypography.bodyMedium.copyWith(
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary.withValues(
@@ -382,7 +396,22 @@ class _DriverStartPickupScreenState extends State<DriverStartPickupScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
+                      CourierWhatsAppIconButton(
+                        key: const Key('pickup_sender_wa_button'),
+                        size: 56,
+                        iconSize: 22,
+                        tooltip: 'Chat WA Pengirim',
+                        onTap: () => CourierContactHelper.openWhatsAppChat(
+                          context,
+                          phone: CourierContactHelper.extractSenderPhone(
+                            widget.request,
+                          ),
+                          isSender: true,
+                          order: widget.request,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(
                         flex: 2,
                         child: SizedBox(
