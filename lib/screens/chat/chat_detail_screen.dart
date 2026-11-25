@@ -7,8 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:city_courierapp/models/chat/chat_models.dart';
+import 'package:city_courierapp/providers/call_provider.dart';
 import 'package:city_courierapp/providers/chat_provider.dart';
-import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/token_store.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -65,6 +65,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       widget.conversation.id,
       knownUserId: widget.knownUserId,
     );
+    if (mounted && widget.knownUserId != null) {
+      try {
+        await context.read<CallProvider>().bindAuthenticatedUser(widget.knownUserId!);
+      } catch (_) {}
+    }
     _scrollToBottom(jump: true);
   }
 
@@ -183,11 +188,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  Future<void> _startVoiceCall(ConversationModel conv) async {
+    CallProvider? callProvider;
+    try {
+      callProvider = context.read<CallProvider>();
+    } catch (_) {
+      callProvider = null;
+    }
+
+    if (callProvider == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Layanan panggilan belum siap.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final ok = await callProvider.startCallFromChat(conversation: conv);
+    if (!ok && mounted && callProvider.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(callProvider.errorMessage!),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final conv = widget.conversation;
-    final counterpartyPhone = conv.counterparty.phone;
+    final canCallCounterparty = conv.isActive && conv.counterparty.userId != null;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9),
@@ -224,16 +261,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           },
         ),
         actions: [
-          if (counterpartyPhone != null && counterpartyPhone.trim().isNotEmpty)
+          if (canCallCounterparty)
             IconButton(
-              tooltip: 'Hubungi via Telepon',
-              onPressed: () => CourierContactHelper.callPhone(context, counterpartyPhone),
-              icon: const Icon(Icons.phone_outlined, color: _primaryOrange),
+              tooltip: 'Panggilan Suara',
+              onPressed: () => unawaited(_startVoiceCall(conv)),
+              icon: const Icon(Icons.call_rounded, color: _primaryOrange),
             ),
         ],
       ),
       body: Column(
         children: [
+          Builder(
+            builder: (ctx) {
+              CallProvider? callProvider;
+              try {
+                callProvider = ctx.watch<CallProvider>();
+              } catch (_) {
+                callProvider = null;
+              }
+              if (callProvider == null || !callProvider.hasOngoingCall) {
+                return const SizedBox.shrink();
+              }
+              return InkWell(
+                onTap: callProvider.openOngoingCallScreen,
+                child: Container(
+                  width: double.infinity,
+                  color: const Color(0xFF16A34A),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.call_rounded, size: 16, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${callProvider.phaseLabel} (${callProvider.formattedDuration}) • Ketuk untuk kembali ke panggilan',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           Expanded(
             child: Consumer<ChatProvider>(
               builder: (context, provider, _) {

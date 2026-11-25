@@ -57,6 +57,7 @@ class ChatProvider extends ChangeNotifier {
   String? get lastWhatsappError => _lastWhatsappError;
   bool get isRealtimeConnected => _realtimeService.isConnected;
   ValueListenable<bool> get realtimeConnectedListenable => _realtimeService.isConnectedNotifier;
+  ChatRealtimeService get realtimeService => _realtimeService;
 
   List<ChatMessageModel> messagesFor(int conversationId) =>
       List.unmodifiable(_messagesByConversation[conversationId] ?? const []);

@@ -12,15 +12,129 @@ import 'package:provider/provider.dart';
 
 import 'package:city_courierapp/providers/chat_provider.dart';
 import 'package:city_courierapp/screens/chat/chat_detail_screen.dart';
+import 'package:city_courierapp/services/call/call_api_service.dart';
 import 'package:city_courierapp/services/chat/chat_api_service.dart';
 import 'package:city_courierapp/services/security/device_metadata_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
+
+const String _kCallChannelId = 'city_courier_calls';
+const String _kCallChannelName = 'Panggilan Suara Masuk';
+const String _kCallChannelDesc = 'Notifikasi panggilan suara masuk antara Customer dan Kurir City Courier.';
+
+int _callNotificationId(int callId) => (callId.abs() & 0x7fffffff) + 500000;
+
+Future<void> _showBackgroundIncomingCallNotification(
+  FlutterLocalNotificationsPlugin plugin,
+  Map<String, dynamic> data,
+) async {
+  final callId = int.tryParse((data['call_id'] ?? '').toString());
+  if (callId == null || callId <= 0) return;
+
+  final androidPlugin = plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+  await androidPlugin?.createNotificationChannel(
+    const AndroidNotificationChannel(
+      _kCallChannelId,
+      _kCallChannelName,
+      description: _kCallChannelDesc,
+      importance: Importance.max,
+    ),
+  );
+
+  final callerName = (data['caller_name'] ?? 'Pengguna City Courier').toString();
+  final orderNum = (data['order_number'] ?? '').toString().trim();
+  final bodyText = orderNum.isNotEmpty
+      ? 'Panggilan suara masuk • Pesanan $orderNum'
+      : 'Panggilan suara masuk dari $callerName';
+
+  final details = NotificationDetails(
+    android: AndroidNotificationDetails(
+      _kCallChannelId,
+      _kCallChannelName,
+      channelDescription: _kCallChannelDesc,
+      importance: Importance.max,
+      priority: Priority.max,
+      category: AndroidNotificationCategory.call,
+      fullScreenIntent: true,
+      ongoing: true,
+      autoCancel: false,
+      icon: '@mipmap/ic_launcher',
+      audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+      additionalFlags: Int32List.fromList(<int>[4]),
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'ACCEPT_CALL',
+          'Terima',
+          showsUserInterface: true,
+        ),
+        AndroidNotificationAction(
+          'REJECT_CALL',
+          'Tolak',
+          cancelNotification: true,
+        ),
+      ],
+    ),
+  );
+
+  await plugin.show(
+    _callNotificationId(callId),
+    'Panggilan Masuk • $callerName',
+    bodyText,
+    details,
+    payload: jsonEncode(data.map((k, v) => MapEntry(k, v.toString()))),
+  );
+}
+
+@pragma('vm:entry-point')
+Future<void> onDidReceiveBackgroundCallNotification(NotificationResponse details) async {
+  try {
+    final payload = details.payload;
+    if (payload == null || payload.isEmpty) return;
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map) return;
+    final data = Map<String, dynamic>.from(decoded);
+    if (data['type'] != 'incoming_call') return;
+
+    final callId = int.tryParse((data['call_id'] ?? '').toString());
+    if (callId == null || callId <= 0) return;
+
+    if (details.actionId == 'REJECT_CALL') {
+      final plugin = FlutterLocalNotificationsPlugin();
+      await plugin.initialize(
+        const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+      );
+      await plugin.cancel(_callNotificationId(callId));
+      final token = await TokenStore.read();
+      if (token != null && token.isNotEmpty) {
+        await CallApiService().rejectCall(callId, reason: 'rejected_from_notification');
+      }
+    }
+  } catch (_) {}
+}
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
+    }
+    final data = message.data;
+    final type = (data['type'] ?? '').toString();
+    if (type != 'incoming_call' && type != 'call_cancelled') {
+      return;
+    }
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+    );
+
+    if (type == 'incoming_call') {
+      await _showBackgroundIncomingCallNotification(plugin, Map<String, dynamic>.from(data));
+    } else {
+      final callId = int.tryParse((data['call_id'] ?? '').toString());
+      if (callId != null && callId > 0) {
+        await plugin.cancel(_callNotificationId(callId));
+      }
     }
   } catch (_) {}
 }
@@ -114,6 +228,28 @@ class ChatNotificationService {
   String? _currentFcmToken;
   int? _activeConversationId;
   int? _currentUserId;
+  Future<void> Function(Map<String, dynamic> data, {bool autoAccept})? _callPushHandler;
+  Map<String, dynamic>? _pendingCallPushData;
+  bool _pendingCallAutoAccept = false;
+
+  void attachCallPushHandler(
+    Future<void> Function(Map<String, dynamic> data, {bool autoAccept}) handler,
+  ) {
+    _callPushHandler = handler;
+    final pending = _pendingCallPushData;
+    if (pending != null) {
+      final autoAccept = _pendingCallAutoAccept;
+      _pendingCallPushData = null;
+      _pendingCallAutoAccept = false;
+      unawaited(handler(pending, autoAccept: autoAccept));
+    }
+  }
+
+  Future<void> cancelIncomingCallNotification(int callId) async {
+    try {
+      await _localNotifications.cancel(_callNotificationId(callId));
+    } catch (_) {}
+  }
 
   Future<void> init({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -128,8 +264,9 @@ class ChatNotificationService {
       await _localNotifications.initialize(
         initSettings,
         onDidReceiveNotificationResponse: (details) {
-          unawaited(_handleNotificationPayloadJson(details.payload));
+          unawaited(_handleNotificationResponse(details));
         },
+        onDidReceiveBackgroundNotificationResponse: onDidReceiveBackgroundCallNotification,
       );
 
       final androidPlugin = _localNotifications
@@ -142,6 +279,19 @@ class ChatNotificationService {
           importance: Importance.high,
         ),
       );
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _kCallChannelId,
+          _kCallChannelName,
+          description: _kCallChannelDesc,
+          importance: Importance.max,
+        ),
+      );
+
+      final launchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+      if (launchDetails?.didNotificationLaunchApp == true && launchDetails?.notificationResponse != null) {
+        unawaited(_handleNotificationResponse(launchDetails!.notificationResponse!));
+      }
 
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
@@ -247,7 +397,24 @@ class ChatNotificationService {
 
   Future<void> _handleForegroundRemoteMessage(RemoteMessage message) async {
     final data = message.data;
-    if (data['type'] != 'chat_message') return;
+    final type = (data['type'] ?? '').toString();
+
+    if (type == 'incoming_call' || type == 'call_cancelled') {
+      final callId = int.tryParse((data['call_id'] ?? '').toString());
+      if (type == 'call_cancelled' && callId != null && callId > 0) {
+        await cancelIncomingCallNotification(callId);
+      }
+      final mapped = data.map((k, v) => MapEntry(k, v.toString()));
+      if (_callPushHandler != null) {
+        await _callPushHandler!(mapped, autoAccept: false);
+      } else if (type == 'incoming_call') {
+        _pendingCallPushData = mapped;
+        _pendingCallAutoAccept = false;
+      }
+      return;
+    }
+
+    if (type != 'chat_message') return;
 
     final conversationId = int.tryParse((data['conversation_id'] ?? '').toString());
     final messageId = int.tryParse((data['message_id'] ?? '').toString());
@@ -305,18 +472,51 @@ class ChatNotificationService {
   }
 
   Future<void> _handleRemoteMessageTap(RemoteMessage message) async {
-    if (message.data['type'] != 'chat_message') return;
+    final type = (message.data['type'] ?? '').toString();
+    if (type == 'incoming_call') {
+      final mapped = message.data.map((k, v) => MapEntry(k, v.toString()));
+      await _dispatchCallTap(mapped, autoAccept: false);
+      return;
+    }
+    if (type != 'chat_message') return;
     await _navigateToConversationFromData(message.data);
   }
 
-  Future<void> _handleNotificationPayloadJson(String? payload) async {
+  Future<void> _handleNotificationResponse(NotificationResponse details) async {
+    final payload = details.payload;
     if (payload == null || payload.isEmpty) return;
     try {
       final decoded = jsonDecode(payload);
-      if (decoded is Map) {
-        await _navigateToConversationFromData(Map<String, dynamic>.from(decoded));
+      if (decoded is! Map) return;
+      final data = Map<String, dynamic>.from(decoded);
+      if (data['type'] == 'incoming_call') {
+        final callId = int.tryParse((data['call_id'] ?? '').toString());
+        if (callId != null && callId > 0) {
+          await cancelIncomingCallNotification(callId);
+        }
+        if (details.actionId == 'REJECT_CALL') {
+          if (callId != null && callId > 0) {
+            final token = await TokenStore.read();
+            if (token != null && token.isNotEmpty) {
+              await CallApiService().rejectCall(callId, reason: 'rejected_from_notification');
+            }
+          }
+          return;
+        }
+        await _dispatchCallTap(data, autoAccept: details.actionId == 'ACCEPT_CALL');
+        return;
       }
+      await _navigateToConversationFromData(data);
     } catch (_) {}
+  }
+
+  Future<void> _dispatchCallTap(Map<String, dynamic> data, {required bool autoAccept}) async {
+    if (_callPushHandler != null) {
+      await _callPushHandler!(data, autoAccept: autoAccept);
+    } else {
+      _pendingCallPushData = data;
+      _pendingCallAutoAccept = autoAccept;
+    }
   }
 
   Future<void> _navigateToConversationFromData(Map<String, dynamic> data) async {

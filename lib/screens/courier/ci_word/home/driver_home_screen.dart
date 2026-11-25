@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
+import 'package:city_courierapp/providers/call_provider.dart';
 import 'package:city_courierapp/providers/chat_provider.dart';
 import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
@@ -125,6 +126,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         });
         if (userId != null && userId > 0) {
           unawaited(context.read<ChatProvider>().bindAuthenticatedUser(userId));
+          unawaited(context.read<CallProvider>().bindAuthenticatedUser(userId));
         }
       }
     } catch (e) {

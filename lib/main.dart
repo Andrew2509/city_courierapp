@@ -10,6 +10,7 @@ import 'package:city_courierapp/services/deep_link_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/screens/profile/daftar_kurir/daftar_kurir_data.dart';
+import 'package:city_courierapp/providers/call_provider.dart';
 import 'package:city_courierapp/providers/chat_provider.dart';
 
 /// Global route observer â€“ screens can subscribe to detect when they become
@@ -38,6 +39,18 @@ void main() async {
         ChangeNotifierProvider(create: (_) => CourierStatusService()),
         ChangeNotifierProvider(create: (_) => DaftarKurirData()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProxyProvider<ChatProvider, CallProvider>(
+          create: (ctx) => CallProvider(
+            realtimeService: ctx.read<ChatProvider>().realtimeService,
+            navigatorKey: navigatorKey,
+          ),
+          update: (_, chat, previous) =>
+              previous ??
+              CallProvider(
+                realtimeService: chat.realtimeService,
+                navigatorKey: navigatorKey,
+              ),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -74,8 +87,50 @@ Future<void> _openColdStartWalletLink(Uri uri) async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  CallProvider? _tryReadCallProvider() {
+    try {
+      return context.read<CallProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final callProvider = _tryReadCallProvider();
+      if (callProvider != null) {
+        ChatNotificationService.instance.attachCallPushHandler(callProvider.handleIncomingPushData);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      final callProvider = _tryReadCallProvider();
+      if (callProvider != null) {
+        unawaited(callProvider.checkIncomingCalls());
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

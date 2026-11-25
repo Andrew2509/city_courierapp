@@ -32,6 +32,7 @@ class ChatCounterparty {
   final String role;
   final String? name;
   final String? phone;
+  final String? avatar;
   final bool waOptedIn;
 
   const ChatCounterparty({
@@ -39,6 +40,7 @@ class ChatCounterparty {
     required this.role,
     this.name,
     this.phone,
+    this.avatar,
     this.waOptedIn = false,
   });
 
@@ -51,6 +53,7 @@ class ChatCounterparty {
       role: (json['role'] ?? 'courier').toString(),
       name: json['name']?.toString(),
       phone: json['phone']?.toString(),
+      avatar: json['avatar']?.toString(),
       waOptedIn: json['wa_opted_in'] == true || json['wa_opted_in'] == 1,
     );
   }

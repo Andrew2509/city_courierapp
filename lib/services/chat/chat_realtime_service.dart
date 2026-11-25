@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'package:city_courierapp/models/call/call_models.dart';
 import 'package:city_courierapp/models/chat/chat_models.dart';
 import 'package:city_courierapp/services/chat/chat_api_service.dart';
 
@@ -42,6 +43,9 @@ class ChatRealtimeService {
       _messageStatusController = StreamController.broadcast();
   final StreamController<({int conversationId, int userId, String role, bool isTyping})>
       _typingController = StreamController.broadcast();
+  final StreamController<CallSessionModel> _incomingCallController = StreamController.broadcast();
+  final StreamController<CallSessionModel> _callUpdatedController = StreamController.broadcast();
+  final StreamController<CallSignalModel> _callSignalController = StreamController.broadcast();
 
   Stream<({int conversationId, ChatMessageModel message, int? customerUnread, int? courierUnread})>
       get onMessageSent => _messageSentController.stream;
@@ -50,6 +54,9 @@ class ChatRealtimeService {
       _messageStatusController.stream;
   Stream<({int conversationId, int userId, String role, bool isTyping})> get onUserTyping =>
       _typingController.stream;
+  Stream<CallSessionModel> get onIncomingCall => _incomingCallController.stream;
+  Stream<CallSessionModel> get onCallUpdated => _callUpdatedController.stream;
+  Stream<CallSignalModel> get onCallSignal => _callSignalController.stream;
 
   bool get isConnected => isConnectedNotifier.value;
 
@@ -111,6 +118,14 @@ class ChatRealtimeService {
 
   Future<void> subscribePrivateUser(int userId) async {
     await subscribeChannel('private-user.$userId');
+  }
+
+  Future<void> subscribePrivateCall(int callId) async {
+    await subscribeChannel('private-call.$callId');
+  }
+
+  Future<void> unsubscribePrivateCall(int callId) async {
+    await unsubscribeChannel('private-call.$callId');
   }
 
   Future<void> subscribeChannel(String channelName) async {
@@ -208,6 +223,27 @@ class ChatRealtimeService {
           isTyping: data['is_typing'] == true,
         ));
       }
+      return;
+    }
+
+    if (eventName == 'call.incoming' || eventName.endsWith(r'\IncomingCallBroadcast')) {
+      final rawCall = data['call'];
+      if (rawCall is Map) {
+        _incomingCallController.add(CallSessionModel.fromJson(Map<String, dynamic>.from(rawCall)));
+      }
+      return;
+    }
+
+    if (eventName == 'call.updated' || eventName.endsWith(r'\CallSessionUpdatedBroadcast')) {
+      final rawCall = data['call'];
+      if (rawCall is Map) {
+        _callUpdatedController.add(CallSessionModel.fromJson(Map<String, dynamic>.from(rawCall)));
+      }
+      return;
+    }
+
+    if (eventName == 'call.signal' || eventName.endsWith(r'\CallSignalBroadcast')) {
+      _callSignalController.add(CallSignalModel.fromJson(data));
     }
   }
 
@@ -314,6 +350,9 @@ class ChatRealtimeService {
     await _conversationUpdatedController.close();
     await _messageStatusController.close();
     await _typingController.close();
+    await _incomingCallController.close();
+    await _callUpdatedController.close();
+    await _callSignalController.close();
     isConnectedNotifier.dispose();
   }
 }

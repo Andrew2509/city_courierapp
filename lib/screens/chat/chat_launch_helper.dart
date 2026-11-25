@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:city_courierapp/providers/call_provider.dart';
 import 'package:city_courierapp/providers/chat_provider.dart';
 import 'package:city_courierapp/screens/chat/chat_detail_screen.dart';
 import 'package:city_courierapp/screens/chat/chat_list_screen.dart';
@@ -35,6 +36,11 @@ class ChatLaunchHelper {
   }) async {
     if (knownUserId != null) {
       await context.read<ChatProvider>().bindAuthenticatedUser(knownUserId);
+      if (context.mounted) {
+        try {
+          await context.read<CallProvider>().bindAuthenticatedUser(knownUserId);
+        } catch (_) {}
+      }
     }
     if (!context.mounted) return;
     await Navigator.of(context).push(
@@ -67,6 +73,11 @@ class ChatLaunchHelper {
     final chatProvider = context.read<ChatProvider>();
     if (knownUserId != null) {
       await chatProvider.bindAuthenticatedUser(knownUserId);
+      if (context.mounted) {
+        try {
+          await context.read<CallProvider>().bindAuthenticatedUser(knownUserId);
+        } catch (_) {}
+      }
     }
 
     if (!context.mounted) return;

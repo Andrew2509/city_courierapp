@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:city_courierapp/main.dart' show routeObserver;
+import 'package:city_courierapp/providers/call_provider.dart';
 import 'package:city_courierapp/providers/chat_provider.dart';
 import 'package:city_courierapp/screens/widgets/home/home_header.dart';
 import 'package:city_courierapp/screens/widgets/home/search_bar_widget.dart';
@@ -87,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         final parsedUserId = int.tryParse((user['id'] ?? '').toString());
         if (parsedUserId != null && parsedUserId > 0) {
           unawaited(context.read<ChatProvider>().bindAuthenticatedUser(parsedUserId));
+          unawaited(context.read<CallProvider>().bindAuthenticatedUser(parsedUserId));
         }
       }
 
@@ -104,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           _userData = null;
         });
         unawaited(context.read<ChatProvider>().clearOnLogout());
+        unawaited(context.read<CallProvider>().clearOnLogout());
       }
     }
   }
