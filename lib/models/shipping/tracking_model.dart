@@ -177,6 +177,19 @@ class TrackingModel {
         (dropPointName != null && dropPointName!.trim().isNotEmpty);
   }
 
+  int? get orderId =>
+      int.tryParse((rawJson?['order_id'] ?? rawJson?['id'] ?? '').toString());
+
+  int? get conversationId =>
+      int.tryParse((rawJson?['conversation_id'] ?? '').toString());
+
+  String get chatOrderIdentifier {
+    final oid = orderId;
+    if (oid != null && oid > 0) return oid.toString();
+    if (trackingNumber.trim().isNotEmpty) return trackingNumber.trim();
+    return (rawJson?['shipment_number'] ?? rawJson?['order_number'] ?? '').toString();
+  }
+
   const TrackingModel({
     required this.trackingNumber,
     required this.status,

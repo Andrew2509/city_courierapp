@@ -16,6 +16,8 @@ import 'package:city_courierapp/widgets/map_arrow_marker.dart';
 import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 
+import 'support/fake_maplibre_platform.dart';
+
 const List<int> _kTransparentPng = <int>[
   0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
   0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
@@ -147,6 +149,7 @@ void main() {
 
   setUpAll(() {
     HttpOverrides.global = _FakeHttpOverrides();
+    registerFakeMapLibrePlatform();
   });
 
   const origin = LatLng(-7.2900, 112.7500);

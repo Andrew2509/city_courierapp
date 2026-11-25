@@ -2,15 +2,21 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:maplibre/maplibre.dart' as ml;
 
 import 'package:city_courierapp/controllers/navigation_controller.dart';
+import 'package:city_courierapp/models/maps/traffic_models.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
+import 'package:city_courierapp/services/maps/traffic_classifier_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
+import 'package:city_courierapp/widgets/maps/maplibre_navigation_style.dart';
+import 'package:city_courierapp/widgets/maps/maplibre_navigation_view.dart';
 import 'package:city_courierapp/widgets/maps/navigation_camera_controller.dart';
+
+import 'support/fake_maplibre_platform.dart';
 
 const List<int> _kTransparentPng = <int>[
   0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
@@ -141,8 +147,11 @@ class _FakeRoutingService implements RoutingService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late FakeMapLibrePlatform fakePlatform;
+
   setUpAll(() {
     HttpOverrides.global = _FakeHttpOverrides();
+    fakePlatform = registerFakeMapLibrePlatform();
   });
 
   const startPos = LatLng(-7.2900, 112.7500);
@@ -154,6 +163,23 @@ void main() {
         coordinates: [startPos, midPos, destPos],
         distanceMeters: 1300.0,
         durationSeconds: 150.0,
+        trafficSegments: [
+          RouteTrafficSegment(
+            startIndex: 0,
+            endIndex: 1,
+            classification: TrafficClassification(
+              level: TrafficConditionLevel.congested,
+              statusKey: 'congested',
+              label: 'Macet',
+              color: TrafficClassifierService.congestedColor,
+              speedRatioPercent: 25.0,
+              congestionPercent: 75.0,
+              isAvailable: true,
+              isCongested: true,
+            ),
+            roadName: 'Jl. Semolowaru',
+          ),
+        ],
         steps: [
           RouteStep(
             instruction: 'Ke timur di Jl. Semolowaru',
@@ -192,7 +218,7 @@ void main() {
         'dropoff_longitude': destPos.longitude,
       };
 
-  group('NavigationCameraMath unit tests', () {
+  group('NavigationCameraMath & MapLibreNavigationStyle unit tests', () {
     test('shortestAngleDeltaDeg & lerpAngleDeg mengambil lintasan terpendek melintasi 0°/360°', () {
       expect(NavigationCameraMath.normalizeAngleDeg(-90.0), 270.0);
       expect(NavigationCameraMath.shortestAngleDeltaDeg(355.0, 5.0), 10.0);
@@ -209,43 +235,57 @@ void main() {
       expect(t3 - t2, closeTo(-15.0 / 360.0, 1e-6));
     });
 
-    test('computeFollowCenterOffset menempatkan kurir di bawah-tengah layar saat navigasi aktif', () {
-      final offset2d = NavigationCameraMath.computeFollowCenterOffset(
+    test('computeMapLibreFollowPadding memposisikan kendaraan di bawah-tengah untuk tampilan depan lebih luas', () {
+      final pad3d = NavigationCameraMath.computeMapLibreFollowPadding(
         const Size(400, 800),
         isNavigationActive: true,
-        tiltFraction: 0.0,
+        is3dEnabled: true,
+        bottomSheetClearance: 96.0,
       );
-      final offset3d = NavigationCameraMath.computeFollowCenterOffset(
+      final pad2d = NavigationCameraMath.computeMapLibreFollowPadding(
         const Size(400, 800),
         isNavigationActive: true,
-        tiltFraction: 1.0,
+        is3dEnabled: false,
+        bottomSheetClearance: 96.0,
       );
-      expect(offset2d.dx, 0.0);
-      expect(offset2d.dy, greaterThan(100.0));
-      expect(offset3d.dy, greaterThan(offset2d.dy));
-
-      expect(
-        NavigationCameraMath.computeFollowCenterOffset(
-          const Size(400, 800),
-          isNavigationActive: false,
-        ),
-        Offset.zero,
-      );
+      expect(pad3d.top, greaterThan(pad2d.top));
+      expect(pad3d.top, greaterThan(220.0));
+      expect(pad3d.bottom, 96.0);
     });
 
-    test('buildPerspectiveMatrix dan computeOverscanFactor mendukung transisi 2D -> 3D tanpa celah', () {
-      expect(
-        NavigationCameraMath.buildPerspectiveMatrix(0.0),
-        Matrix4.identity(),
+    test('computeTargetZoom beradaptasi dengan kecepatan dan belokan dekat', () {
+      final slowZoom = NavigationCameraMath.computeTargetZoom(
+        speedKmH: 15.0,
+        is3dEnabled: true,
       );
-      final mat3d = NavigationCameraMath.buildPerspectiveMatrix(1.0);
-      expect(mat3d.entry(3, 2), greaterThan(0.0));
+      final fastZoom = NavigationCameraMath.computeTargetZoom(
+        speedKmH: 75.0,
+        is3dEnabled: true,
+      );
+      final turnZoom = NavigationCameraMath.computeTargetZoom(
+        speedKmH: 35.0,
+        is3dEnabled: true,
+        distanceToNextTurnMeters: 80.0,
+      );
+      expect(slowZoom, greaterThan(fastZoom));
+      expect(turnZoom, greaterThan(slowZoom));
+    });
 
-      final ov2d = NavigationCameraMath.computeOverscanFactor(0.0);
-      final ov3d = NavigationCameraMath.computeOverscanFactor(1.0);
-      expect(ov2d, const Size(1.0, 1.0));
-      expect(ov3d.width, greaterThan(1.4));
-      expect(ov3d.height, greaterThan(1.3));
+    test('build3dBuildingExtrusionLayer & GeoJSON TomTom Traffic menghasilkan layer MapLibre valid', () {
+      final layer = MapLibreNavigationStyle.build3dBuildingExtrusionLayer();
+      expect(layer.sourceId, 'openmaptiles');
+      expect(layer.sourceLayerId, 'building');
+      expect(layer.minZoom, 14.0);
+      expect(layer.paint.containsKey('fill-extrusion-height'), isTrue);
+      expect(layer.paint.containsKey('fill-extrusion-base'), isTrue);
+      expect(layer.paint.containsKey('fill-extrusion-color'), isTrue);
+
+      final routeJson = MapLibreNavigationStyle.buildRouteGeoJson([
+        startPos,
+        midPos,
+      ]);
+      expect(routeJson, contains('"LineString"'));
+      expect(routeJson, contains('${startPos.longitude}'));
     });
   });
 
@@ -306,9 +346,9 @@ void main() {
     });
   });
 
-  group('DriverNavigationScreen 360° rotation, auto-rotate, compass, 2D/3D tilt & camera follow', () {
+  group('DriverNavigationScreen MapLibre 3D, auto-rotate, compass, 2D/3D & gestures', () {
     testWidgets(
-      'auto-rotate halus, kompas Google Maps, toggle 2D/3D, gestur drag & rotasi manual, dan kembali ikuti rute',
+      'merender MapLibre 3D buildings, pitch 45°, auto-rotate heading, kompas, toggle 2D/3D, gestur 360° & recenter',
       (tester) async {
         tester.view.physicalSize = const Size(720, 1520);
         tester.view.devicePixelRatio = 2.0;
@@ -330,15 +370,47 @@ void main() {
               order: order,
               phase: NavigationPhase.delivery,
               navigationController: controller,
-              initialTrafficEnabled: false,
+              initialTrafficEnabled: true,
               autoStartController: false,
             ),
           ),
         );
+        // Post-frame MapLibre create + style load callbacks
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        final mapState = fakePlatform.latestMapState!;
+        final mlWidget = tester.widget<ml.MapLibreMap>(
+          find.byType(ml.MapLibreMap),
+        );
+
+        // Pastikan gestures.all aktif (360° two-finger rotate, zoom, pitch, pan)
+        expect(mlWidget.options.gestures.rotate, isTrue);
+        expect(mlWidget.options.gestures.zoom, isTrue);
+        expect(mlWidget.options.gestures.pan, isTrue);
+        expect(mlWidget.options.gestures.pitch, isTrue);
+
+        // Pastikan style layer 3D bangunan aktif dan berada di bawah garis rute
+        final layerIds = mapState.fakeStyle.getLayerIds();
+        expect(layerIds, contains(MapLibreNavigationStyle.customBuilding3dLayerId));
+        expect(
+          mapState.fakeStyle.removedLayers,
+          contains(MapLibreNavigationStyle.defaultBuilding3dLayerId),
+        );
+        final buildingIdx = layerIds.indexOf(
+          MapLibreNavigationStyle.customBuilding3dLayerId,
+        );
+        final routeIdx = layerIds.indexOf(
+          MapLibreNavigationStyle.routeLineLayerId,
+        );
+        final trafficIdx = layerIds.indexOf(
+          MapLibreNavigationStyle.routeTrafficLayerId,
+        );
+        expect(routeIdx, greaterThan(buildingIdx));
+        expect(trafficIdx, greaterThan(buildingIdx));
 
         // Kirim sampel GPS bergerak ke Timur (90°):
-        // kamera auto-rotate ke -90° dan memposisikan kendaraan di bawah-tengah
+        // kamera 3D otomatis pitch 45° & bearing 90°, posisi kurir di bawah-tengah
         controller.ingestGpsSample(
           latitude: startPos.latitude,
           longitude: startPos.longitude + 0.001,
@@ -347,83 +419,90 @@ void main() {
           headingDeg: 90.0,
         );
         await tester.pump();
-        await tester.pump(const Duration(milliseconds: 350));
-
-        final mapWidget = tester.widget<FlutterMap>(find.byType(FlutterMap));
-        final mapController = mapWidget.mapController!;
-        expect(mapController.camera.rotation, closeTo(-90.0, 2.0));
-
-        // Pastikan kendaraan ditempatkan di bawah-tengah (screenY > tinggi/2)
-        final markerScreenPt = mapController.camera.latLngToScreenPoint(
-          controller.snappedLocation ?? controller.currentLocation!,
-        );
-        final mapHeight = mapController.camera.nonRotatedSize.y;
-        expect(markerScreenPt.y, greaterThan(mapHeight * 0.55));
-
-        // Pastikan tombol kompas & toggle 3D/2D tampil serta Polyline & MarkerLayer aktif
-        expect(find.byKey(const Key('nav_compass_button')), findsOneWidget);
-        expect(find.byKey(const Key('nav_tilt_toggle_button')), findsOneWidget);
-        expect(find.text('3D'), findsOneWidget);
-        expect(find.byType(PolylineLayer), findsOneWidget);
-        expect(find.byType(MarkerLayer), findsOneWidget);
-
-        // Toggle 3D -> 2D berjalan halus tanpa menghilangkan garis rute & marker
-        await tester.tap(find.byKey(const Key('nav_tilt_toggle_button')));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 380));
-        expect(find.text('2D'), findsOneWidget);
-        expect(find.byType(PolylineLayer), findsOneWidget);
-        expect(find.byType(MarkerLayer), findsOneWidget);
-
-        // Ketuk kompas saat peta menghadap -90° -> kembali menghadap Utara (0°)
-        await tester.tap(find.byKey(const Key('nav_compass_button')));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 350));
-        expect(controller.isCompassHeadingUp, isFalse);
-        expect(mapController.camera.rotation, closeTo(0.0, 1.5));
-
-        // Ketuk kompas lagi saat sudah menghadap Utara -> aktifkan kembali mode ikuti arah (-90°)
-        await tester.tap(find.byKey(const Key('nav_compass_button')));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 350));
-        expect(controller.isCompassHeadingUp, isTrue);
-        expect(mapController.camera.rotation, closeTo(-90.0, 2.0));
-
-        // Simulasikan drag manual oleh pengguna -> follow berhenti tanpa memaksa kamera kembali
-        final centerFinder = find.byType(FlutterMap);
-        await tester.drag(centerFinder, const Offset(80, 90));
-        await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
 
-        // Ketuk tombol Tengahkan -> kembali mengikuti kendaraan & auto-rotate
+        expect(mapState.camera!.bearing, closeTo(90.0, 2.0));
+        expect(mapState.camera!.pitch, closeTo(45.0, 0.1));
+        expect(mapState.lastPadding.top, greaterThan(200.0));
+
+        final courierLoc =
+            controller.snappedLocation ?? controller.currentLocation!;
+        final screenPt = mapState.toScreenLocation(
+          ml.Geographic(lon: courierLoc.longitude, lat: courierLoc.latitude),
+        );
+        expect(screenPt.dy, greaterThan(760.0 * 0.50));
+
+        // Pastikan polyline rute & traffic terupdate ke GeoJSON source
+        expect(
+          mapState.fakeStyle
+              .decodeFirstLineCoords(MapLibreNavigationStyle.routeSourceId)
+              .length,
+          greaterThanOrEqualTo(2),
+        );
+        expect(
+          mapState.fakeStyle.decodeFirstLineCoords(
+            MapLibreNavigationStyle.routeTrafficSourceId,
+          ).length,
+          greaterThanOrEqualTo(2),
+        );
+
+        // Pastikan WidgetLayer marker & tombol kontrol navigasi tampil (tanpa chip atribusi mengambang)
+        expect(find.byType(ml.WidgetLayer), findsWidgets);
+        expect(find.byKey(const Key('nav_compass_button')), findsOneWidget);
+        expect(find.byKey(const Key('nav_tilt_toggle_button')), findsOneWidget);
+        expect(find.byKey(const Key('nav_osm_attribution_chip')), findsNothing);
+        expect(find.text('© OpenStreetMap'), findsNothing);
+        expect(find.text('3D'), findsOneWidget);
+
+        // Toggle 3D -> 2D (pitch 0°) berjalan mulus tanpa hentikan navigasi
+        await tester.tap(find.byKey(const Key('nav_tilt_toggle_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.text('2D'), findsOneWidget);
+        expect(mapState.camera!.pitch, closeTo(0.0, 0.1));
+
+        // Toggle 2D -> 3D kembali ke pitch 45° & heading-up
+        await tester.tap(find.byKey(const Key('nav_tilt_toggle_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.text('3D'), findsOneWidget);
+        expect(mapState.camera!.pitch, closeTo(45.0, 0.1));
+        expect(mapState.camera!.bearing, closeTo(90.0, 2.0));
+
+        // Ketuk kompas saat menghadap Timur (90°) -> kembali menghadap Utara (0°)
+        await tester.tap(find.byKey(const Key('nav_compass_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(controller.isCompassHeadingUp, isFalse);
+        expect(mapState.camera!.bearing, closeTo(0.0, 1.5));
+
+        // Ketuk kompas saat Utara -> aktifkan kembali mode ikuti arah (90°)
+        await tester.tap(find.byKey(const Key('nav_compass_button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(controller.isCompassHeadingUp, isTrue);
+        expect(mapState.camera!.bearing, closeTo(90.0, 2.0));
+
+        // Simulasikan rotasi manual dua jari -> mode heading-up berhenti seketika
+        mapState.simulateUserRotate(215.0);
+        await tester.pump();
+        expect(controller.isCompassHeadingUp, isFalse);
+        expect(mapState.camera!.bearing, closeTo(215.0, 1.0));
+
+        // Simulasikan drag manual peta -> follow berhenti hingga Tengahkan diketuk
+        await tester.drag(
+          find.byType(NavigationMapLibreView),
+          const Offset(80, 90),
+        );
+        await tester.pump();
+
+        // Ketuk tombol Tengahkan -> kembali mengikuti kurir, arah 90°, & 3D 45°
         await tester.tap(find.byKey(const Key('nav_recenter_button')));
         await tester.pump();
-        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pump(const Duration(milliseconds: 50));
         expect(controller.isCompassHeadingUp, isTrue);
-        expect(mapController.camera.rotation, closeTo(-90.0, 2.0));
-
-        // Pastikan map supports InteractiveFlag.all (360° two-finger rotation + zoom + drag)
-        expect(
-          InteractiveFlag.hasFlag(
-            mapWidget.options.interactionOptions.flags,
-            InteractiveFlag.rotate,
-          ),
-          isTrue,
-        );
-        expect(
-          InteractiveFlag.hasFlag(
-            mapWidget.options.interactionOptions.flags,
-            InteractiveFlag.pinchZoom,
-          ),
-          isTrue,
-        );
-        expect(
-          InteractiveFlag.hasFlag(
-            mapWidget.options.interactionOptions.flags,
-            InteractiveFlag.drag,
-          ),
-          isTrue,
-        );
+        expect(mapState.camera!.bearing, closeTo(90.0, 2.0));
+        expect(mapState.camera!.pitch, closeTo(45.0, 0.1));
 
         await tester.pumpWidget(const SizedBox.shrink());
       },

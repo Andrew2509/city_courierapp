@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/services/auth_service.dart';
+import 'package:city_courierapp/services/chat/chat_notification_service.dart';
 import 'package:city_courierapp/services/security/biometric_guard_service.dart';
 import 'package:city_courierapp/services/security/device_metadata_service.dart';
 
@@ -431,6 +432,7 @@ class ApiService {
   }
 
   static Future<void> logout() async {
+    await ChatNotificationService.instance.unregisterCurrentToken();
     final token = await TokenStore.read();
     if (token != null && token.isNotEmpty) {
       try {

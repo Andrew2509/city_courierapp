@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
@@ -12,6 +11,7 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_complete_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
+import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
@@ -177,12 +177,8 @@ class _DriverAtDeliveryScreenState extends State<DriverAtDeliveryScreen>
     );
   }
 
-  Future<void> _callPhone(String phoneNumber) async {
-    final uri = Uri.parse('tel:$phoneNumber');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
+  Future<void> _callPhone(String? phoneNumber) =>
+      CourierContactHelper.callPhone(context, phoneNumber);
 
   void _markAsDelivered() {
     setState(() {
@@ -528,7 +524,22 @@ class _DriverAtDeliveryScreenState extends State<DriverAtDeliveryScreen>
                 IconButton(
                   icon: const Icon(Icons.phone, color: AppColors.primaryOrange),
                   onPressed: () => _callPhone(
-                    widget.order['receiver_phone'] ?? '+6281398765432',
+                    CourierContactHelper.extractReceiverPhone(widget.order) ??
+                        widget.order['receiver_phone']?.toString(),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChatOrderIconButton(
+                  key: const Key('at_delivery_chat_button'),
+                  size: 40,
+                  iconSize: 18,
+                  isCircular: true,
+                  tooltip: 'Chat Customer',
+                  onTap: () => ChatLaunchHelper.openOrderChat(
+                    context,
+                    orderIdentifier: ChatLaunchHelper.extractOrderIdentifier(
+                      widget.order,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),

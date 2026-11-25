@@ -161,10 +161,28 @@ class CourierContactHelper {
     return false;
   }
 
-  /// Membuka dialer telepon dengan pengecekan nomor kosong yang aman.
-  static Future<bool> callPhone(BuildContext context, String? rawPhone) async {
+  /// Membuka langsung kontak nomor tujuan di WhatsApp (tanpa isi pesan teks)
+  /// agar kurir dapat langsung menelepon via WA, dengan fallback ke dialer
+  /// seluler `tel:` apabila WhatsApp tidak terpasang.
+  static Future<bool> callPhone(
+    BuildContext context,
+    String? rawPhone, {
+    Future<bool> Function(Uri uri)? canLaunchOverride,
+    Future<bool> Function(Uri uri, {LaunchMode mode})? launchOverride,
+  }) async {
+    final canLaunch = canLaunchOverride ?? canLaunchUrl;
+    Future<bool> doLaunch(
+      Uri uri, {
+      LaunchMode mode = LaunchMode.platformDefault,
+    }) {
+      return launchOverride != null
+          ? launchOverride(uri, mode: mode)
+          : launchUrl(uri, mode: mode);
+    }
+
+    final waAppUri = buildWhatsAppAppUri(rawPhone);
     final clean = rawPhone?.replaceAll(RegExp(r'[^0-9+]'), '') ?? '';
-    if (clean.isEmpty) {
+    if (waAppUri == null && clean.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Nomor telepon tidak tersedia')),
@@ -173,16 +191,33 @@ class CourierContactHelper {
       return false;
     }
 
-    final uri = Uri(scheme: 'tel', path: clean);
-    try {
-      if (await canLaunchUrl(uri)) {
-        return await launchUrl(uri);
-      }
-    } catch (_) {}
+    if (waAppUri != null) {
+      try {
+        if (await canLaunch(waAppUri)) {
+          final launched = await doLaunch(
+            waAppUri,
+            mode: LaunchMode.externalApplication,
+          );
+          if (launched) return true;
+        }
+      } catch (_) {}
+    }
+
+    if (clean.isNotEmpty) {
+      final telUri = Uri(scheme: 'tel', path: clean);
+      try {
+        if (await canLaunch(telUri)) {
+          final launched = await doLaunch(telUri);
+          if (launched) return true;
+        }
+      } catch (_) {}
+    }
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak dapat membuka aplikasi telepon')),
+        const SnackBar(
+          content: Text('Tidak dapat membuka WhatsApp atau aplikasi telepon'),
+        ),
       );
     }
     return false;

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_photo_capture_screen.dart';
@@ -77,13 +76,8 @@ class _DriverDeliveryConfirmationScreenState
     }
   }
 
-  Future<void> _callPhone(String phone) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'[\s\-]'), '');
-    final uri = Uri.parse('tel:$cleanPhone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
+  Future<void> _callPhone(String? phone) =>
+      CourierContactHelper.callPhone(context, phone);
 
   void _reportIssue() {
     ScaffoldMessenger.of(context).showSnackBar(

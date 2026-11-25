@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
+import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 
@@ -95,10 +95,10 @@ class _DriverStartPickupScreenState extends State<DriverStartPickupScreen> {
     }
   }
 
-  Future<void> _callSender() async {
-    final phone = widget.request['sender_phone'] ?? '081343323155';
-    final uri = Uri.parse('tel:$phone');
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  Future<void> _callSender() {
+    final phone = CourierContactHelper.extractSenderPhone(widget.request) ??
+        widget.request['sender_phone']?.toString();
+    return CourierContactHelper.callPhone(context, phone);
   }
 
   @override
@@ -396,11 +396,25 @@ class _DriverStartPickupScreenState extends State<DriverStartPickupScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
+                      ChatOrderIconButton(
+                        key: const Key('pickup_internal_chat_button'),
+                        size: 46,
+                        iconSize: 20,
+                        isCircular: false,
+                        tooltip: 'Chat Dalam Aplikasi',
+                        onTap: () => ChatLaunchHelper.openOrderChat(
+                          context,
+                          orderIdentifier: ChatLaunchHelper.extractOrderIdentifier(
+                            widget.request,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       CourierWhatsAppIconButton(
                         key: const Key('pickup_sender_wa_button'),
-                        size: 56,
-                        iconSize: 22,
+                        size: 46,
+                        iconSize: 20,
                         tooltip: 'Chat WA Pengirim',
                         onTap: () => CourierContactHelper.openWhatsAppChat(
                           context,

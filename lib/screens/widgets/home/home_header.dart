@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 
 class HomeHeader extends StatelessWidget {
   final Map<String, dynamic>? userData;
@@ -56,6 +57,11 @@ class HomeHeader extends StatelessWidget {
                     height: 80,
                     fit: BoxFit.contain,
                   ),
+                  if (userData != null)
+                    ChatInboxIconButton(
+                      knownUserId: int.tryParse((userData!['id'] ?? '').toString()),
+                      iconColor: const Color(0xFFEC5B13),
+                    ),
                 ],
               ),
               if (userData != null &&

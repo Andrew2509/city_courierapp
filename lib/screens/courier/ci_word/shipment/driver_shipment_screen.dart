@@ -228,13 +228,8 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
-  void _openDialer(String? phone) async {
-    if (phone == null || phone.isEmpty) return;
-    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
-    final uri = Uri.parse('tel:$cleanPhone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
+  void _openDialer(String? phone) {
+    CourierContactHelper.callPhone(context, phone);
   }
 
   void _openMaps(double? lat, double? lng, String? address) async {

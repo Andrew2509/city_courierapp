@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/services/maps/location_repository.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
@@ -192,12 +191,8 @@ class _DriverDetailShipmentScreenState
     );
   }
 
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(launchUri)) {
-      await launchUrl(launchUri);
-    }
-  }
+  Future<void> _makePhoneCall(String? phoneNumber) =>
+      CourierContactHelper.callPhone(context, phoneNumber);
 
   String _formatCurrency(double amount) {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';

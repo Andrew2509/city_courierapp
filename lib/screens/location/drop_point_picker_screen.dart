@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
-import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+import 'package:maplibre/maplibre.dart' as ml;
 import '../../services/shipping/map_service.dart';
 
 class DropPointPickerScreen extends StatefulWidget {
@@ -15,7 +17,7 @@ class DropPointPickerScreen extends StatefulWidget {
 }
 
 class _DropPointPickerScreenState extends State<DropPointPickerScreen> {
-  MapLibreMapController? _mapController;
+  ml.MapController? _mapController;
   LatLng _selectedLocation = const LatLng(-6.2000, 106.8166); // Default Jakarta
   String _address = 'Mencari alamat...';
   bool _isLoading = false;
@@ -31,41 +33,54 @@ class _DropPointPickerScreenState extends State<DropPointPickerScreen> {
     }
   }
 
-  void _onMapCreated(MapLibreMapController controller) {
-    _mapController = controller;
-    
-    // Dengarkan saat kamera peta berhenti bergerak untuk reverse geocoding
-    _mapController!.addListener(() {
-      if (!_mapController!.isCameraMoving) {
-        final center = _mapController!.cameraPosition?.target;
-        if (center != null) {
-          setState(() {
-            _selectedLocation = center;
-          });
-          _getAddress(center);
-        }
+  void _handleMapEvent(ml.MapEvent event) {
+    if (event is ml.MapEventMapCreated) {
+      _mapController = event.mapController;
+    } else if (event is ml.MapEventCameraIdle || event is ml.MapEventIdle) {
+      final center = _mapController?.getCamera().center;
+      if (center != null && mounted) {
+        final next = LatLng(center.lat, center.lon);
+        setState(() {
+          _selectedLocation = next;
+        });
+        _getAddress(next);
       }
-    });
+    }
   }
 
   Future<void> _determinePosition() async {
     setState(() => _isLocating = true);
     try {
-      Position position = await Geolocator.getCurrentPosition();
-      LatLng currentLatLng = LatLng(position.latitude, position.longitude);
-      
+      final Position position = await Geolocator.getCurrentPosition();
+      final LatLng currentLatLng = LatLng(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (!mounted) return;
       setState(() {
         _selectedLocation = currentLatLng;
         _isLocating = false;
       });
 
-      if (_mapController != null) {
-        _mapController!.animateCamera(CameraUpdate.newLatLngZoom(currentLatLng, 15.0));
+      final ctrl = _mapController;
+      if (ctrl != null) {
+        unawaited(
+          ctrl
+              .animateCamera(
+                center: ml.Geographic(
+                  lon: currentLatLng.longitude,
+                  lat: currentLatLng.latitude,
+                ),
+                zoom: 15.0,
+              )
+              .catchError((_) {}),
+        );
       }
-      _getAddress(currentLatLng);
+      await _getAddress(currentLatLng);
     } catch (e) {
-      setState(() => _isLocating = false);
       if (!mounted) return;
+      setState(() => _isLocating = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal mendapatkan lokasi GPS: $e')),
       );
@@ -73,13 +88,19 @@ class _DropPointPickerScreenState extends State<DropPointPickerScreen> {
   }
 
   Future<void> _getAddress(LatLng location) async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final url = Uri.parse(
-          'https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}&zoom=18');
-      
-      final response = await http.get(url, headers: {'User-Agent': 'CityCourierApp'});
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}&zoom=18',
+      );
 
+      final response = await http.get(
+        url,
+        headers: {'User-Agent': 'CityCourierApp'},
+      );
+
+      if (!mounted) return;
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -88,6 +109,7 @@ class _DropPointPickerScreenState extends State<DropPointPickerScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _address = 'Gagal memuat detail alamat';
         _isLoading = false;
@@ -97,32 +119,40 @@ class _DropPointPickerScreenState extends State<DropPointPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryOrange = const Color(0xFFEC5B13);
+    const Color primaryOrange = Color(0xFFEC5B13);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pilih Titik Antar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Pilih Titik Antar',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [
           IconButton(
             onPressed: _determinePosition,
-            icon: Icon(Icons.my_location, color: _isLocating ? primaryOrange : Colors.grey),
-          )
+            icon: Icon(
+              Icons.my_location,
+              color: _isLocating ? primaryOrange : Colors.grey,
+            ),
+          ),
         ],
       ),
       body: Stack(
         children: [
-          // Menggunakan MapLibre GL Native
-          MapLibreMap(
-            onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: _selectedLocation,
-              zoom: 15.0,
+          // Menggunakan MapLibre Native SDK
+          ml.MapLibreMap(
+            options: ml.MapOptions(
+              initCenter: ml.Geographic(
+                lon: _selectedLocation.longitude,
+                lat: _selectedLocation.latitude,
+              ),
+              initZoom: 15.0,
+              initStyle: MapService.getStyleUrl('sleek-dark'),
             ),
-            // Mengambil Style JSON yang diproxy dan diamankan oleh Laravel
-            styleString: MapService.getStyleUrl('sleek-dark'),
+            onEvent: _handleMapEvent,
           ),
           
           // Fixed Center Pin Overlay

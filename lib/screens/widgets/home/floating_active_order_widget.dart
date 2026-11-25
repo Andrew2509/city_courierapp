@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_detail_screen.dart';
 import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
@@ -616,7 +617,7 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                     size: 32,
                     iconSize: 15,
                     onTap: () async {
-                      if (!hasCourier || courierPhone.isEmpty) {
+                      if (!hasCourier) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Menunggu kurir menerima pengantaran...'),
@@ -625,21 +626,13 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                         );
                         return;
                       }
-                      final waUrl = Uri.parse(
-                          'https://wa.me/62${courierPhone.replaceFirst(RegExp(r'^0'), '')}?text=Halo%20$courierName%2C%20saya%20pemesan%20City%20Courier%20($orderId)');
-                      if (await canLaunchUrl(waUrl)) {
-                        await launchUrl(waUrl,
-                            mode: LaunchMode.externalApplication);
-                      } else {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Chat kurir di: $courierPhone'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      }
+                      final resolvedOrderId =
+                          ChatLaunchHelper.extractOrderIdentifier(shipmentData) ??
+                              orderId.toString();
+                      await ChatLaunchHelper.openOrderChat(
+                        context,
+                        orderIdentifier: resolvedOrderId,
+                      );
                     },
                   ),
                 ],

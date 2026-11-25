@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
+import 'package:city_courierapp/services/chat/chat_notification_service.dart';
 import 'package:city_courierapp/services/courier/courier_status_service.dart';
 import 'package:city_courierapp/services/deep_link_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/screens/profile/daftar_kurir/daftar_kurir_data.dart';
+import 'package:city_courierapp/providers/chat_provider.dart';
 
 /// Global route observer â€“ screens can subscribe to detect when they become
 /// visible again (e.g. after Navigator.pop from a child screen).
@@ -18,6 +22,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   // Siapkan deep link sebelum runApp agar cold-start tidak terlewat (PRD Â§32).
   await DeepLinkService.instance.init();
@@ -28,10 +33,13 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => CourierStatusService()),
         ChangeNotifierProvider(create: (_) => DaftarKurirData()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: const MyApp(),
     ),
   );
+
+  unawaited(ChatNotificationService.instance.init(navigatorKey: navigatorKey));
 
   if (initialLink != null) {
     _openColdStartWalletLink(initialLink);

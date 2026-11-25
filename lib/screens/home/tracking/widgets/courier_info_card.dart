@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:city_courierapp/models/shipping/tracking_model.dart';
+import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Card informasi kurir
 class CourierInfoCard extends StatelessWidget {
   final TrackingCourier? courier;
+  final String? orderIdentifier;
 
-  const CourierInfoCard({super.key, this.courier});
+  const CourierInfoCard({super.key, this.courier, this.orderIdentifier});
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +119,19 @@ class CourierInfoCard extends StatelessWidget {
             ),
           ),
 
-          // Contact button
+          // Contact actions (In-app Chat + Telepon)
+          if (orderIdentifier != null && orderIdentifier!.trim().isNotEmpty) ...[
+            ChatOrderIconButton(
+              size: 38,
+              iconSize: 18,
+              tooltip: 'Chat Kurir',
+              onTap: () => ChatLaunchHelper.openOrderChat(
+                context,
+                orderIdentifier: orderIdentifier,
+              ),
+            ),
+            if (courier!.phone != null) const SizedBox(width: 8),
+          ],
           if (courier!.phone != null)
             TextButton.icon(
               onPressed: () => _launchPhone(courier!.phone!),

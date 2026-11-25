@@ -18,7 +18,6 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
   bool _isLoading = true;
   bool _isDetectingLocation = true;
   String? _detectedProvince;
-  int? _detectedProvinceId;
   List<Map<String, dynamic>> _cities = [];
   String _searchQuery = '';
   String? _selectedCity;
@@ -61,7 +60,9 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       final result = await RajaOngkirService.reverseGeocode(
@@ -75,8 +76,10 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
 
         if (provinceName != null && provinceName.isNotEmpty) {
           final provincesResult = await RajaOngkirService.getProvinces();
-          if (provincesResult['success'] == true && provincesResult['data'] != null) {
-            final List<dynamic> provinces = provincesResult['data'] as List<dynamic>;
+          if (provincesResult['success'] == true &&
+              provincesResult['data'] != null) {
+            final List<dynamic> provinces =
+                provincesResult['data'] as List<dynamic>;
             Map<String, dynamic>? matchedProvince;
             for (final p in provinces) {
               final pMap = p as Map<String, dynamic>;
@@ -90,15 +93,22 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
             }
 
             if (matchedProvince != null) {
-              final provinceId = int.tryParse(matchedProvince['province_id'].toString());
+              final provinceId = int.tryParse(
+                matchedProvince['province_id'].toString(),
+              );
               if (provinceId != null) {
-                final citiesResult = await RajaOngkirService.getCities(provinceId);
-                if (citiesResult['success'] == true && citiesResult['data'] != null) {
-                  final List<dynamic> rawCities = citiesResult['data'] as List<dynamic>;
+                final citiesResult = await RajaOngkirService.getCities(
+                  provinceId,
+                );
+                if (citiesResult['success'] == true &&
+                    citiesResult['data'] != null) {
+                  final List<dynamic> rawCities =
+                      citiesResult['data'] as List<dynamic>;
                   setState(() {
                     _detectedProvince = provinceName;
-                    _detectedProvinceId = provinceId;
-                    _cities = rawCities.map((c) => c as Map<String, dynamic>).toList();
+                    _cities = rawCities
+                        .map((c) => c as Map<String, dynamic>)
+                        .toList();
                     _isLoading = false;
                     _isDetectingLocation = false;
                   });
@@ -136,10 +146,12 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
   List<Map<String, dynamic>> get _filteredCities {
     if (_searchQuery.isEmpty) return _cities;
     return _cities
-        .where((c) => (c['city_name'] ?? c['name'] ?? '')
-            .toString()
-            .toLowerCase()
-            .contains(_searchQuery.toLowerCase()))
+        .where(
+          (c) => (c['city_name'] ?? c['name'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase()),
+        )
         .toList();
   }
 
@@ -174,7 +186,9 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
               decoration: BoxDecoration(
                 color: DaftarKurirColors.primary.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: DaftarKurirColors.primary.withOpacity(0.2)),
+                border: Border.all(
+                  color: DaftarKurirColors.primary.withOpacity(0.2),
+                ),
               ),
               child: Row(
                 children: [
@@ -213,11 +227,8 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Lokasi terdeteksi: ${_detectedProvince}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.green,
-                      ),
+                      'Lokasi terdeteksi: $_detectedProvince',
+                      style: const TextStyle(fontSize: 14, color: Colors.green),
                     ),
                   ),
                 ],
@@ -236,7 +247,7 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
-                  )
+                  ),
                 ],
               ),
               child: TextField(
@@ -298,7 +309,7 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                       color: Colors.black.withOpacity(0.05),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ],
                 ),
                 padding: const EdgeInsets.all(8),
@@ -321,7 +332,9 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isSelected ? DaftarKurirColors.bgLight : Colors.transparent,
+                          color: isSelected
+                              ? DaftarKurirColors.bgLight
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -344,7 +357,9 @@ class _PilihAreaScreenState extends State<PilihAreaScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isSelected ? DaftarKurirColors.primary : DaftarKurirColors.border,
+                                  color: isSelected
+                                      ? DaftarKurirColors.primary
+                                      : DaftarKurirColors.border,
                                   width: isSelected ? 6 : 2,
                                 ),
                               ),

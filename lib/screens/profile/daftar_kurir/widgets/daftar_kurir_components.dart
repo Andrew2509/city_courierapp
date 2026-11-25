@@ -495,14 +495,18 @@ InputDecoration buildDaftarKurirFieldDecoration({
     ),
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
-    helperText: helperText,
-    helperStyle: const TextStyle(
-      fontSize: 12.5,
-      height: 1.35,
-      color: DaftarKurirColors.textSub,
-    ),
-    helperMaxLines: 2,
-    errorMaxLines: 2,
+    // Pakai widget `helper` (bukan `helperText`) supaya teks bantuan panjang
+    // selalu wrap penuh tanpa dipotong elipsis oleh InputDecorator.
+    helper: helperText == null
+        ? null
+        : Text(
+            helperText,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              color: DaftarKurirColors.textSub,
+            ),
+          ),
     filled: true,
     fillColor: Colors.white,
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -510,7 +514,10 @@ InputDecoration buildDaftarKurirFieldDecoration({
     enabledBorder: defaultBorder,
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: DaftarKurirColors.primary, width: 1.5),
+      borderSide: const BorderSide(
+        color: DaftarKurirColors.primary,
+        width: 1.5,
+      ),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),

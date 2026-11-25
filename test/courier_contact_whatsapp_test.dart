@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart' show LaunchMode;
 
 import 'package:city_courierapp/controllers/navigation_controller.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
@@ -16,6 +17,8 @@ import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_detail_s
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
+
+import 'support/fake_maplibre_platform.dart';
 
 const List<int> _kTransparentPng = <int>[
   0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
@@ -148,6 +151,7 @@ void main() {
 
   setUpAll(() {
     HttpOverrides.global = _FakeHttpOverrides();
+    registerFakeMapLibrePlatform();
   });
 
   const origin = LatLng(-7.2900, 112.7500);
@@ -307,6 +311,64 @@ void main() {
       );
       expect(CourierContactHelper.extractSenderPhone({'sender_phone': ' '}), isNull);
     });
+
+    testWidgets(
+      'callPhone mengarahkan ke WhatsApp nomor tujuan tanpa teks pesan saat WA tersedia, dan fallback tel: bila tidak ada',
+      (tester) async {
+        final launchedUris = <Uri>[];
+        late BuildContext capturedCtx;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (ctx) {
+                  capturedCtx = ctx;
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+          ),
+        );
+
+        // 1. WhatsApp tersedia -> langsung whatsapp://send?phone=62... tanpa teks
+        final okWa = await CourierContactHelper.callPhone(
+          capturedCtx,
+          '0812-3456-7890',
+          canLaunchOverride: (uri) async => uri.scheme == 'whatsapp',
+          launchOverride: (uri, {mode = LaunchMode.platformDefault}) async {
+            launchedUris.add(uri);
+            return true;
+          },
+        );
+        expect(okWa, isTrue);
+        expect(launchedUris.length, 1);
+        expect(launchedUris.last.scheme, 'whatsapp');
+        expect(launchedUris.last.queryParameters['phone'], '6281234567890');
+        expect(launchedUris.last.queryParameters.containsKey('text'), isFalse);
+
+        // 2. WhatsApp tidak tersedia -> fallback tel:
+        final okTel = await CourierContactHelper.callPhone(
+          capturedCtx,
+          '0812-3456-7890',
+          canLaunchOverride: (uri) async => uri.scheme == 'tel',
+          launchOverride: (uri, {mode = LaunchMode.platformDefault}) async {
+            launchedUris.add(uri);
+            return true;
+          },
+        );
+        expect(okTel, isTrue);
+        expect(launchedUris.length, 2);
+        expect(launchedUris.last.scheme, 'tel');
+        expect(launchedUris.last.path, '081234567890');
+
+        // 3. Nomor kosong -> snackbar aman
+        final okEmpty = await CourierContactHelper.callPhone(capturedCtx, '');
+        expect(okEmpty, isFalse);
+        await tester.pump();
+        expect(find.text('Nomor telepon tidak tersedia'), findsOneWidget);
+      },
+    );
   });
 
   group('Courier WhatsApp UI integration tests', () {

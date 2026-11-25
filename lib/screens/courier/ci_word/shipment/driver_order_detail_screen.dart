@@ -7,6 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_confirmation_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_summary_screen.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 
 class DriverDetailShipmentScreen extends StatefulWidget {
@@ -102,13 +103,8 @@ class _DriverDetailShipmentScreenState
     }
   }
 
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final cleanNumber = phoneNumber.replaceAll(RegExp(r'[\s\-\+]'), '');
-    final uri = Uri.parse('tel:$cleanNumber');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
+  Future<void> _makePhoneCall(String? phoneNumber) =>
+      CourierContactHelper.callPhone(context, phoneNumber);
 
   Future<void> _openWhatsApp(String phoneNumber) async {
     final cleanNumber = phoneNumber.replaceAll(RegExp(r'[\s\-\+]'), '');

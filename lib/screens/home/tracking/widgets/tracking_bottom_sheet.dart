@@ -390,7 +390,10 @@ class TrackingBottomSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        CourierInfoCard(courier: tracking.courier),
+        CourierInfoCard(
+          courier: tracking.courier,
+          orderIdentifier: tracking.chatOrderIdentifier,
+        ),
       ],
     );
   }

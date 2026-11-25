@@ -25,27 +25,26 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
 
   final ImagePicker _picker = ImagePicker();
   bool get _isAllRequiredUploaded {
-    return _uploadStatus['KTP'] == true && 
-           _uploadStatus['SIM'] == true && 
-           _uploadStatus['STNK'] == true &&
-           _uploadStatus['SKCK'] == true;
+    return _uploadStatus['KTP'] == true &&
+        _uploadStatus['SIM'] == true &&
+        _uploadStatus['STNK'] == true &&
+        _uploadStatus['SKCK'] == true;
   }
 
   Future<void> _pickImage(String id) async {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        final data = context.read<DaftarKurirData>();
-        setState(() {
-          _uploadStatus[id] = true;
-        });
-        if (id == 'SIM') {
-          data.licensePath = image.path;
-        } else if (id == 'STNK') {
-          data.skckPath = image.path;
-        } else if (id == 'SKCK') {
-          data.skckPath = image.path;
-        }
+      if (!mounted || image == null) return;
+      final data = context.read<DaftarKurirData>();
+      setState(() {
+        _uploadStatus[id] = true;
+      });
+      if (id == 'SIM') {
+        data.licensePath = image.path;
+      } else if (id == 'STNK') {
+        data.skckPath = image.path;
+      } else if (id == 'SKCK') {
+        data.skckPath = image.path;
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
@@ -55,10 +54,9 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
   Future<void> _navigateAndVerifyKtp() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const VerifikasiKtpScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const VerifikasiKtpScreen()),
     );
+    if (!mounted) return;
     final data = context.read<DaftarKurirData>();
     if (data.idCardPath != null) {
       setState(() {
@@ -100,7 +98,7 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
             style: DaftarKurirTextStyles.subtitle,
           ),
           const SizedBox(height: 24),
-          
+
           _buildUploadItem(
             title: 'Kartu Tanda Penduduk (KTP)',
             id: 'KTP',
@@ -147,7 +145,7 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                 color: Colors.black.withOpacity(0.02),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
-              )
+              ),
             ],
           ),
           child: Row(
@@ -160,10 +158,7 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                   color: DaftarKurirColors.bgLight,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  color: DaftarKurirColors.primary,
-                ),
+                child: Icon(icon, color: DaftarKurirColors.primary),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -181,7 +176,11 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: const [
-                        Icon(Icons.check_circle, color: DaftarKurirColors.primary, size: 14),
+                        Icon(
+                          Icons.check_circle,
+                          color: DaftarKurirColors.primary,
+                          size: 14,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'Berhasil diunggah',
@@ -235,7 +234,7 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -250,10 +249,7 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                           color: DaftarKurirColors.primary.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          icon,
-                          color: DaftarKurirColors.primary,
-                        ),
+                        child: Icon(icon, color: DaftarKurirColors.primary),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -271,7 +267,11 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: const [
-                                Icon(Icons.error, color: DaftarKurirColors.error, size: 14),
+                                Icon(
+                                  Icons.error,
+                                  color: DaftarKurirColors.error,
+                                  size: 14,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
                                   'Belum diunggah',
@@ -290,7 +290,10 @@ class _UploadDokumenScreenState extends State<UploadDokumenScreen> {
                   const SizedBox(height: 16),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: DaftarKurirColors.primary,
                       borderRadius: BorderRadius.circular(10),

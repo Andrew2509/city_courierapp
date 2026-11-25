@@ -3,7 +3,6 @@ import '../widgets/daftar_kurir_components.dart';
 import '../widgets/daftar_kurir_constants.dart';
 import 'kriteria_persyaratan_screen.dart';
 
-
 class InformasiPendaftaranScreen extends StatelessWidget {
   const InformasiPendaftaranScreen({super.key});
 
@@ -53,7 +52,7 @@ class InformasiPendaftaranScreen extends StatelessWidget {
             style: DaftarKurirTextStyles.subtitle,
           ),
           const SizedBox(height: 32),
-          
+
           // Cards
           _buildDetailCard(
             title: 'Kriteria & Persyaratan',
@@ -88,28 +87,47 @@ class InformasiPendaftaranScreen extends StatelessWidget {
                   height: 1.5,
                 ),
                 children: [
-                  TextSpan(text: 'Siapkan dokumen asli Anda untuk proses verifikasi. Pendaftaran ini '),
+                  TextSpan(
+                    text:
+                        'Siapkan dokumen asli Anda untuk proses verifikasi. Pendaftaran ini ',
+                  ),
                   TextSpan(
                     text: '100% resmi dan gratis',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: DaftarKurirColors.textDark),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: DaftarKurirColors.textDark,
+                    ),
                   ),
-                  TextSpan(text: '. Hati-hati terhadap penipuan yang mengatasnamakan CityCourier.'),
+                  TextSpan(
+                    text:
+                        '. Hati-hati terhadap penipuan yang mengatasnamakan CityCourier.',
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 32),
-          
+
           // Image Banner
           Container(
             width: double.infinity,
             height: 180,
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: DaftarKurirColors.border),
-              image: const DecorationImage(
-                image: NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuDe7Z0S8KCRDSG7tY-SwqrN6scD3kbkCacJDjf7zASru1A7Sjt-gf82PqlbFDW00aV_McRHWC9lj9q6xxFPeGC_--UZmJaJ-i6ldkncQItcBAOwbfTtgzoveykArfjqoscTlzAdOM4nS9xdyjJJmbJP0WXiaJdhztXHB5XrMqkvj1nV3vQzkqIKiicMOoBcDaqLxwsuWjEgqu8vLxak0TnIom9A2SfJ-ORdd5tfps_kmA0rzPH9nm0'),
-                fit: BoxFit.cover,
+              color: DaftarKurirColors.primaryLight,
+            ),
+            child: Image.network(
+              'https://lh3.googleusercontent.com/aida-public/AB6AXuDe7Z0S8KCRDSG7tY-SwqrN6scD3kbkCacJDjf7zASru1A7Sjt-gf82PqlbFDW00aV_McRHWC9lj9q6xxFPeGC_--UZmJaJ-i6ldkncQItcBAOwbfTtgzoveykArfjqoscTlzAdOM4nS9xdyjJJmbJP0WXiaJdhztXHB5XrMqkvj1nV3vQzkqIKiicMOoBcDaqLxwsuWjEgqu8vLxak0TnIom9A2SfJ-ORdd5tfps_kmA0rzPH9nm0',
+              fit: BoxFit.cover,
+              // Gagal muat (offline / URL mati) jangan sampai crash halaman.
+              errorBuilder: (context, error, stackTrace) => Center(
+                child: Icon(
+                  Icons.image_outlined,
+                  size: 48,
+                  color: DaftarKurirColors.textHint,
+                ),
               ),
             ),
           ),

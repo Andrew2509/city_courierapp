@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
@@ -17,6 +16,7 @@ import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/earnings/driver_earnings_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
+import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
@@ -337,10 +337,8 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
     );
   }
 
-  Future<void> _callContact(String phone) async {
-    final uri = Uri.parse('tel:$phone');
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
-  }
+  Future<void> _callContact(String? phone) =>
+      CourierContactHelper.callPhone(context, phone);
 
   @override
   Widget build(BuildContext context) {
@@ -1376,7 +1374,26 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                           iconColor: AppColors.primaryOrange,
                           bgColor: const Color(0xFFFFF4EC),
                           borderColor: AppColors.primaryOrange,
-                          onTap: () => _callContact(senderPhone),
+                          onTap: () => _callContact(
+                            CourierContactHelper.extractSenderPhone(
+                                  widget.order,
+                                ) ??
+                                senderPhone,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        ChatOrderIconButton(
+                          key: const Key('chat_flow_order_button'),
+                          size: 28,
+                          iconSize: 14,
+                          isCircular: true,
+                          tooltip: 'Chat Customer',
+                          onTap: () => ChatLaunchHelper.openOrderChat(
+                            context,
+                            orderIdentifier: ChatLaunchHelper.extractOrderIdentifier(
+                              widget.order,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 4),
                         CourierWhatsAppIconButton(
@@ -1460,7 +1477,12 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                           iconColor: const Color(0xFF22C55E),
                           bgColor: const Color(0xFFECFDF3),
                           borderColor: const Color(0xFF22C55E),
-                          onTap: () => _callContact(receiverPhone),
+                          onTap: () => _callContact(
+                            CourierContactHelper.extractReceiverPhone(
+                                  widget.order,
+                                ) ??
+                                receiverPhone,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         CourierWhatsAppIconButton(

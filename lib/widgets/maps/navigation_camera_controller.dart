@@ -8,8 +8,15 @@ import 'package:city_courierapp/core/config/app_colors.dart';
 class NavigationCameraMath {
   NavigationCameraMath._();
 
-  static const double defaultTiltAngleRad = 0.56; // ~32 derajat perspektif
+  static const double defaultTiltAngleRad = 0.56; // ~32 derajat perspektif 2D fallback
   static const double defaultPerspectiveDepth = 0.00105;
+
+  /// Konfigurasi kamera 3D MapLibre standar saat navigasi aktif.
+  static const double default3dPitchDeg = 45.0;
+  static const double default2dPitchDeg = 0.0;
+  static const double minNavZoom = 14.5;
+  static const double defaultNavZoom = 17.2;
+  static const double maxNavZoom = 19.0;
 
   /// Menormalkan sudut ke rentang `[0, 360)`.
   static double normalizeAngleDeg(double deg) {
@@ -35,6 +42,56 @@ class NavigationCameraMath {
     final currentDeg = normalizeAngleDeg(previousTurns * 360.0);
     final delta = shortestAngleDeltaDeg(currentDeg, normalizedDeg);
     return previousTurns + (delta / 360.0);
+  }
+
+  /// Menghitung level zoom navigasi adaptif berdasarkan kecepatan kurir,
+  /// mode 2D/3D, dan kedekatan dengan belokan berikutnya.
+  static double computeTargetZoom({
+    required double speedKmH,
+    bool is3dEnabled = true,
+    double? distanceToNextTurnMeters,
+  }) {
+    double zoom;
+    if (distanceToNextTurnMeters != null &&
+        distanceToNextTurnMeters > 0 &&
+        distanceToNextTurnMeters <= 140.0 &&
+        is3dEnabled) {
+      zoom = 17.6;
+    } else if (speedKmH < 20.0) {
+      zoom = 17.2;
+    } else if (speedKmH < 45.0) {
+      zoom = 16.7;
+    } else if (speedKmH < 70.0) {
+      zoom = 16.0;
+    } else {
+      zoom = 15.4;
+    }
+    if (!is3dEnabled) {
+      zoom -= 0.4;
+    }
+    return zoom.clamp(minNavZoom, maxNavZoom);
+  }
+
+  /// Menghitung camera padding MapLibre (dalam logical pixels) agar posisi
+  /// kendaraan berada di area bawah-tengah layar di atas panel ETA sehingga
+  /// area jalan serta bangunan 3D di depan kurir terlihat lebih luas.
+  static EdgeInsets computeMapLibreFollowPadding(
+    Size viewportSize, {
+    required bool isNavigationActive,
+    required bool is3dEnabled,
+    double bottomSheetClearance = 96.0,
+  }) {
+    final h = viewportSize.height > 0 ? viewportSize.height : 800.0;
+    final clampedBottom = bottomSheetClearance.clamp(16.0, h * 0.38);
+    if (!isNavigationActive) {
+      return EdgeInsets.only(bottom: clampedBottom);
+    }
+    final topRatio = is3dEnabled ? 0.36 : 0.28;
+    final topPadding = (h * topRatio).clamp(110.0, h * 0.48);
+    return EdgeInsets.only(
+      top: topPadding,
+      bottom: clampedBottom,
+    );
   }
 
   /// Menghitung offset layar agar marker kurir berada di area bawah-tengah
@@ -92,7 +149,9 @@ class NavigationCompassButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOffNorth = mapRotationDeg.abs() > 2.0;
+    final isOffNorth =
+        NavigationCameraMath.shortestAngleDeltaDeg(0.0, mapRotationDeg).abs() >
+            2.0;
     final tooltipText = isOffNorth
         ? 'Arahkan peta ke Utara'
         : (isAutoRotateActive

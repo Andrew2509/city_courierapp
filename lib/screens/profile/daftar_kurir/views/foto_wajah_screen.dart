@@ -88,14 +88,14 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
         child: Column(
           children: [
             // Progress Indicator
-            const StepProgressIndicator(
-              currentStep: 4,
-              totalSteps: 4,
-            ),
-            
+            const StepProgressIndicator(currentStep: 4, totalSteps: 4),
+
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 20.0,
+                ),
                 child: Column(
                   children: [
                     // Instructions
@@ -111,7 +111,7 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
                       style: DaftarKurirTextStyles.subtitle,
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Camera Viewfinder Placeholder
                     SizedBox(
                       width: 256,
@@ -124,13 +124,27 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
                             child: SizedBox(
                               width: 256,
                               height: 256,
-                              child: _isCameraInitialized && _cameraController != null
+                              child:
+                                  _isCameraInitialized &&
+                                      _cameraController != null
                                   ? FittedBox(
                                       fit: BoxFit.cover,
                                       child: SizedBox(
-                                        width: _cameraController!.value.previewSize?.height ?? 1,
-                                        height: _cameraController!.value.previewSize?.width ?? 1,
-                                        child: CameraPreview(_cameraController!),
+                                        width:
+                                            _cameraController!
+                                                .value
+                                                .previewSize
+                                                ?.height ??
+                                            1,
+                                        height:
+                                            _cameraController!
+                                                .value
+                                                .previewSize
+                                                ?.width ??
+                                            1,
+                                        child: CameraPreview(
+                                          _cameraController!,
+                                        ),
                                       ),
                                     )
                                   : Container(
@@ -140,23 +154,21 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
                                       child: Icon(
                                         Icons.face_rounded,
                                         size: 120,
-                                        color: DaftarKurirColors.textMuted.withOpacity(0.5),
+                                        color: DaftarKurirColors.textMuted
+                                            .withOpacity(0.5),
                                       ),
                                     ),
                             ),
                           ),
-                          
+
                           // Circular Border Overlay
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 4,
-                              ),
+                              border: Border.all(color: Colors.white, width: 4),
                             ),
                           ),
-                          
+
                           // Dashed Circle Overlay
                           Positioned.fill(
                             child: DashedBorder(
@@ -167,7 +179,7 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
                               child: const SizedBox(),
                             ),
                           ),
-                          
+
                           // Corner brackets
                           Positioned.fill(
                             child: CustomPaint(
@@ -181,7 +193,7 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
+
                     // Tips Card
                     Container(
                       width: double.infinity,
@@ -225,7 +237,7 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
                 ),
               ),
             ),
-            
+
             // Bottom Action (Shutter Button)
             Container(
               width: double.infinity,
@@ -237,30 +249,32 @@ class _FotoWajahScreenState extends State<FotoWajahScreen> {
               ),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: Color(0xFFF1F5F9)),
-                ),
+                border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
               ),
               child: Center(
                 child: GestureDetector(
                   onTap: () async {
-                    if (_cameraController != null && _cameraController!.value.isInitialized) {
+                    if (_cameraController != null &&
+                        _cameraController!.value.isInitialized) {
                       try {
-                        final XFile picture = await _cameraController!.takePicture();
+                        final XFile picture = await _cameraController!
+                            .takePicture();
                         _capturedImage = File(picture.path);
-                        context.read<DaftarKurirData>().photoPath = _capturedImage!.path;
                       } catch (e) {
                         debugPrint('Error taking selfie: $e');
                       }
                     }
-                    if (context.mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ReviewPendaftaranScreen(),
-                        ),
-                      );
+                    if (!context.mounted) return;
+                    final photoPath = _capturedImage?.path;
+                    if (photoPath != null) {
+                      context.read<DaftarKurirData>().photoPath = photoPath;
                     }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ReviewPendaftaranScreen(),
+                      ),
+                    );
                   },
                   child: Container(
                     width: 80,
@@ -337,10 +351,7 @@ class _ViewfinderBracketPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
 
-  _ViewfinderBracketPainter({
-    required this.color,
-    required this.strokeWidth,
-  });
+  _ViewfinderBracketPainter({required this.color, required this.strokeWidth});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -354,7 +365,7 @@ class _ViewfinderBracketPainter extends CustomPainter {
 
     // Corner curves (matches the SVG in HTML: <path d="M 64 32 Q 32 32 32 64" /> etc. for a 256x256 view)
     // 64 is 1/4 of 256, 32 is 1/8 of 256
-    
+
     final double c1 = w * (32 / 256); // 32
     final double c2 = w * (64 / 256); // 64
     final double c3 = w * (192 / 256); // 192
