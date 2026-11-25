@@ -1,6 +1,7 @@
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
 import 'package:city_courierapp/screens/profile/profile_screen.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 import 'package:flutter/material.dart';
 
 class ProfileHeader extends StatefulWidget {
@@ -263,16 +264,18 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                                   ? Image.network(
                                       photoUrl,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => const Icon(
-                                        Icons.person_rounded,
-                                        color: Color(0xFFCBD5E1),
-                                        size: 42,
+                                      errorBuilder: (_, _, _) => const Center(
+                                        child: CityCourierCustomIcon(
+                                          CourierIconKind.avatarUser,
+                                          size: 52,
+                                        ),
                                       ),
                                     )
-                                  : const Icon(
-                                      Icons.person_rounded,
-                                      color: Color(0xFFCBD5E1),
-                                      size: 42,
+                                  : const Center(
+                                      child: CityCourierCustomIcon(
+                                        CourierIconKind.avatarUser,
+                                        size: 52,
+                                      ),
                                     ),
                             ),
                           ),
@@ -297,10 +300,11 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                                   ),
                                 ],
                               ),
-                              child: const Icon(
-                                Icons.camera_alt_rounded,
-                                color: Color(0xFF0F172A),
-                                size: 13,
+                              child: const Center(
+                                child: CityCourierCustomIcon(
+                                  CourierIconKind.cameraEdit,
+                                  size: 16,
+                                ),
                               ),
                             ),
                           ),

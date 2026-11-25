@@ -1,5 +1,6 @@
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/services/storage/app_cache_service.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 import 'package:flutter/material.dart';
 
 /// Dialog konfirmasi dan pemrosesan pembersihan cache aplikasi.
@@ -77,10 +78,11 @@ class _ClearCacheDialogState extends State<ClearCacheDialog> {
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.cleaning_services_rounded,
-                color: ClearCacheDialog.primaryOrange,
-                size: 22,
+              child: const Center(
+                child: CityCourierCustomIcon(
+                  CourierIconKind.clearCache,
+                  size: 22,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -114,10 +116,9 @@ class _ClearCacheDialogState extends State<ClearCacheDialog> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.storage_rounded,
+                  const CityCourierCustomIcon(
+                    CourierIconKind.storageDisk,
                     size: 18,
-                    color: ClearCacheDialog.primaryOrange,
                   ),
                   const SizedBox(width: 8),
                   Expanded(

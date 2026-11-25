@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/screens/home_screen.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 
 class ProfileLogoutButton extends StatelessWidget {
   final Color surfaceColor;
@@ -108,7 +109,11 @@ class ProfileLogoutButton extends StatelessWidget {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () => _handleLogout(context),
-            icon: const Icon(Icons.logout, size: 18), // Smaller icon
+            icon: const CityCourierCustomIcon(
+              CourierIconKind.logout,
+              size: 18,
+              color: Colors.red,
+            ),
             label: const Text(
               'Keluar',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13), // Smaller text

@@ -75,6 +75,7 @@ class LandingActionBox extends StatelessWidget {
   final String? assetPath;
   final String label;
   final IconData? icon;
+  final Widget? customIcon;
   final VoidCallback? onTap;
 
   const LandingActionBox({
@@ -82,6 +83,7 @@ class LandingActionBox extends StatelessWidget {
     this.assetPath,
     required this.label,
     this.icon,
+    this.customIcon,
     this.onTap,
   });
 
@@ -110,13 +112,14 @@ class LandingActionBox extends StatelessWidget {
               ],
             ),
             child: Center(
-              child: assetPath != null
-                  ? Image.asset(assetPath!, width: 24, height: 24)
-                  : Icon(
-                      icon,
-                      color: const Color(0xFF374151),
-                      size: 24,
-                    ),
+              child: customIcon ??
+                  (assetPath != null
+                      ? Image.asset(assetPath!, width: 24, height: 24)
+                      : Icon(
+                          icon,
+                          color: const Color(0xFF374151),
+                          size: 24,
+                        )),
             ),
           ),
           const SizedBox(height: 8),

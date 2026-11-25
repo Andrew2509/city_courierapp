@@ -13,6 +13,51 @@ class ShippingCardWidget extends StatelessWidget {
   final bool isDarkMode;
   final VoidCallback onTrackPressed;
 
+  static const Set<String> _trailingAdminNoise = {
+    'indonesia',
+    'id',
+    'aceh',
+    'sumatera utara',
+    'sumatera barat',
+    'riau',
+    'kepulauan riau',
+    'jambi',
+    'sumatera selatan',
+    'kepulauan bangka belitung',
+    'bengkulu',
+    'lampung',
+    'dki jakarta',
+    'jakarta',
+    'jawa barat',
+    'banten',
+    'jawa tengah',
+    'di yogyakarta',
+    'yogyakarta',
+    'jawa timur',
+    'bali',
+    'nusa tenggara barat',
+    'nusa tenggara timur',
+    'kalimantan barat',
+    'kalimantan tengah',
+    'kalimantan selatan',
+    'kalimantan timur',
+    'kalimantan utara',
+    'sulawesi utara',
+    'gorontalo',
+    'sulawesi tengah',
+    'sulawesi barat',
+    'sulawesi selatan',
+    'sulawesi tenggara',
+    'maluku',
+    'maluku utara',
+    'papua',
+    'papua barat',
+    'papua selatan',
+    'papua tengah',
+    'papua pegunungan',
+    'papua barat daya',
+  };
+
   const ShippingCardWidget({
     super.key,
     required this.orderId,
@@ -26,6 +71,54 @@ class ShippingCardWidget extends StatelessWidget {
     required this.isDarkMode,
     required this.onTrackPressed,
   });
+
+  /// Meringkas alamat panjang (mis. hasil geocoding) menjadi ringkasan singkat
+  /// seperti "Tempat/Jalan Utama, Kota" agar kartu riwayat tetap ringkas.
+  static String compactLocation(String rawAddress) {
+    final trimmed = rawAddress.trim();
+    if (trimmed.isEmpty) return '';
+
+    final parts = trimmed
+        .split(',')
+        .map((part) => part.replaceAll(RegExp(r'\s*\b\d{5}\b$'), '').trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    if (parts.isEmpty) return trimmed;
+
+    while (parts.length > 1) {
+      final tail = parts.last.toLowerCase();
+      if (_trailingAdminNoise.contains(tail) ||
+          RegExp(r'^\d{5}$').hasMatch(tail)) {
+        parts.removeLast();
+      } else {
+        break;
+      }
+    }
+
+    if (parts.length <= 2) {
+      return parts.join(', ');
+    }
+
+    final first = parts.first;
+    final last = parts.last;
+    if (first.toLowerCase() == last.toLowerCase()) {
+      return first;
+    }
+    return '$first, $last';
+  }
+
+  /// Menggabungkan nama pihak terkait dan ringkasan lokasi dalam satu baris padat.
+  static String formatParticipantSummary(String name, String rawAddress) {
+    final cleanName = name.trim();
+    final shortLoc = compactLocation(rawAddress);
+    if (cleanName.isNotEmpty && shortLoc.isNotEmpty) {
+      return '$cleanName • $shortLoc';
+    }
+    if (cleanName.isNotEmpty) return cleanName;
+    if (shortLoc.isNotEmpty) return shortLoc;
+    return '-';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +134,13 @@ class ShippingCardWidget extends StatelessWidget {
         : const Color(0xFFF1F5F9);
     final Color cardBg =
         isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+    final String senderSummary =
+        formatParticipantSummary(senderName, senderLoc);
+    final String receiverSummary =
+        formatParticipantSummary(receiverName, receiverLoc);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(16),
@@ -52,16 +149,17 @@ class ShippingCardWidget extends StatelessWidget {
           if (!isDarkMode)
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Header: No. Resi dan Status
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 Expanded(
@@ -72,18 +170,18 @@ class ShippingCardWidget extends StatelessWidget {
                         'No. Resi',
                         style: AppTypography.caption.copyWith(
                           color: labelColor,
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         orderId,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.titleSmall.copyWith(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 13.5,
                           color: inkPrimary,
                         ),
                       ),
@@ -97,55 +195,80 @@ class ShippingCardWidget extends StatelessWidget {
           ),
           Divider(height: 1, color: dividerColor),
 
-          // Rute Pengirim dan Penerima
+          // Rute Pengirim dan Penerima (maksimal 1 baris per titik agar tidak terlalu luas)
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Column(
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(
-                        Icons.radio_button_checked,
-                        color: primaryColor,
-                        size: 14,
+                      SizedBox(
+                        width: 16,
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 2),
+                            Icon(
+                              Icons.radio_button_checked,
+                              color: primaryColor,
+                              size: 13,
+                            ),
+                            const SizedBox(height: 2),
+                            Expanded(
+                              child: Container(
+                                width: 1,
+                                color: borderColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      Container(
-                        width: 1,
-                        height: 32,
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        color: borderColor,
-                      ),
-                      const Icon(
-                        Icons.location_on,
-                        color: Color(0xFF94A3B8),
-                        size: 16,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _buildLocationInfo(
+                            'Pengirim',
+                            senderSummary,
+                            inkPrimary,
+                            labelColor,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLocationInfo(
-                        'Pengirim',
-                        '$senderName ($senderLoc)',
-                        inkPrimary,
-                        labelColor,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 1,
+                            height: 2,
+                            color: borderColor,
+                          ),
+                          const Icon(
+                            Icons.location_on,
+                            color: Color(0xFF94A3B8),
+                            size: 15,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 14),
-                      _buildLocationInfo(
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildLocationInfo(
                         'Penerima',
-                        '$receiverName ($receiverLoc)',
+                        receiverSummary,
                         inkPrimary,
                         labelColor,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -153,7 +276,7 @@ class ShippingCardWidget extends StatelessWidget {
 
           // Footer: Tanggal dan Tombol Lacak
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
             child: Row(
               children: [
                 Expanded(
@@ -162,7 +285,7 @@ class ShippingCardWidget extends StatelessWidget {
                       Icon(
                         Icons.calendar_today_outlined,
                         color: labelColor,
-                        size: 14,
+                        size: 13,
                       ),
                       const SizedBox(width: 6),
                       Flexible(
@@ -172,7 +295,7 @@ class ShippingCardWidget extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.caption.copyWith(
                             color: labelColor,
-                            fontSize: 11.5,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -187,17 +310,18 @@ class ShippingCardWidget extends StatelessWidget {
                     backgroundColor: primaryColor,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    minimumSize: const Size(0, 40),
+                    minimumSize: const Size(0, 34),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
+                      horizontal: 16,
+                      vertical: 6,
                     ),
                     textStyle: AppTypography.titleSmall.copyWith(
-                      fontSize: 13,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.bold,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: const Text('Lacak'),
@@ -249,13 +373,15 @@ class ShippingCardWidget extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         status,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: AppTypography.caption.copyWith(
           color: textColor,
           fontSize: 10.5,
@@ -273,19 +399,25 @@ class ShippingCardWidget extends StatelessWidget {
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppTypography.caption.copyWith(
             color: labelColor,
-            fontSize: 11.5,
+            fontSize: 11,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
           style: AppTypography.bodySmall.copyWith(
-            fontSize: 13,
+            fontSize: 12.5,
             fontWeight: FontWeight.w600,
             color: inkPrimary,
           ),

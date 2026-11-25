@@ -8,6 +8,7 @@ import 'package:city_courierapp/services/courier/courier_api_service.dart';
 import 'package:city_courierapp/core/utils/auth_guard.dart';
 import 'package:city_courierapp/screens/help/help_screen.dart';
 import 'package:city_courierapp/screens/wallet/customer_wallet_dashboard_screen.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 
 class ProfileNavigationGrid extends StatelessWidget {
   final Color primaryColor;
@@ -29,12 +30,12 @@ class ProfileNavigationGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final navItems = [
-      {'icon': Icons.location_on, 'label': 'Alamat Favorit'},
-      {'icon': Icons.security, 'label': 'Keamanan Akun'},
-      {'icon': Icons.people_alt, 'label': 'Daftar Kurir'},
-      {'icon': Icons.calendar_today, 'label': 'Reward Harian'},
-      {'icon': Icons.privacy_tip, 'label': 'Kebijakan Privasi'},
-      {'icon': Icons.help, 'label': 'Pusat Bantuan'},
+      {'icon': CourierIconKind.locationPin, 'label': 'Alamat Favorit'},
+      {'icon': CourierIconKind.securityShield, 'label': 'Keamanan Akun'},
+      {'icon': CourierIconKind.courierPartner, 'label': 'Daftar Kurir'},
+      {'icon': CourierIconKind.dailyReward, 'label': 'Reward Harian'},
+      {'icon': CourierIconKind.privacyPolicy, 'label': 'Kebijakan Privasi'},
+      {'icon': CourierIconKind.helpCenter, 'label': 'Pusat Bantuan'},
     ];
 
     return Column(
@@ -71,13 +72,16 @@ class ProfileNavigationGrid extends StatelessWidget {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: primaryColor.withValues(alpha: 0.1),
+                          color: isDarkMode
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : const Color(0xFFFFF5EE),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(
-                          Icons.account_balance_wallet_rounded,
-                          color: primaryColor,
-                          size: 22,
+                        child: const Center(
+                          child: CityCourierCustomIcon(
+                            CourierIconKind.wallet,
+                            size: 28,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -108,8 +112,9 @@ class ProfileNavigationGrid extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Icon(
-                        Icons.chevron_right_rounded,
+                      CityCourierCustomIcon(
+                        CourierIconKind.chevronRight,
+                        size: 16,
                         color: isDarkMode
                             ? Colors.grey.shade500
                             : const Color(0xFF94A3B8),
@@ -204,10 +209,9 @@ class ProfileNavigationGrid extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          navItems[index]['icon'] as IconData,
-                          color: primaryColor,
-                          size: 25,
+                        CityCourierCustomIcon(
+                          navItems[index]['icon'] as CourierIconKind,
+                          size: 34,
                         ),
                         const SizedBox(height: 8),
                         FittedBox(
@@ -271,7 +275,10 @@ class ProfileNavigationGrid extends StatelessWidget {
               builder: (context) => AlertDialog(
                 title: const Row(
                   children: [
-                    Icon(Icons.hourglass_empty, color: Color(0xFFEC5B13)),
+                    CityCourierCustomIcon(
+                      CourierIconKind.hourglass,
+                      size: 22,
+                    ),
                     SizedBox(width: 10),
                     Text('Menunggu Verifikasi'),
                   ],

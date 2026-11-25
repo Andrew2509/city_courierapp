@@ -110,4 +110,62 @@ void main() {
       }
     }
   });
+
+  testWidgets('ShippingCardWidget compacts long addresses into concise single-line summaries without wrapping tall', (tester) async {
+    expect(
+      ShippingCardWidget.formatParticipantSummary(
+        'Fajar',
+        'Gerbang Masuk Utama, Jl. Semolowaru No.45, Menur Pumpungan, Kec. Sukolilo, Surabaya, Jawa Timur 60118',
+      ),
+      'Fajar • Gerbang Masuk Utama, Surabaya',
+    );
+    expect(
+      ShippingCardWidget.formatParticipantSummary(
+        'Andrew',
+        'Real Estate Wisma Waru Indah, Wedoro, Waru, Sidoarjo, Jawa Timur, 60236, Indonesia',
+      ),
+      'Andrew • Real Estate Wisma Waru Indah, Sidoarjo',
+    );
+
+    final cardKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            child: ShippingCardWidget(
+              key: cardKey,
+              orderId: 'CC26112578D3',
+              status: 'Proses Pickup',
+              senderName: 'Fajar',
+              senderLoc:
+                  'Gerbang Masuk Utama, Jl. Semolowaru No.45, Menur Pumpungan, Kec. Sukolilo, Surabaya, Jawa Timur 60118',
+              receiverName: 'Andrew',
+              receiverLoc:
+                  'Real Estate Wisma Waru Indah, Wedoro, Waru, Sidoarjo, Jawa Timur, 60236, Indonesia',
+              dateTime: '25 Nov 2026, 02:51',
+              primaryColor: const Color(0xFFEC5B13),
+              isDarkMode: false,
+              onTrackPressed: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final senderText = tester.widget<Text>(
+      find.text('Fajar • Gerbang Masuk Utama, Surabaya'),
+    );
+    expect(senderText.maxLines, 1);
+    expect(senderText.overflow, TextOverflow.ellipsis);
+
+    final receiverText = tester.widget<Text>(
+      find.text('Andrew • Real Estate Wisma Waru Indah, Sidoarjo'),
+    );
+    expect(receiverText.maxLines, 1);
+    expect(receiverText.overflow, TextOverflow.ellipsis);
+
+    final cardHeight = tester.getSize(find.byKey(cardKey)).height;
+    expect(cardHeight, lessThan(220));
+  });
 }

@@ -559,10 +559,11 @@ void main() {
       expect(find.text('Top-up saldo, bayar pesanan, & refund'), findsNothing);
 
       // Eye toggle masks balance without changing flows.
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      expect(find.bySemanticsLabel('Sembunyikan saldo'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('wallet_visibility_toggle')));
       await tester.pump();
       expect(find.text('Rp ••••••'), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+      expect(find.bySemanticsLabel('Tampilkan saldo'), findsOneWidget);
     });
 
     testWidgets('CustomerWithdrawalScreen displays all banks & e-wallets inline and submits directly without Kelola Rekening', (tester) async {

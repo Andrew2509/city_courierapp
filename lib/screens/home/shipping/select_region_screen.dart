@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:city_courierapp/screens/home/shipping/select_regency_screen.dart';
+import 'package:city_courierapp/screens/home/shipping/widgets/region_list_empty_state.dart';
 import 'package:city_courierapp/services/shipping/rajaongkir_service.dart';
 import 'package:city_courierapp/services/shipping/rajaongkir_matcher_service.dart';
 
@@ -20,6 +21,7 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
   final TextEditingController searchController = TextEditingController();
   bool isLoading = true;
   bool isDetectingLocation = false;
+  String? errorMessage;
 
   // Kota/Kabupaten count map per provinsi (matches official Stitch design specification)
   static const Map<String, String> _provinceCityCounts = {
@@ -80,21 +82,31 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
   }
 
   Future<void> _fetchProvinces() async {
-    setState(() => isLoading = true);
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
     final result = await RajaOngkirService.getProvinces();
     if (result['success'] == true) {
+      final data = result['data'] is List ? result['data'] as List<dynamic> : [];
       if (mounted) {
         setState(() {
-          listProvinsi = result['data'];
-          filteredList = result['data'];
+          listProvinsi = data;
+          filteredList = data;
+          errorMessage = null;
           isLoading = false;
         });
       }
     } else {
+      final msg =
+          result['message']?.toString() ?? 'Gagal mengambil data provinsi';
       if (mounted) {
-        setState(() => isLoading = false);
+        setState(() {
+          errorMessage = msg;
+          isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'] ?? 'Gagal mengambil data provinsi')),
+          SnackBar(content: Text(msg)),
         );
       }
     }
@@ -535,14 +547,10 @@ class _SelectRegionScreenState extends State<SelectRegionScreen> {
 
           // Items List
           if (filteredList.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 36, horizontal: 16),
-              child: Center(
-                child: Text(
-                  'Provinsi tidak ditemukan',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                ),
-              ),
+            RegionListEmptyState(
+              emptyMessage: 'Provinsi tidak ditemukan',
+              errorMessage: errorMessage,
+              onRetry: _fetchProvinces,
             )
           else
             ListView.separated(

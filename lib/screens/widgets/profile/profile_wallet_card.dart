@@ -9,6 +9,7 @@ import 'package:city_courierapp/screens/wallet/topup_amount_screen.dart';
 import 'package:city_courierapp/screens/wallet/wallet_transactions_screen.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 import 'package:flutter/material.dart';
 
 class ProfileWalletCard extends StatefulWidget {
@@ -219,10 +220,19 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                           children: [
                             Row(
                               children: [
-                                const Icon(
-                                  Icons.account_balance_wallet_outlined,
-                                  color: Colors.white,
-                                  size: 22,
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                  child: const Center(
+                                    child: CityCourierCustomIcon(
+                                      CourierIconKind.wallet,
+                                      size: 24,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Column(
@@ -290,6 +300,7 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                                 ),
                                 const SizedBox(width: 10),
                                 GestureDetector(
+                                  key: const Key('wallet_visibility_toggle'),
                                   onTap: () => setState(
                                     () => _hideBalance = !_hideBalance,
                                   ),
@@ -305,12 +316,15 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                                       ),
                                       borderRadius: BorderRadius.circular(100),
                                     ),
-                                    child: Icon(
+                                    child: CityCourierCustomIcon(
                                       _hideBalance
-                                          ? Icons.visibility_off_outlined
-                                          : Icons.visibility_outlined,
+                                          ? CourierIconKind.eyeHidden
+                                          : CourierIconKind.eyeVisible,
                                       color: Colors.white,
                                       size: 16,
+                                      semanticLabel: _hideBalance
+                                          ? 'Tampilkan saldo'
+                                          : 'Sembunyikan saldo',
                                     ),
                                   ),
                                 ),
@@ -338,18 +352,9 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                       label: 'Top Up',
                       onTap: _openTopUp,
                       isDarkMode: isDarkMode,
-                      iconWidget: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: widget.primaryColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.add_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+                      iconWidget: const CityCourierCustomIcon(
+                        CourierIconKind.topup,
+                        size: 28,
                       ),
                     ),
                     _verticalDivider(widget.borderColor, isDarkMode),
@@ -357,10 +362,9 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                       label: 'Tarik Dana',
                       onTap: _openWithdrawal,
                       isDarkMode: isDarkMode,
-                      iconWidget: Icon(
-                        Icons.outbond_rounded,
-                        color: widget.primaryColor,
-                        size: 25,
+                      iconWidget: const CityCourierCustomIcon(
+                        CourierIconKind.withdraw,
+                        size: 28,
                       ),
                     ),
                     _verticalDivider(widget.borderColor, isDarkMode),
@@ -368,10 +372,9 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                       label: 'Refund',
                       onTap: _openRefund,
                       isDarkMode: isDarkMode,
-                      iconWidget: Icon(
-                        Icons.assignment_return_rounded,
-                        color: widget.primaryColor,
-                        size: 24,
+                      iconWidget: const CityCourierCustomIcon(
+                        CourierIconKind.refund,
+                        size: 28,
                       ),
                     ),
                     _verticalDivider(widget.borderColor, isDarkMode),
@@ -379,10 +382,9 @@ class _ProfileWalletCardState extends State<ProfileWalletCard> {
                       label: 'Riwayat',
                       onTap: _openTransactions,
                       isDarkMode: isDarkMode,
-                      iconWidget: Icon(
-                        Icons.receipt_long_rounded,
-                        color: widget.primaryColor,
-                        size: 24,
+                      iconWidget: const CityCourierCustomIcon(
+                        CourierIconKind.receiptHistory,
+                        size: 28,
                       ),
                     ),
                   ],
@@ -435,7 +437,7 @@ class _QuickActionItem extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
-                  height: 28,
+                  height: 30,
                   child: Center(child: iconWidget),
                 ),
                 const SizedBox(height: 5),

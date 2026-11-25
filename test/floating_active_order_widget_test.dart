@@ -1,13 +1,18 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:city_courierapp/screens/widgets/home/floating_active_order_widget.dart';
+import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/shipping/active_order_service.dart';
+import 'package:city_courierapp/services/token_store.dart';
 
 void main() {
-  setUp(() {
+  setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({});
     SharedPreferences.setMockInitialValues({});
-    ActiveOrderService.saveActiveOrder({
+    await ActiveOrderService.saveActiveOrder({
       'order_id': 'CC2610284680',
       'status': 'Sedang Dikirim',
       'status_raw': 'delivering',
@@ -52,6 +57,9 @@ void main() {
     expect(find.text('Dalam Perjalanan'), findsOneWidget);
     expect(find.text('Terkirim'), findsOneWidget);
     expect(find.text('Lihat Live Tracking'), findsOneWidget);
+
+    final expandedCardSize = tester.getSize(find.byKey(const ValueKey('expanded_card')));
+    expect(expandedCardSize.height, lessThan(185));
 
     ActiveOrderService.stopPolling();
   });
@@ -160,6 +168,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lihat Live Tracking'), findsOneWidget);
+
+    final expandedCardSize = tester.getSize(find.byKey(const ValueKey('expanded_card')));
+    expect(expandedCardSize.height, lessThan(185));
 
     ActiveOrderService.stopPolling();
   });
@@ -270,5 +281,59 @@ void main() {
     expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
 
     ActiveOrderService.stopPolling();
+  });
+
+  testWidgets('ActiveOrderService.init dan ApiService.logout menghapus kartu pengiriman aktif saat logout', (WidgetTester tester) async {
+    final staleOrder = {
+      'order_id': 'CC26112578D3',
+      'status': 'Menjemput Paket',
+      'status_raw': 'picking_up',
+      'estimated_time': '~10 mnt',
+      'courier_name': 'Princenton Andrew B Masrikat',
+      'courier_vehicle': 'Honda Vario 150 • L 1234 AB',
+      'courier_phone': '081234567890',
+      'destination': 'Sidoarjo',
+      'status_message': 'Kurir sedang menuju lokasi penjemputan',
+      'step': 0,
+      'has_courier': true,
+      'is_active': true,
+    };
+
+    // Kasus 1: Sisa cache di SharedPreferences tanpa token login harus langsung dibersihkan saat init().
+    SharedPreferences.setMockInitialValues({
+      'active_delivery_order': jsonEncode(staleOrder),
+    });
+    await TokenStore.clear();
+    await ActiveOrderService.init();
+
+    expect(ActiveOrderService.activeOrderNotifier.value, isNull);
+    final prefsAfterInit = await SharedPreferences.getInstance();
+    expect(prefsAfterInit.getString('active_delivery_order'), isNull);
+
+    // Kasus 2: Pengguna login + memiliki order aktif, lalu logout.
+    await TokenStore.save('valid_session_token');
+    await ActiveOrderService.saveActiveOrder(staleOrder);
+    expect(ActiveOrderService.activeOrderNotifier.value, isNotNull);
+
+    await tester.runAsync(() async {
+      await ApiService.logout();
+    });
+    expect(await TokenStore.isLoggedIn(), isFalse);
+    expect(ActiveOrderService.activeOrderNotifier.value, isNull);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              FloatingActiveOrderWidget(),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Princenton Andrew B Masrikat'), findsNothing);
+    expect(find.text('Lihat Live Tracking'), findsNothing);
   });
 }

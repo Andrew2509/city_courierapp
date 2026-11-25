@@ -1,3 +1,4 @@
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 import 'package:flutter/material.dart';
 
 class ProfileInviteBanner extends StatelessWidget {
@@ -29,7 +30,17 @@ class ProfileInviteBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.group_add, color: Colors.white, size: 24), // Smaller
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const CityCourierCustomIcon(
+              CourierIconKind.inviteFriends,
+              size: 28,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

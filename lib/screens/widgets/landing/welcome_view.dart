@@ -7,6 +7,7 @@ import 'package:city_courierapp/screens/help/help_screen.dart';
 import 'package:city_courierapp/screens/widgets/landing/landing_widgets.dart';
 import 'package:city_courierapp/services/auth_service.dart';
 import 'package:city_courierapp/services/api_service.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 
 class WelcomeView extends StatefulWidget {
   final VoidCallback onPhoneLoginTap;
@@ -179,7 +180,10 @@ class _WelcomeViewState extends State<WelcomeView> {
             children: [
               LandingActionBox(
                 label: 'Lacak',
-                icon: Icons.search_rounded,
+                customIcon: const CityCourierCustomIcon(
+                  CourierIconKind.trackPackage,
+                  size: 34,
+                ),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -191,7 +195,10 @@ class _WelcomeViewState extends State<WelcomeView> {
               ),
               LandingActionBox(
                 label: 'Tarif',
-                icon: Icons.calculate_rounded,
+                customIcon: const CityCourierCustomIcon(
+                  CourierIconKind.calculateRate,
+                  size: 34,
+                ),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -203,7 +210,10 @@ class _WelcomeViewState extends State<WelcomeView> {
               ),
               LandingActionBox(
                 label: 'Bantuan',
-                icon: Icons.headset_mic_rounded,
+                customIcon: const CityCourierCustomIcon(
+                  CourierIconKind.supportAgent,
+                  size: 34,
+                ),
                 onTap: () {
                   Navigator.push(
                     context,

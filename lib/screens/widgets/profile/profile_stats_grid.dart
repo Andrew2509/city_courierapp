@@ -3,6 +3,7 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/history/unpaid_list_screen.dart';
 import 'package:city_courierapp/screens/history/shipment_status_list_screen.dart';
 import 'package:city_courierapp/services/shipping/shipment_service.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 
 class ProfileStatsGrid extends StatefulWidget {
   final Color primaryColor;
@@ -101,18 +102,18 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               else
                 IconButton(
                   onPressed: _fetchStats,
-                  icon: Icon(
+                  icon: CityCourierCustomIcon(
                     _errorMessage != null
-                        ? Icons.error_outline
-                        : Icons.refresh_rounded,
-                    size: 20,
+                        ? CourierIconKind.errorCircle
+                        : CourierIconKind.refresh,
+                    size: 18,
+                    color: _errorMessage != null
+                        ? Colors.redAccent
+                        : widget.primaryColor,
                   ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   visualDensity: VisualDensity.compact,
-                  color: _errorMessage != null
-                      ? Colors.redAccent
-                      : widget.primaryColor,
                 ),
             ],
           ),
@@ -131,8 +132,8 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.error_outline,
+                  const CityCourierCustomIcon(
+                    CourierIconKind.errorCircle,
                     size: 16,
                     color: Colors.redAccent,
                   ),
@@ -168,13 +169,14 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
           ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           physics: const BouncingScrollPhysics(),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildStatCard(
                 context,
-                Icons.account_balance_wallet_rounded,
+                CourierIconKind.unpaidBill,
                 'Belum Bayar',
                 const UnpaidListScreen(),
                 _stats['pending'] ?? 0,
@@ -182,7 +184,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               ),
               _buildStatCard(
                 context,
-                Icons.assignment_turned_in_rounded,
+                CourierIconKind.confirmedOrder,
                 'Dikonfirmasi',
                 const ShipmentStatusListScreen(
                   status: 'confirmed,assigned',
@@ -193,7 +195,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               ),
               _buildStatCard(
                 context,
-                Icons.inventory_rounded,
+                CourierIconKind.pickupBox,
                 'Diambil',
                 const ShipmentStatusListScreen(
                   status: 'picking_up,picked_up',
@@ -204,7 +206,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               ),
               _buildStatCard(
                 context,
-                Icons.local_shipping_rounded,
+                CourierIconKind.inTransit,
                 'Perjalanan',
                 const ShipmentStatusListScreen(
                   status: 'delivering,in_transit',
@@ -215,7 +217,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               ),
               _buildStatCard(
                 context,
-                Icons.check_circle_rounded,
+                CourierIconKind.deliveredCheck,
                 'Terkirim',
                 const ShipmentStatusListScreen(
                   status: 'delivered',
@@ -226,7 +228,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
               ),
               _buildStatCard(
                 context,
-                Icons.cancel_rounded,
+                CourierIconKind.cancelledOrder,
                 'Batal',
                 const ShipmentStatusListScreen(
                   status: 'cancelled',
@@ -244,7 +246,7 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
 
   Widget _buildStatCard(
     BuildContext context,
-    IconData icon,
+    CourierIconKind iconKind,
     String label,
     Widget targetScreen,
     int count, {
@@ -252,104 +254,100 @@ class _ProfileStatsGridState extends State<ProfileStatsGrid> {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => targetScreen),
-            ).then((_) => _fetchStats());
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            clipBehavior: Clip.none,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => targetScreen),
+          ).then((_) => _fetchStats());
+        },
+        child: SizedBox(
+          width: cardWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: cardWidth,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.surfaceColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: widget.isDarkMode
-                        ? Colors.white.withValues(alpha: 0.08)
-                        : widget.borderColor.withValues(alpha: 0.7),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: widget.isDarkMode ? 0.2 : 0.03,
-                      ),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: widget.primaryColor.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        icon,
-                        color: widget.primaryColor,
-                        size: 21,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        style: AppTypography.caption.copyWith(
-                          fontSize: 10.5,
-                          color: widget.isDarkMode
-                              ? Colors.white.withValues(alpha: 0.9)
-                              : const Color(0xFF0F172A),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (count > 0)
-                Positioned(
-                  top: -5,
-                  right: -5,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    key: ValueKey('stat_icon_box_$label'),
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: widget.surfaceColor, width: 2),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 20,
-                      minHeight: 20,
+                      color: widget.surfaceColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: widget.isDarkMode
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : widget.borderColor.withValues(alpha: 0.75),
+                        width: 1.3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: widget.isDarkMode ? 0.2 : 0.03,
+                          ),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Center(
-                      child: Text(
-                        count > 99 ? '99+' : count.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: CityCourierCustomIcon(
+                        iconKind,
+                        size: 38,
                       ),
                     ),
                   ),
+                  if (count > 0)
+                    Positioned(
+                      top: -5,
+                      right: -5,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: widget.surfaceColor,
+                            width: 2,
+                          ),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 20,
+                          minHeight: 20,
+                        ),
+                        child: Center(
+                          child: Text(
+                            count > 99 ? '99+' : count.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 11,
+                    color: widget.isDarkMode
+                        ? Colors.grey.shade300
+                        : const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+              ),
             ],
           ),
         ),

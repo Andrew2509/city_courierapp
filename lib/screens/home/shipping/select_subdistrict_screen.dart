@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:city_courierapp/screens/home/shipping/widgets/region_list_empty_state.dart';
 import 'package:city_courierapp/services/shipping/rajaongkir_service.dart';
 
 class SelectSubDistrictScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _SelectSubDistrictScreenState extends State<SelectSubDistrictScreen> {
   List<dynamic> filteredKelurahan = [];
   final TextEditingController searchController = TextEditingController();
   bool isLoading = true;
+  String? errorMessage;
 
   @override
   void initState() {
@@ -39,21 +41,31 @@ class _SelectSubDistrictScreenState extends State<SelectSubDistrictScreen> {
   }
 
   Future<void> _fetchSubdistricts() async {
-    setState(() => isLoading = true);
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
     final result = await RajaOngkirService.getSubdistricts(widget.kecamatanId);
     if (result['success'] == true) {
+      final data = result['data'] is List ? result['data'] as List<dynamic> : [];
       if (mounted) {
         setState(() {
-          listKelurahan = result['data'];
-          filteredKelurahan = listKelurahan;
+          listKelurahan = data;
+          filteredKelurahan = data;
+          errorMessage = null;
           isLoading = false;
         });
       }
     } else {
+      final msg =
+          result['message']?.toString() ?? 'Gagal mengambil data kelurahan/desa';
       if (mounted) {
-        setState(() => isLoading = false);
+        setState(() {
+          errorMessage = msg;
+          isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'] ?? 'Gagal mengambil data kelurahan/desa')),
+          SnackBar(content: Text(msg)),
         );
       }
     }
@@ -394,14 +406,10 @@ class _SelectSubDistrictScreenState extends State<SelectSubDistrictScreen> {
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
 
           if (filteredKelurahan.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 36, horizontal: 16),
-              child: Center(
-                child: Text(
-                  'Kelurahan tidak ditemukan',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                ),
-              ),
+            RegionListEmptyState(
+              emptyMessage: 'Kelurahan tidak ditemukan',
+              errorMessage: errorMessage,
+              onRetry: _fetchSubdistricts,
             )
           else
             ListView.separated(

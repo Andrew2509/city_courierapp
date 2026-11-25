@@ -52,11 +52,31 @@ class ActiveOrderService {
     'is_delivered': false,
   };
 
-  /// Initialize: Load local cached active order and immediately sync with the backend.
+  /// Mengembalikan true hanya bila sesi pengguna terautentikasi masih ada.
+  static Future<bool> _hasAuthToken() async {
+    try {
+      final token = await TokenStore.read();
+      return token != null && token.trim().isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Initialize: Load local cached active order only while authenticated, then sync with backend.
   static Future<void> init() async {
+    if (!await _hasAuthToken()) {
+      await clearActiveOrder();
+      return;
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedJson = prefs.getString(_prefKey);
+      if (!await _hasAuthToken()) {
+        await clearActiveOrder();
+        return;
+      }
+
       if (savedJson != null && savedJson.trim().isNotEmpty) {
         final decoded = json.decode(savedJson) as Map<String, dynamic>;
         final bool isFinished = decoded['is_delivered'] == true ||
@@ -82,7 +102,9 @@ class ActiveOrderService {
 
     // Asynchronously sync latest status from the website backend
     await syncFromBackend();
-    _startPollingIfNeeded();
+    if (await _hasAuthToken()) {
+      _startPollingIfNeeded();
+    }
   }
 
   /// Sync active order directly from the website backend API.
@@ -91,14 +113,8 @@ class ActiveOrderService {
     _isSyncing = true;
 
     try {
-      String? token;
-      try {
-        token = await TokenStore.read();
-      } catch (_) {
-        token = null;
-      }
-      if (token == null || token.isEmpty) {
-        // Not logged in: maintain cached order if any, else null
+      if (!await _hasAuthToken()) {
+        await clearActiveOrder();
         return;
       }
 
@@ -149,6 +165,11 @@ class ActiveOrderService {
               tracking?.status.isTerminal == true ||
               tracking?.status == TrackingStatus.delivered ||
               tracking?.status == TrackingStatus.cancelled) {
+            await clearActiveOrder();
+            return;
+          }
+
+          if (!await _hasAuthToken()) {
             await clearActiveOrder();
             return;
           }
@@ -397,10 +418,13 @@ class ActiveOrderService {
         'Kurir sedang menuju alamat penerima di ${orderData['destination']}';
 
     await _applyOrderData(orderData);
-    _startPollingIfNeeded();
-
-    // Trigger backend sync in background
-    syncFromBackend();
+    if (await _hasAuthToken()) {
+      _startPollingIfNeeded();
+      // Trigger backend sync in background
+      syncFromBackend();
+    } else {
+      _stopPolling();
+    }
   }
 
   /// Update active order directly from TrackingModel (e.g. when tracking screen receives update)
@@ -415,6 +439,11 @@ class ActiveOrderService {
         tracking.status == TrackingStatus.delivered ||
         tracking.status == TrackingStatus.cancelled) {
       await clearActiveOrder();
+      return;
+    }
+
+    // Jangan menempelkan order ke Beranda bila pengguna tidak sedang login.
+    if (!await _hasAuthToken()) {
       return;
     }
 
@@ -498,6 +527,10 @@ class ActiveOrderService {
       'shipment_data': current?['shipment_data'],
     };
 
+    if (!await _hasAuthToken()) {
+      return;
+    }
+
     await _applyOrderData(updated);
     if (statusRaw == 'delivered') {
       _stopPolling();
@@ -506,6 +539,11 @@ class ActiveOrderService {
 
   /// Asynchronously enrich cached active order if courier photo or vehicle description is incomplete
   static Future<void> _enrichCachedOrderIfNeeded() async {
+    // Jangan menempelkan order ke Beranda bila pengguna tidak sedang login.
+    if (!await _hasAuthToken()) {
+      return;
+    }
+
     final current = activeOrderNotifier.value;
     if (current == null || current['is_active'] != true || current['has_courier'] != true) {
       return;
@@ -523,6 +561,7 @@ class ActiveOrderService {
       );
 
       if (info != null) {
+        if (!await _hasAuthToken()) return;
         final updated = Map<String, dynamic>.from(current);
         if (info.photo != null && info.photo!.isNotEmpty) {
           updated['courier_photo'] = info.photo;

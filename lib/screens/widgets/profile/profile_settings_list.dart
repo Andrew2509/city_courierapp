@@ -1,4 +1,5 @@
 import 'package:city_courierapp/core/config/app_typography.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -43,7 +44,7 @@ class ProfileSettingsList extends StatelessWidget {
       child: Column(
         children: [
           _buildSettingsItem(
-            Icons.person_outline,
+            CourierIconKind.editProfile,
             'Edit Profil',
             null,
             borderColor,
@@ -52,7 +53,7 @@ class ProfileSettingsList extends StatelessWidget {
             onTap: onTapEditProfile,
           ),
           _buildSettingsItem(
-            Icons.translate,
+            CourierIconKind.language,
             'Bahasa',
             'Indonesia',
             borderColor,
@@ -60,7 +61,7 @@ class ProfileSettingsList extends StatelessWidget {
             isDarkMode,
           ),
           _buildSettingsItem(
-            Icons.notifications_none,
+            CourierIconKind.notification,
             'Notifikasi',
             null,
             borderColor,
@@ -68,15 +69,16 @@ class ProfileSettingsList extends StatelessWidget {
             isDarkMode,
           ),
           _buildSettingsItem(
-            Icons.star_rate_rounded,
+            CourierIconKind.rateApp,
             'Beri Nilai Aplikasi',
             null,
             borderColor,
             true,
             isDarkMode,
+            accentColor: const Color(0xFFF59E0B),
           ),
           _buildSettingsItem(
-            Icons.cleaning_services,
+            CourierIconKind.clearCache,
             'Bersihkan Cache',
             cacheSizeLabel,
             borderColor,
@@ -86,7 +88,7 @@ class ProfileSettingsList extends StatelessWidget {
             isBusy: isClearingCache,
           ),
           _buildSettingsItem(
-            Icons.language_rounded,
+            CourierIconKind.website,
             'Kunjungi Website',
             null,
             borderColor,
@@ -108,7 +110,7 @@ class ProfileSettingsList extends StatelessWidget {
   }
 
   Widget _buildSettingsItem(
-    IconData icon,
+    CourierIconKind iconKind,
     String title,
     String? value,
     Color borderColor,
@@ -116,6 +118,7 @@ class ProfileSettingsList extends StatelessWidget {
     bool isDarkMode, {
     VoidCallback? onTap,
     bool isBusy = false,
+    Color? accentColor,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -129,10 +132,21 @@ class ProfileSettingsList extends StatelessWidget {
       ),
       child: ListTile(
         onTap: isBusy ? null : (onTap ?? () {}),
-        leading: Icon(
-          icon,
-          color: isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B),
-          size: 20,
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: isDarkMode
+                ? Colors.white.withValues(alpha: 0.06)
+                : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: CityCourierCustomIcon(
+              iconKind,
+              size: 26,
+            ),
+          ),
         ),
         title: Text(
           title,
@@ -167,12 +181,13 @@ class ProfileSettingsList extends StatelessWidget {
                   fontSize: 12,
                 ),
               ),
-            Icon(
-              Icons.chevron_right,
+            const SizedBox(width: 4),
+            CityCourierCustomIcon(
+              CourierIconKind.chevronRight,
               color: isDarkMode
                   ? Colors.grey.shade500
                   : const Color(0xFF94A3B8),
-              size: 20,
+              size: 16,
             ),
           ],
         ),

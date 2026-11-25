@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:city_courierapp/core/utils/auth_guard.dart';
+import 'package:city_courierapp/services/shipping/active_order_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/screens/widgets/home/bottom_nav_bar.dart';
 import 'package:city_courierapp/screens/widgets/home/pickup_dropoff.dart';
@@ -373,7 +375,20 @@ void main() {
     });
 
     testWidgets('3 & 4. Menekan Keluar menjalankan proses logout, mengosongkan sesi, dan mengarahkan ke HomeScreen (Guest Mode)', (tester) async {
+      SharedPreferences.setMockInitialValues({});
       await TokenStore.save('token_to_be_cleared');
+      await ActiveOrderService.saveActiveOrder({
+        'order_id': 'CC26112578D3',
+        'status': 'Menjemput Paket',
+        'status_raw': 'picking_up',
+        'estimated_time': '~10 mnt',
+        'courier_name': 'Kurir Tes Logout',
+        'courier_vehicle': 'Honda Vario 150 • L 1234 AB',
+        'destination': 'Sidoarjo',
+        'step': 0,
+        'has_courier': true,
+        'is_active': true,
+      });
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -393,9 +408,12 @@ void main() {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Keluar'));
       await tester.pumpAndSettle();
 
-      // Sesi/token harus terhapus
+      // Sesi/token dan order aktif harus terhapus
       expect(await TokenStore.isLoggedIn(), isFalse);
       expect(await AuthGuard.isAuthenticated(), isFalse);
+      expect(ActiveOrderService.activeOrderNotifier.value, isNull);
+      expect(find.text('Kurir Tes Logout'), findsNothing);
+      expect(find.text('Lihat Live Tracking'), findsNothing);
 
       // Pengguna diarahkan ke HomeScreen
       expect(find.byType(HomeScreen), findsOneWidget);

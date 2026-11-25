@@ -5,6 +5,7 @@ import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/services/auth_service.dart';
 import 'package:city_courierapp/services/security/biometric_guard_service.dart';
 import 'package:city_courierapp/services/security/device_metadata_service.dart';
+import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
 class ApiService {
   // Gunakan 10.0.2.2 untuk Android Emulator, 127.0.0.1 untuk iOS Simulator / Web
@@ -215,6 +216,7 @@ class ApiService {
       }
       if (response.statusCode == 401) {
         await TokenStore.clear();
+        await ActiveOrderService.clearActiveOrder();
         await BiometricGuardService.clearSessionUnlock(clearPreference: true);
       }
       return null;
@@ -446,6 +448,7 @@ class ApiService {
       } catch (_) {}
     }
     await TokenStore.clear();
+    await ActiveOrderService.clearActiveOrder();
     await BiometricGuardService.clearSessionUnlock(clearPreference: true);
     try {
       await AuthService.signOut().timeout(

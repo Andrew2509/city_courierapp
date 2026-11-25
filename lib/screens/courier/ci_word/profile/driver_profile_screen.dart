@@ -8,7 +8,10 @@ import 'package:city_courierapp/services/courier/courier_profile_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_account_info_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_help_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_settings_screen.dart';
+import 'package:city_courierapp/screens/home_screen.dart';
 import 'package:city_courierapp/screens/profile/profile_screen.dart';
+import 'package:city_courierapp/services/api_service.dart';
+import 'package:city_courierapp/widgets/common/city_courier_icon.dart';
 
 class DriverProfileScreen extends StatefulWidget {
   final bool fromPersonalProfile;
@@ -126,8 +129,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                                 ),
                               ),
                               IconButton(
-                                icon: Icon(Icons.settings_outlined,
-                                    color: textMain),
+                                icon: const CityCourierCustomIcon(
+                                  CourierIconKind.settingsGear,
+                                  size: 26,
+                                ),
                                 onPressed: () {
                                   Navigator.push(
                                     context,
@@ -290,8 +295,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.star,
-                        color: Color(0xFFFCD34D), size: 14),
+                    const CityCourierCustomIcon(
+                      CourierIconKind.rateApp,
+                      size: 17,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${stats?['rating'] ?? "4.9"} (${stats?['total_ratings'] ?? "128"} Rating)',
@@ -387,12 +394,12 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.person_outline,
+                      CityCourierCustomIcon(
+                        CourierIconKind.personalAccount,
                         color: !_isCourierMode
                             ? Colors.white
                             : const Color(0xFF9CA3AF),
-                        size: 16,
+                        size: 15,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -437,12 +444,12 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.work_outline,
+                      CityCourierCustomIcon(
+                        CourierIconKind.courierAccount,
                         color: _isCourierMode
                             ? Colors.white
                             : const Color(0xFF9CA3AF),
-                        size: 16,
+                        size: 15,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -497,12 +504,15 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.15),
+                color: primaryColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(Icons.info_outline, color: primaryColor, size: 20),
+              child: const CityCourierCustomIcon(
+                CourierIconKind.infoBadge,
+                size: 26,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -528,7 +538,11 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: primaryColor, size: 20),
+            CityCourierCustomIcon(
+              CourierIconKind.chevronRight,
+              color: primaryColor,
+              size: 16,
+            ),
           ],
         ),
       ),
@@ -577,13 +591,17 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                             const DriverAccountInfoScreen()),
                   ).then((_) => _loadProfile());
                 },
-                icon: Icon(Icons.chevron_right, color: textMuted, size: 22),
+                icon: CityCourierCustomIcon(
+                  CourierIconKind.chevronRight,
+                  color: textMuted,
+                  size: 17,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           _buildListItem(
-            icon: Icons.person_outline,
+            iconKind: CourierIconKind.editProfile,
             label: 'Nama Lengkap',
             value: user?['name'] ?? '-',
             borderColor: borderColor,
@@ -600,7 +618,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             },
           ),
           _buildListItem(
-            icon: Icons.phone_outlined,
+            iconKind: CourierIconKind.phoneContact,
             label: 'Nomor Telepon',
             value: user?['phone'] ?? '-',
             borderColor: borderColor,
@@ -617,7 +635,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             },
           ),
           _buildListItem(
-            icon: Icons.email_outlined,
+            iconKind: CourierIconKind.emailContact,
             label: 'Email',
             value: user?['email'] ?? '-',
             borderColor: borderColor,
@@ -634,7 +652,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             },
           ),
           _buildListItem(
-            icon: Icons.two_wheeler_outlined,
+            iconKind: CourierIconKind.motorcycle,
             label: 'Kendaraan',
             value: _getVehicleDisplay(courier),
             borderColor: borderColor,
@@ -684,7 +702,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           ),
           const SizedBox(height: 12),
           _buildListItem(
-            icon: Icons.help_outline,
+            iconKind: CourierIconKind.helpCenter,
             label: 'Bantuan & FAQ',
             value: '',
             borderColor: borderColor,
@@ -701,7 +719,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             },
           ),
           _buildListItem(
-            icon: Icons.settings_outlined,
+            iconKind: CourierIconKind.settingsGear,
             label: 'Pengaturan',
             value: '',
             borderColor: borderColor,
@@ -723,7 +741,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   }
 
   Widget _buildListItem({
-    required IconData icon,
+    required CourierIconKind iconKind,
     required String label,
     required String value,
     required Color borderColor,
@@ -744,7 +762,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: textMuted, size: 20),
+            CityCourierCustomIcon(iconKind, size: 25),
             const SizedBox(width: 12),
             Text(
               label,
@@ -768,7 +786,11 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right, color: textMuted, size: 16),
+            CityCourierCustomIcon(
+              CourierIconKind.chevronRight,
+              color: textMuted,
+              size: 14,
+            ),
           ],
         ),
       ),
@@ -803,7 +825,11 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.logout, color: primaryColor, size: 18),
+            CityCourierCustomIcon(
+              CourierIconKind.logout,
+              color: primaryColor,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Text(
               'Keluar',
@@ -822,7 +848,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   void _showLogoutDialog(Color primaryColor) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Keluar dari Akun?',
@@ -834,13 +860,18 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Batal', style: TextStyle(color: Colors.grey[600])),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Handle logout
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await ApiService.logout();
+              if (!mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (route) => false,
+              );
             },
             child: Text(
               'Keluar',

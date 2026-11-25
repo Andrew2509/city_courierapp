@@ -146,7 +146,7 @@ class _ShippingHistoryScreenState extends State<ShippingHistoryScreen> {
                 children: [
                   // Filter Pencarian No. Resi
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: TextField(
                       controller: searchController,
                       style: AppTypography.bodySmall.copyWith(
@@ -351,7 +351,7 @@ class _ShippingHistoryScreenState extends State<ShippingHistoryScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 108),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 104),
       itemCount: shipments.length,
       itemBuilder: (context, index) {
         final item = shipments[index];

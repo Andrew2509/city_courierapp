@@ -4,6 +4,7 @@ import 'package:city_courierapp/models/security/account_security_models.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/security/biometric_guard_service.dart';
 import 'package:city_courierapp/services/security/device_metadata_service.dart';
+import 'package:city_courierapp/services/shipping/active_order_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 import 'package:http/http.dart' as http;
 
@@ -26,6 +27,7 @@ class AccountSecurityService {
         _onUnauthorized = onUnauthorized ??
             (() async {
               await TokenStore.clear();
+              await ActiveOrderService.clearActiveOrder();
               await BiometricGuardService.clearSessionUnlock(
                 clearPreference: true,
               );
