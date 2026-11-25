@@ -29,7 +29,10 @@ class ChatLaunchHelper {
     return null;
   }
 
-  static Future<void> openInbox(BuildContext context, {int? knownUserId}) async {
+  static Future<void> openInbox(
+    BuildContext context, {
+    int? knownUserId,
+  }) async {
     if (knownUserId != null) {
       await context.read<ChatProvider>().bindAuthenticatedUser(knownUserId);
     }
@@ -51,7 +54,9 @@ class ChatLaunchHelper {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('ID pesanan tidak ditemukan untuk membuka ruang chat.'),
+            content: Text(
+              'ID pesanan tidak ditemukan untuk membuka ruang chat.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -84,10 +89,8 @@ class ChatLaunchHelper {
         Navigator.of(context, rootNavigator: true).pop();
         await Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ChatDetailScreen(
-              conversation: conv,
-              knownUserId: knownUserId,
-            ),
+            builder: (_) =>
+                ChatDetailScreen(conversation: conv, knownUserId: knownUserId),
           ),
         );
       }
@@ -172,65 +175,93 @@ class ChatInboxIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Graceful degradation: HomeHeader may render in contexts without the
+    // app-wide ChatProvider (isolated widget tests, secondary routes).
+    ChatProvider? chatProvider;
+    try {
+      chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    } on ProviderNotFoundException {
+      chatProvider = null;
+    }
+
+    if (chatProvider == null) {
+      return _inboxButton(
+        unreadCount: 0,
+        onTap: () =>
+            ChatLaunchHelper.openInbox(context, knownUserId: knownUserId),
+      );
+    }
+
     return Selector<ChatProvider, int>(
       selector: (_, p) => p.totalUnreadCount,
       builder: (context, unreadCount, _) {
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => ChatLaunchHelper.openInbox(context, knownUserId: knownUserId),
-            borderRadius: BorderRadius.circular(20),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: iconColor,
-                    size: 20,
-                  ),
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: -3,
-                    top: -3,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      constraints: const BoxConstraints(minWidth: 18),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: Text(
-                        unreadCount > 99 ? '99+' : unreadCount.toString(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        return _inboxButton(
+          unreadCount: unreadCount,
+          onTap: () =>
+              ChatLaunchHelper.openInbox(context, knownUserId: knownUserId),
         );
       },
+    );
+  }
+
+  Widget _inboxButton({required int unreadCount, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: iconColor,
+                size: 20,
+              ),
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: -3,
+                top: -3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  constraints: const BoxConstraints(minWidth: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: Text(
+                    unreadCount > 99 ? '99+' : unreadCount.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
