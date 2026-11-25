@@ -409,4 +409,57 @@ void main() {
       );
     });
   });
+
+  group('TrackingDetailScreen - WhatsApp Only Contacts', () {
+    testWidgets('Menampilkan tombol WhatsApp Kurir, Pengirim, dan Penerima tanpa ikon telepon', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final assignedTracking = {
+        'tracking_number': 'CC2610289998',
+        'status': 'delivering',
+        'status_label': 'Dalam Pengantaran',
+        'contacts_authorized': true,
+        'customer_name': 'Sinta Customer',
+        'customer_phone': '081988887777',
+        'sender_name': 'Toko A',
+        'sender_phone': '081234567890',
+        'sender_address': 'Jl. Pickup No. 1',
+        'receiver_name': 'Penerima B',
+        'receiver_phone': '081398765432',
+        'receiver_address': 'Jl. Dropoff No. 2',
+        'courier_name': 'Budi Kurir',
+        'courier_phone': '081511112222',
+        'courier': {
+          'id': 7,
+          'name': 'Budi Kurir',
+          'phone': '081511112222',
+          'vehicle_description': 'Honda Beat • L 1234 AB',
+        },
+        'vehicle': 'motor',
+        'package_weight': 1.0,
+        'payment_method': 'TUNAI',
+        'total_cost': 15000,
+        'timeline': [],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TrackingDetailScreen(
+            trackingData: assignedTracking,
+            trackingNumber: 'CC2610289998',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('tracking_courier_wa_button')), findsOneWidget);
+      expect(find.byKey(const Key('tracking_sender_wa_button')), findsOneWidget);
+      expect(find.byKey(const Key('tracking_receiver_wa_button')), findsOneWidget);
+      expect(find.byIcon(Icons.phone_outlined), findsNothing);
+      expect(find.byIcon(Icons.phone), findsNothing);
+      expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
+    });
+  });
 }

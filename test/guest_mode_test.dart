@@ -189,6 +189,28 @@ void main() {
       expect(find.text('Login Diperlukan'), findsOneWidget);
     });
 
+    testWidgets('BottomNavBar: menampilkan 3 tab (Home, Riwayat, Profile) tanpa Pesan atau Laporan', (tester) async {
+      await TokenStore.clear();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                BottomNavBar(activeIndex: 0),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Riwayat'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Laporan'), findsNothing);
+      expect(find.text('Pesan'), findsNothing);
+    });
+
     testWidgets('PickupDropoff: tapping Pickup as guest triggers Login Diperlukan dialog', (tester) async {
       await TokenStore.clear();
 
@@ -289,6 +311,7 @@ void main() {
 
       expect(find.text('Selamat Datang'), findsOneWidget);
       expect(find.text('Budi Santoso'), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
     });
   });
 

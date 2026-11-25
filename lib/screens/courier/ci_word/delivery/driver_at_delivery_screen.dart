@@ -11,7 +11,6 @@ import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/models/shipping/route_model.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_complete_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
@@ -176,9 +175,6 @@ class _DriverAtDeliveryScreenState extends State<DriverAtDeliveryScreen>
       ),
     );
   }
-
-  Future<void> _callPhone(String? phoneNumber) =>
-      CourierContactHelper.callPhone(context, phoneNumber);
 
   void _markAsDelivered() {
     setState(() {
@@ -521,28 +517,6 @@ class _DriverAtDeliveryScreenState extends State<DriverAtDeliveryScreen>
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.phone, color: AppColors.primaryOrange),
-                  onPressed: () => _callPhone(
-                    CourierContactHelper.extractReceiverPhone(widget.order) ??
-                        widget.order['receiver_phone']?.toString(),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                ChatOrderIconButton(
-                  key: const Key('at_delivery_chat_button'),
-                  size: 40,
-                  iconSize: 18,
-                  isCircular: true,
-                  tooltip: 'Chat Customer',
-                  onTap: () => ChatLaunchHelper.openOrderChat(
-                    context,
-                    orderIdentifier: ChatLaunchHelper.extractOrderIdentifier(
-                      widget.order,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
                 CourierWhatsAppIconButton(
                   key: const Key('at_delivery_wa_button'),
                   size: 40,
@@ -553,7 +527,7 @@ class _DriverAtDeliveryScreenState extends State<DriverAtDeliveryScreen>
                     phone: CourierContactHelper.extractReceiverPhone(
                       widget.order,
                     ),
-                    isSender: false,
+                    role: WhatsAppContactRole.receiver,
                     order: widget.order,
                   ),
                 ),

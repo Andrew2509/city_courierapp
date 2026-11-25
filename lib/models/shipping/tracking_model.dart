@@ -145,6 +145,8 @@ class TrackingModel {
   final DateTime? pickedUpAt;
   final DateTime? deliveredAt;
   final DateTime createdAt;
+  final String? customerName;
+  final String? customerPhone;
   final String? senderName;
   final String? senderPhone;
   final String? receiverName;
@@ -180,16 +182,6 @@ class TrackingModel {
   int? get orderId =>
       int.tryParse((rawJson?['order_id'] ?? rawJson?['id'] ?? '').toString());
 
-  int? get conversationId =>
-      int.tryParse((rawJson?['conversation_id'] ?? '').toString());
-
-  String get chatOrderIdentifier {
-    final oid = orderId;
-    if (oid != null && oid > 0) return oid.toString();
-    if (trackingNumber.trim().isNotEmpty) return trackingNumber.trim();
-    return (rawJson?['shipment_number'] ?? rawJson?['order_number'] ?? '').toString();
-  }
-
   const TrackingModel({
     required this.trackingNumber,
     required this.status,
@@ -205,6 +197,8 @@ class TrackingModel {
     this.pickedUpAt,
     this.deliveredAt,
     required this.createdAt,
+    this.customerName,
+    this.customerPhone,
     this.senderName,
     this.senderPhone,
     this.receiverName,
@@ -247,6 +241,8 @@ class TrackingModel {
     DateTime? pickedUpAt,
     DateTime? deliveredAt,
     DateTime? createdAt,
+    String? customerName,
+    String? customerPhone,
     String? senderName,
     String? senderPhone,
     String? receiverName,
@@ -288,6 +284,8 @@ class TrackingModel {
       pickedUpAt: pickedUpAt ?? this.pickedUpAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       createdAt: createdAt ?? this.createdAt,
+      customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
       senderName: senderName ?? this.senderName,
       senderPhone: senderPhone ?? this.senderPhone,
       receiverName: receiverName ?? this.receiverName,
@@ -441,6 +439,8 @@ class TrackingModel {
         '').toString();
 
     // ── Extra Details ──
+    final customerName = json['customer_name']?.toString();
+    final customerPhone = json['customer_phone']?.toString();
     final senderName = json['sender_name']?.toString();
     final senderPhone = json['sender_phone']?.toString();
     final receiverName = json['receiver_name']?.toString();
@@ -500,6 +500,8 @@ class TrackingModel {
       pickedUpAt: parseDate(json['picked_up_at']),
       deliveredAt: parseDate(json['delivered_at']),
       createdAt: parseDate(json['created_at']) ?? DateTime.now(),
+      customerName: customerName,
+      customerPhone: customerPhone,
       senderName: senderName,
       senderPhone: senderPhone,
       receiverName: receiverName,

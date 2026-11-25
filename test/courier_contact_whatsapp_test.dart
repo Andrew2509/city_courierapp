@@ -243,11 +243,13 @@ void main() {
       expect(CourierContactHelper.normalizeWhatsAppNumber(null), isNull);
       expect(CourierContactHelper.normalizeWhatsAppNumber(''), isNull);
       expect(CourierContactHelper.normalizeWhatsAppNumber('1234'), isNull);
+      expect(CourierContactHelper.normalizeWhatsAppNumber('0812abc6789'), isNull);
+      expect(CourierContactHelper.normalizeWhatsAppNumber('0215551234'), isNull);
     });
 
     test('buildWhatsAppUri dan buildWhatsAppAppUri membentuk URL yang valid', () {
       final webUri = CourierContactHelper.buildWhatsAppUri(
-        '081234567890',
+        '0812-3456-7890',
         message: 'Halo pengirim',
       );
       expect(webUri, isNotNull);
@@ -257,7 +259,7 @@ void main() {
       expect(webUri.queryParameters['text'], 'Halo pengirim');
 
       final appUri = CourierContactHelper.buildWhatsAppAppUri(
-        '081234567890',
+        '+62 812 3456 7890',
         message: 'Halo penerima',
       );
       expect(appUri, isNotNull);
@@ -269,8 +271,12 @@ void main() {
       expect(CourierContactHelper.buildWhatsAppAppUri(null), isNull);
     });
 
-    test('buildGreetingMessage menyesuaikan pesan untuk pengirim dan penerima', () {
-      final order = buildOrder();
+    test('buildGreetingMessage menyesuaikan pesan untuk customer, pengirim, penerima, dan kurir', () {
+      final order = {
+        ...buildOrder(),
+        'customer_name': 'Sinta Customer',
+        'courier_name': 'Bima Kurir',
+      };
       final senderMsg = CourierContactHelper.buildGreetingMessage(
         isSender: true,
         order: order,
@@ -286,6 +292,20 @@ void main() {
       expect(receiverMsg, contains('Fajar Penerima'));
       expect(receiverMsg, contains('CC-WA-501'));
       expect(receiverMsg, contains('pengantaran'));
+
+      final customerMsg = CourierContactHelper.buildGreetingMessage(
+        role: WhatsAppContactRole.customer,
+        order: order,
+      );
+      expect(customerMsg, contains('Sinta Customer'));
+      expect(customerMsg, contains('CC-WA-501'));
+
+      final courierMsg = CourierContactHelper.buildGreetingMessage(
+        role: WhatsAppContactRole.courier,
+        order: order,
+      );
+      expect(courierMsg, contains('Bima Kurir'));
+      expect(courierMsg, contains('customer City Courier'));
     });
 
     test('extractSenderPhone dan extractReceiverPhone mendukung key alternatif', () {
@@ -313,7 +333,7 @@ void main() {
     });
 
     testWidgets(
-      'callPhone mengarahkan ke WhatsApp nomor tujuan tanpa teks pesan saat WA tersedia, dan fallback tel: bila tidak ada',
+      'openWhatsAppChat mengarahkan ke https://wa.me/628... dan fallback ke browser/app tanpa tel:',
       (tester) async {
         final launchedUris = <Uri>[];
         late BuildContext capturedCtx;
@@ -331,48 +351,79 @@ void main() {
           ),
         );
 
-        // 1. WhatsApp tersedia -> langsung whatsapp://send?phone=62... tanpa teks
-        final okWa = await CourierContactHelper.callPhone(
+        // 1. WhatsApp / external handler terbuka langsung via https://wa.me/628...
+        final okWeb = await CourierContactHelper.openWhatsAppChat(
           capturedCtx,
-          '0812-3456-7890',
+          phone: '0812-3456-7890',
+          role: WhatsAppContactRole.sender,
+          trackingNumber: 'CC-WA-501',
+          launchOverride: (uri, {mode = LaunchMode.platformDefault}) async {
+            launchedUris.add(uri);
+            return uri.scheme == 'https';
+          },
+        );
+        expect(okWeb, isTrue);
+        expect(launchedUris.last.scheme, 'https');
+        expect(launchedUris.last.host, 'wa.me');
+        expect(launchedUris.last.path, '/6281234567890');
+        expect(launchedUris.last.queryParameters['text'], contains('penjemputan'));
+
+        // 2. Fallback scheme whatsapp:// jika external https gagal namun WhatsApp terpasang
+        final okApp = await CourierContactHelper.openWhatsAppChat(
+          capturedCtx,
+          phone: '+62 813-9876-5432',
+          role: WhatsAppContactRole.receiver,
           canLaunchOverride: (uri) async => uri.scheme == 'whatsapp',
           launchOverride: (uri, {mode = LaunchMode.platformDefault}) async {
             launchedUris.add(uri);
-            return true;
+            return uri.scheme == 'whatsapp';
           },
         );
-        expect(okWa, isTrue);
-        expect(launchedUris.length, 1);
+        expect(okApp, isTrue);
         expect(launchedUris.last.scheme, 'whatsapp');
-        expect(launchedUris.last.queryParameters['phone'], '6281234567890');
-        expect(launchedUris.last.queryParameters.containsKey('text'), isFalse);
+        expect(launchedUris.last.queryParameters['phone'], '6281398765432');
 
-        // 2. WhatsApp tidak tersedia -> fallback tel:
-        final okTel = await CourierContactHelper.callPhone(
+        // 3. Fallback platformDefault saat WhatsApp app belum terpasang
+        final okBrowserFallback = await CourierContactHelper.openWhatsAppChat(
           capturedCtx,
-          '0812-3456-7890',
-          canLaunchOverride: (uri) async => uri.scheme == 'tel',
+          phone: '0812-3456-7890',
+          role: WhatsAppContactRole.courier,
+          canLaunchOverride: (_) async => false,
           launchOverride: (uri, {mode = LaunchMode.platformDefault}) async {
             launchedUris.add(uri);
-            return true;
+            return mode == LaunchMode.platformDefault && uri.scheme == 'https';
           },
         );
-        expect(okTel, isTrue);
-        expect(launchedUris.length, 2);
-        expect(launchedUris.last.scheme, 'tel');
-        expect(launchedUris.last.path, '081234567890');
+        expect(okBrowserFallback, isTrue);
+        expect(launchedUris.last.scheme, 'https');
+        expect(launchedUris.last.host, 'wa.me');
 
-        // 3. Nomor kosong -> snackbar aman
-        final okEmpty = await CourierContactHelper.callPhone(capturedCtx, '');
+        // 4. Nomor kosong -> notifikasi yang jelas
+        final okEmpty = await CourierContactHelper.openWhatsAppChat(
+          capturedCtx,
+          phone: '',
+        );
         expect(okEmpty, isFalse);
-        await tester.pump();
-        expect(find.text('Nomor telepon tidak tersedia'), findsOneWidget);
+        await tester.pumpAndSettle();
+        expect(find.text('Nomor WhatsApp belum tersedia'), findsOneWidget);
+
+        ScaffoldMessenger.of(capturedCtx).hideCurrentSnackBar();
+        await tester.pumpAndSettle();
+
+        // 5. Format nomor tidak valid -> notifikasi validasi yang jelas
+        final okInvalid = await CourierContactHelper.openWhatsAppChat(
+          capturedCtx,
+          phone: '1234',
+        );
+        expect(okInvalid, isFalse);
+        await tester.pumpAndSettle();
+        expect(find.text('Format nomor WhatsApp tidak valid'), findsOneWidget);
       },
     );
   });
 
   group('Courier WhatsApp UI integration tests', () {
-    testWidgets('openWhatsAppChat menampilkan snackbar bila nomor kosong', (
+    testWidgets('openWhatsAppChat menampilkan notifikasi bila nomor null', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -394,20 +445,26 @@ void main() {
 
       await tester.tap(find.text('Buka WA'));
       await tester.pump();
-      expect(find.text('Nomor WhatsApp tidak tersedia'), findsOneWidget);
+      expect(find.text('Nomor WhatsApp belum tersedia'), findsOneWidget);
     });
 
     testWidgets(
-      'DriverDetailShipmentScreen menampilkan ikon WA untuk pengirim & penerima',
+      'DriverDetailShipmentScreen menampilkan ikon WA untuk customer, pengirim, & penerima tanpa tombol telepon',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 2.0;
         addTearDown(tester.view.resetPhysicalSize);
 
+        final fullOrder = {
+          ...buildOrder(status: 'assigned'),
+          'customer_name': 'Sinta Customer',
+          'customer_phone': '081988887777',
+        };
+
         await tester.pumpWidget(
           MaterialApp(
             home: DriverDetailShipmentScreen(
-              shipment: buildOrder(status: 'assigned'),
+              shipment: fullOrder,
               trafficService: TrafficService(tokenReader: () async => null),
               enableAutoTrafficSummary: false,
             ),
@@ -424,6 +481,12 @@ void main() {
           find.byKey(const Key('wa_detail_receiver_button')),
           findsOneWidget,
         );
+        expect(
+          find.byKey(const Key('wa_detail_customer_button')),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.phone_rounded), findsNothing);
+        expect(find.byIcon(Icons.phone), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
@@ -431,7 +494,7 @@ void main() {
     );
 
     testWidgets(
-      'DriverDeliveryFlowScreen menampilkan ikon telepon & WA ringkas di sebelah Estimasi dan Harga tanpa tombol teks penuh',
+      'DriverDeliveryFlowScreen hanya menampilkan tombol WA ringkas tanpa telepon atau chat internal',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 2.0;
@@ -450,29 +513,23 @@ void main() {
 
         expect(find.text('Estimasi'), findsOneWidget);
         expect(find.text('Harga'), findsOneWidget);
-        expect(find.byKey(const Key('call_flow_sender_button')), findsOneWidget);
+        expect(find.byKey(const Key('call_flow_sender_button')), findsNothing);
+        expect(find.byKey(const Key('call_flow_receiver_button')), findsNothing);
+        expect(find.byKey(const Key('chat_flow_order_button')), findsNothing);
         expect(find.byKey(const Key('wa_flow_sender_button')), findsOneWidget);
-        expect(
-          find.byKey(const Key('call_flow_receiver_button')),
-          findsOneWidget,
-        );
         expect(
           find.byKey(const Key('wa_flow_receiver_button')),
           findsOneWidget,
         );
-
-        // Pastikan tombol teks panjang sebelumnya tidak lagi memenuhi kartu
-        expect(find.text('Hubungi Pengirim'), findsNothing);
-        expect(find.text('Hubungi Penerima'), findsNothing);
-        expect(find.text('Chat WA Pengirim'), findsNothing);
-        expect(find.text('Chat WA Penerima'), findsNothing);
+        expect(find.byIcon(Icons.phone_rounded), findsNothing);
+        expect(find.byIcon(Icons.phone), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());
       },
     );
 
     testWidgets(
-      'DriverAtDeliveryScreen dan DriverDeliveryConfirmationScreen menampilkan tombol WA penerima',
+      'DriverAtDeliveryScreen dan DriverDeliveryConfirmationScreen hanya menampilkan tombol WA penerima tanpa telepon',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 2.0;
@@ -485,6 +542,7 @@ void main() {
         );
         await tester.pump();
         expect(find.byKey(const Key('at_delivery_wa_button')), findsOneWidget);
+        expect(find.byIcon(Icons.phone), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 300));
@@ -501,6 +559,7 @@ void main() {
           find.byKey(const Key('confirm_receiver_wa_bottom')),
           findsOneWidget,
         );
+        expect(find.byIcon(Icons.phone), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());
       },

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 
 class DriverHelpScreen extends StatefulWidget {
   const DriverHelpScreen({super.key});
@@ -29,8 +31,8 @@ class _DriverHelpScreenState extends State<DriverHelpScreen> {
     },
     {
       'question': 'Bagaimana jika pelanggan tidak ada di tempat?',
-      'answer': 'Hubungi pelanggan melalui tombol telepon di aplikasi. Jika tidak bisa dihubungi, ikuti prosedur "Pelanggan Tidak Ditemukan" yang tersedia di halaman detail pengiriman.',
-      'icon': Icons.phone_outlined,
+      'answer': 'Hubungi pelanggan melalui tombol WhatsApp di aplikasi. Jika tidak bisa dihubungi, ikuti prosedur "Pelanggan Tidak Ditemukan" yang tersedia di halaman detail pengiriman.',
+      'icon': FontAwesomeIcons.whatsapp,
     },
     {
       'question': 'Bagaimana cara menarik saldo?',
@@ -201,15 +203,6 @@ class _DriverHelpScreenState extends State<DriverHelpScreen> {
             ),
             const SizedBox(height: 12),
             _buildContactCard(
-              icon: Icons.phone_outlined,
-              title: 'Telepon',
-              subtitle: '+62 812 3456 7890',
-              onTap: () => _launchUrl('tel:+6281234567890'),
-              primaryColor: primaryColor,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 8),
-            _buildContactCard(
               icon: Icons.email_outlined,
               title: 'Email',
               subtitle: 'support@www.neonflux.my.id',
@@ -219,11 +212,15 @@ class _DriverHelpScreenState extends State<DriverHelpScreen> {
             ),
             const SizedBox(height: 8),
             _buildContactCard(
-              icon: Icons.chat_outlined,
+              icon: FontAwesomeIcons.whatsapp,
               title: 'WhatsApp',
               subtitle: 'Chat langsung dengan tim support',
-              onTap: () => _launchUrl('https://wa.me/6281234567890'),
-              primaryColor: primaryColor,
+              onTap: () => CourierContactHelper.openWhatsAppChat(
+                context,
+                phone: '6281234567890',
+                role: WhatsAppContactRole.support,
+              ),
+              primaryColor: CourierContactHelper.whatsappColor,
               borderColor: borderColor,
             ),
             const SizedBox(height: 40),

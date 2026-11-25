@@ -250,4 +250,25 @@ void main() {
 
     ActiveOrderService.stopPolling();
   });
+
+  testWidgets('FloatingActiveOrderWidget hanya menampilkan tombol WhatsApp tanpa telepon atau chat internal', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              FloatingActiveOrderWidget(),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('floating_active_order_wa_button')), findsOneWidget);
+    expect(find.byIcon(Icons.phone_outlined), findsNothing);
+    expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
+
+    ActiveOrderService.stopPolling();
+  });
 }

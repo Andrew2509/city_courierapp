@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:city_courierapp/models/shipping/tracking_model.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 
 /// Card informasi kurir
 class CourierInfoCard extends StatelessWidget {
@@ -119,42 +119,35 @@ class CourierInfoCard extends StatelessWidget {
             ),
           ),
 
-          // Contact actions (In-app Chat + Telepon)
-          if (orderIdentifier != null && orderIdentifier!.trim().isNotEmpty) ...[
-            ChatOrderIconButton(
-              size: 38,
-              iconSize: 18,
-              tooltip: 'Chat Kurir',
-              onTap: () => ChatLaunchHelper.openOrderChat(
-                context,
-                orderIdentifier: orderIdentifier,
-              ),
+          // Satu-satunya tombol komunikasi: WhatsApp Kurir
+          TextButton.icon(
+            onPressed: () => CourierContactHelper.openWhatsAppChat(
+              context,
+              phone: courier!.phone,
+              role: WhatsAppContactRole.courier,
+              trackingNumber: orderIdentifier,
+              contactName: courier!.name,
             ),
-            if (courier!.phone != null) const SizedBox(width: 8),
-          ],
-          if (courier!.phone != null)
-            TextButton.icon(
-              onPressed: () => _launchPhone(courier!.phone!),
-              icon: const Icon(Icons.phone, size: 16),
-              label: const Text('Hubungi'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFEC5B13),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: const BorderSide(color: Color(0xFFEC5B13)),
+            icon: const FaIcon(
+              FontAwesomeIcons.whatsapp,
+              size: 16,
+              color: CourierContactHelper.whatsappColor,
+            ),
+            label: const Text('WhatsApp'),
+            style: TextButton.styleFrom(
+              foregroundColor: CourierContactHelper.whatsappColor,
+              backgroundColor: CourierContactHelper.whatsappBgColor,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(
+                  color: CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.45),
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
-  }
-
-  Future<void> _launchPhone(String phone) async {
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
   }
 }

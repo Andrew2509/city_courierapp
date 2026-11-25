@@ -263,7 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          const BottomNavBar(activeIndex: 3),
+          const BottomNavBar(activeIndex: 2),
         ],
       ),
     );

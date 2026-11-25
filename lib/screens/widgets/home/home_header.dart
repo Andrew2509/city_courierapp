@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 
 class HomeHeader extends StatelessWidget {
   final Map<String, dynamic>? userData;
@@ -8,6 +7,7 @@ class HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.only(top: 48, left: 20, right: 20, bottom: 64),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -49,20 +49,10 @@ class HomeHeader extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Image.asset(
-                    'assets/images/Logo City Courie.png',
-                    height: 80,
-                    fit: BoxFit.contain,
-                  ),
-                  if (userData != null)
-                    ChatInboxIconButton(
-                      knownUserId: int.tryParse((userData!['id'] ?? '').toString()),
-                      iconColor: const Color(0xFFEC5B13),
-                    ),
-                ],
+              Image.asset(
+                'assets/images/Logo City Courie.png',
+                height: 80,
+                fit: BoxFit.contain,
               ),
               if (userData != null &&
                   (userData!['name'] as String?)?.trim().isNotEmpty == true) ...[

@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/models/shipping/tracking_model.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/data/models/address_model.dart';
@@ -469,17 +471,12 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
   }
 
   Future<void> _contactSupport() async {
-    final text = 'Halo Customer Service City Courier, saya butuh bantuan terkait pesanan nomor resi $_resi';
-    final url = Uri.parse('https://wa.me/6281343323155?text=${Uri.encodeComponent(text)}');
-    try {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Hubungi CS: +62 813-4332-2155'), behavior: SnackBarBehavior.floating),
-        );
-      }
-    }
+    await CourierContactHelper.openWhatsAppChat(
+      context,
+      phone: '6281343323155',
+      role: WhatsAppContactRole.support,
+      trackingNumber: _resi,
+    );
   }
 
   /// Memeriksa apakah status pesanan masih memenuhi syarat untuk dibatalkan
@@ -1189,7 +1186,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
       _tracking?.senderPhone ??
       widget.shipmentData?['sender_phone'] ??
       widget.trackingData?['sender_phone'] ??
-      '813 4332 2155';
+      '';
 
   String _getSenderAddress() =>
       _tracking?.origin?.address ??
@@ -1206,7 +1203,7 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
       _tracking?.receiverPhone ??
       widget.shipmentData?['receiver_phone'] ??
       widget.trackingData?['receiver_phone'] ??
-      '813 4332 2155';
+      '';
 
   String _getReceiverAddress() =>
       _tracking?.destination?.address ??
@@ -1758,6 +1755,24 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                               ],
                             ),
                           ),
+                          if (isCourierAssigned &&
+                              _tracking?.status != TrackingStatus.cancelled &&
+                              _tracking?.status != TrackingStatus.delivered) ...[
+                            const SizedBox(width: 8),
+                            CourierWhatsAppIconButton(
+                              key: const Key('tracking_courier_wa_button'),
+                              size: 36,
+                              iconSize: 17,
+                              tooltip: 'Chat WA Kurir',
+                              onTap: () => CourierContactHelper.openWhatsAppChat(
+                                context,
+                                phone: _tracking?.courier?.phone,
+                                role: WhatsAppContactRole.courier,
+                                trackingNumber: _resi,
+                                contactName: _tracking?.courier?.name,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1897,20 +1912,45 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         InkWell(
-                                          onTap: () {
-                                            final p = _getSenderPhone().replaceAll(RegExp(r'\s+'), '');
-                                            launchUrl(Uri.parse('tel:$p'));
-                                          },
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                '(${_getSenderPhone()})',
-                                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                          key: const Key('tracking_sender_wa_button'),
+                                          onTap: () => CourierContactHelper.openWhatsAppChat(
+                                            context,
+                                            phone: _getSenderPhone(),
+                                            role: WhatsAppContactRole.sender,
+                                            trackingNumber: _resi,
+                                            contactName: _getSenderName(),
+                                          ),
+                                          borderRadius: BorderRadius.circular(6),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: CourierContactHelper.whatsappBgColor,
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.4),
                                               ),
-                                            ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const FaIcon(
+                                                  FontAwesomeIcons.whatsapp,
+                                                  size: 11,
+                                                  color: CourierContactHelper.whatsappColor,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  _getSenderPhone() != '-' && _getSenderPhone().trim().isNotEmpty
+                                                      ? _getSenderPhone()
+                                                      : 'WhatsApp',
+                                                  style: const TextStyle(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: CourierContactHelper.whatsappColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -1940,20 +1980,45 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         InkWell(
-                                          onTap: () {
-                                            final p = _getReceiverPhone().replaceAll(RegExp(r'\s+'), '');
-                                            launchUrl(Uri.parse('tel:$p'));
-                                          },
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF64748B)),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                '(${_getReceiverPhone()})',
-                                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                          key: const Key('tracking_receiver_wa_button'),
+                                          onTap: () => CourierContactHelper.openWhatsAppChat(
+                                            context,
+                                            phone: _getReceiverPhone(),
+                                            role: WhatsAppContactRole.receiver,
+                                            trackingNumber: _resi,
+                                            contactName: _getReceiverName(),
+                                          ),
+                                          borderRadius: BorderRadius.circular(6),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: CourierContactHelper.whatsappBgColor,
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.4),
                                               ),
-                                            ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const FaIcon(
+                                                  FontAwesomeIcons.whatsapp,
+                                                  size: 11,
+                                                  color: CourierContactHelper.whatsappColor,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  _getReceiverPhone() != '-' && _getReceiverPhone().trim().isNotEmpty
+                                                      ? _getReceiverPhone()
+                                                      : 'WhatsApp',
+                                                  style: const TextStyle(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: CourierContactHelper.whatsappColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -2101,7 +2166,11 @@ class _TrackingDetailScreenState extends State<TrackingDetailScreen> {
                               Expanded(
                                 child: OutlinedButton.icon(
                                   onPressed: _contactSupport,
-                                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 15, color: darkNavy),
+                                  icon: const FaIcon(
+                                    FontAwesomeIcons.whatsapp,
+                                    size: 15,
+                                    color: CourierContactHelper.whatsappColor,
+                                  ),
                                   label: const Text(
                                     'Bantuan',
                                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: darkNavy),

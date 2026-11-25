@@ -228,10 +228,6 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
 
-  void _openDialer(String? phone) {
-    CourierContactHelper.callPhone(context, phone);
-  }
-
   void _openMaps(double? lat, double? lng, String? address) async {
     if (lat != null && lng != null && lat != 0 && lng != 0) {
       final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
@@ -1027,7 +1023,6 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     bool isScheduled,
     bool canPickup,
   ) {
-    final senderPhone = shipment['sender_phone'] ?? shipment['customer_phone'];
     final waSenderPhone = CourierContactHelper.extractSenderPhone(shipment);
     final waReceiverPhone = CourierContactHelper.extractReceiverPhone(shipment);
     final pLat = double.tryParse(shipment['pickup_latitude']?.toString() ?? '');
@@ -1084,18 +1079,6 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     if (status == 'assigned') {
       return Row(
         children: [
-          if (senderPhone != null) ...[
-            IconButton(
-              onPressed: () => _openDialer(senderPhone),
-              icon: const Icon(Icons.call, size: 18, color: Color(0xFF16A34A)),
-              tooltip: 'Hubungi Pengirim',
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFFDCFCE7),
-                padding: const EdgeInsets.all(8),
-              ),
-            ),
-            const SizedBox(width: 6),
-          ],
           if (waSenderPhone != null) ...[
             CourierWhatsAppIconButton(
               size: 36,

@@ -6,7 +6,7 @@ import 'package:city_courierapp/screens/profile/profile_screen.dart';
 
 class BottomNavBar extends StatelessWidget {
   final int activeIndex;
-  const BottomNavBar({Key? key, this.activeIndex = 0}) : super(key: key);
+  const BottomNavBar({super.key, this.activeIndex = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -36,76 +36,75 @@ class BottomNavBar extends StatelessWidget {
           child: SizedBox(
             height: 70,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(context, 'Home', Icons.home_rounded, activeIndex == 0, isDarkMode, primaryColor, onTap: activeIndex == 0 ? null : () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
-                    (route) => false,
-                  );
-                }),
-                _buildNavItem(
-                  context,
-                  'Laporan',
-                  Icons.analytics_outlined,
-                  activeIndex == 1,
-                  isDarkMode,
-                  primaryColor,
-                  onTap: activeIndex == 1
-                      ? null
-                      : () {
-                          AuthGuard.runWithAuth(
-                            context,
-                            onAuthenticated: () {},
-                          );
-                        },
+                Expanded(
+                  child: _buildNavItem(
+                    context,
+                    'Home',
+                    Icons.home_rounded,
+                    activeIndex == 0,
+                    isDarkMode,
+                    primaryColor,
+                    onTap: activeIndex == 0
+                        ? null
+                        : () {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (context) => const HomeScreen()),
+                              (route) => false,
+                            );
+                          },
+                  ),
                 ),
-                _buildNavItem(
-                  context,
-                  'Riwayat',
-                  Icons.history_rounded,
-                  activeIndex == 2,
-                  isDarkMode,
-                  primaryColor,
-                  onTap: activeIndex == 2
-                      ? null
-                      : () {
-                          AuthGuard.runWithAuth(
-                            context,
-                            onAuthenticated: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ShippingHistoryScreen(),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                Expanded(
+                  child: _buildNavItem(
+                    context,
+                    'Riwayat',
+                    Icons.history_rounded,
+                    activeIndex == 1,
+                    isDarkMode,
+                    primaryColor,
+                    onTap: activeIndex == 1
+                        ? null
+                        : () {
+                            AuthGuard.runWithAuth(
+                              context,
+                              onAuthenticated: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ShippingHistoryScreen(),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                  ),
                 ),
-                _buildNavItem(
-                  context,
-                  'Profile',
-                  Icons.person_outline_rounded,
-                  activeIndex == 3,
-                  isDarkMode,
-                  primaryColor,
-                  onTap: activeIndex == 3
-                      ? null
-                      : () {
-                          AuthGuard.runWithAuth(
-                            context,
-                            onAuthenticated: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ProfileScreen(),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                Expanded(
+                  child: _buildNavItem(
+                    context,
+                    'Profile',
+                    Icons.person_outline_rounded,
+                    activeIndex == 2,
+                    isDarkMode,
+                    primaryColor,
+                    onTap: activeIndex == 2
+                        ? null
+                        : () {
+                            AuthGuard.runWithAuth(
+                              context,
+                              onAuthenticated: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ProfileScreen(),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                  ),
                 ),
               ],
             ),
@@ -115,18 +114,63 @@ class BottomNavBar extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(BuildContext context, String title, IconData icon, bool isActive, bool isDarkMode, Color primaryColor, {VoidCallback? onTap}) {
+  Widget _buildNavItem(
+    BuildContext context,
+    String title,
+    IconData icon,
+    bool isActive,
+    bool isDarkMode,
+    Color primaryColor, {
+    int unreadCount = 0,
+    VoidCallback? onTap,
+  }) {
+    final itemColor = isActive
+        ? primaryColor
+        : (isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400);
+
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: isActive ? primaryColor : (isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400),
-              size: 24,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  color: itemColor,
+                  size: 24,
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -8,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+                      constraints: const BoxConstraints(minWidth: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                          color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+                          width: 1.3,
+                        ),
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : unreadCount.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -134,9 +178,7 @@ class BottomNavBar extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                color: isActive 
-                    ? primaryColor 
-                    : (isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400),
+                color: itemColor,
               ),
             ),
           ],

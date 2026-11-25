@@ -16,7 +16,6 @@ import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/earnings/driver_earnings_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
 import 'package:city_courierapp/services/shipping/routing_service.dart';
@@ -336,9 +335,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
       },
     );
   }
-
-  Future<void> _callContact(String? phone) =>
-      CourierContactHelper.callPhone(context, phone);
 
   @override
   Widget build(BuildContext context) {
@@ -1042,10 +1038,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
             (pickup is Map ? pickup['address'] : null) ??
             '-')
         .toString();
-    final String senderPhone = (widget.order['sender_phone'] ??
-            widget.order['customer_phone'] ??
-            '081234567890')
-        .toString();
 
     final String dropoffName = (dropoff is Map ? dropoff['name'] : null)?.toString() ??
         widget.order['receiver_name']?.toString() ??
@@ -1056,7 +1048,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
             (dropoff is Map ? dropoff['address'] : null) ??
             '-')
         .toString();
-    final String receiverPhone = (widget.order['receiver_phone'] ?? '081234567890').toString();
 
     final scheduledAt = widget.order['pickup_scheduled_at'] ?? nestedShip?['pickup_scheduled_at'];
     final rawPickupTime = (widget.order['pickup_time'] ?? nestedShip?['pickup_time'] ?? '').toString();
@@ -1365,36 +1356,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                           ),
                         ),
                         const SizedBox(width: 4),
-                        CourierPhoneIconButton(
-                          key: const Key('call_flow_sender_button'),
-                          size: 28,
-                          iconSize: 14,
-                          isCircular: true,
-                          tooltip: 'Hubungi Pengirim',
-                          iconColor: AppColors.primaryOrange,
-                          bgColor: const Color(0xFFFFF4EC),
-                          borderColor: AppColors.primaryOrange,
-                          onTap: () => _callContact(
-                            CourierContactHelper.extractSenderPhone(
-                                  widget.order,
-                                ) ??
-                                senderPhone,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        ChatOrderIconButton(
-                          key: const Key('chat_flow_order_button'),
-                          size: 28,
-                          iconSize: 14,
-                          isCircular: true,
-                          tooltip: 'Chat Customer',
-                          onTap: () => ChatLaunchHelper.openOrderChat(
-                            context,
-                            orderIdentifier: ChatLaunchHelper.extractOrderIdentifier(
-                              widget.order,
-                            ),
-                          ),
-                        ),
                         const SizedBox(width: 4),
                         CourierWhatsAppIconButton(
                           key: const Key('wa_flow_sender_button'),
@@ -1407,7 +1368,7 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                             phone: CourierContactHelper.extractSenderPhone(
                               widget.order,
                             ),
-                            isSender: true,
+                            role: WhatsAppContactRole.sender,
                             order: widget.order,
                           ),
                         ),
@@ -1468,23 +1429,6 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                           ),
                         ),
                         const SizedBox(width: 4),
-                        CourierPhoneIconButton(
-                          key: const Key('call_flow_receiver_button'),
-                          size: 28,
-                          iconSize: 14,
-                          isCircular: true,
-                          tooltip: 'Hubungi Penerima',
-                          iconColor: const Color(0xFF22C55E),
-                          bgColor: const Color(0xFFECFDF3),
-                          borderColor: const Color(0xFF22C55E),
-                          onTap: () => _callContact(
-                            CourierContactHelper.extractReceiverPhone(
-                                  widget.order,
-                                ) ??
-                                receiverPhone,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
                         CourierWhatsAppIconButton(
                           key: const Key('wa_flow_receiver_button'),
                           size: 28,
@@ -1496,7 +1440,7 @@ class _DriverDeliveryFlowScreenState extends State<DriverDeliveryFlowScreen>
                             phone: CourierContactHelper.extractReceiverPhone(
                               widget.order,
                             ),
-                            isSender: false,
+                            role: WhatsAppContactRole.receiver,
                             order: widget.order,
                           ),
                         ),

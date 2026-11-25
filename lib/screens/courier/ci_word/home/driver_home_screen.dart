@@ -7,9 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
-import 'package:city_courierapp/providers/call_provider.dart';
-import 'package:city_courierapp/providers/chat_provider.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/services/courier/courier_live_location_service.dart';
 import 'package:city_courierapp/services/courier/courier_status_service.dart';
@@ -118,16 +115,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (mounted && result['success'] == true) {
         final data = result['data'];
         final name = data['name'] ?? data['user']?['name'] ?? 'Kurir';
-        final userId = int.tryParse(
-          (data['user_id'] ?? data['user']?['id'] ?? '').toString(),
-        );
         setState(() {
           _courierName = name;
         });
-        if (userId != null && userId > 0) {
-          unawaited(context.read<ChatProvider>().bindAuthenticatedUser(userId));
-          unawaited(context.read<CallProvider>().bindAuthenticatedUser(userId));
-        }
       }
     } catch (e) {
       debugPrint('Error fetching courier profile: $e');
@@ -304,7 +294,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               ),
             ],
           ),
-          const ChatInboxIconButton(iconColor: Color(0xFFFF5A00)),
         ],
       ),
     );

@@ -230,7 +230,7 @@ class _ShippingHistoryScreenState extends State<ShippingHistoryScreen> {
                   ),
                 ],
               ),
-              const BottomNavBar(activeIndex: 2),
+              const BottomNavBar(activeIndex: 1),
             ],
           ),
         ),

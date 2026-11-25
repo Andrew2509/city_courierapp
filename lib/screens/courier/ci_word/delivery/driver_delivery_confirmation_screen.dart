@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_photo_capture_screen.dart';
@@ -75,9 +76,6 @@ class _DriverDeliveryConfirmationScreenState
       });
     }
   }
-
-  Future<void> _callPhone(String? phone) =>
-      CourierContactHelper.callPhone(context, phone);
 
   void _reportIssue() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -285,8 +283,8 @@ class _DriverDeliveryConfirmationScreenState
               const SizedBox(width: 8),
               CourierWhatsAppIconButton(
                 key: const Key('confirm_receiver_wa_top'),
-                size: 36,
-                iconSize: 18,
+                size: 38,
+                iconSize: 19,
                 tooltip: 'Chat WA Penerima',
                 onTap: () => CourierContactHelper.openWhatsAppChat(
                   context,
@@ -294,25 +292,8 @@ class _DriverDeliveryConfirmationScreenState
                         widget.order,
                       ) ??
                       receiver['phone']?.toString(),
-                  isSender: false,
+                  role: WhatsAppContactRole.receiver,
                   order: widget.order,
-                ),
-              ),
-              const SizedBox(width: 6),
-              OutlinedButton.icon(
-                onPressed: () => _callPhone(receiver['phone']),
-                icon: const Icon(Icons.phone, size: 16),
-                label: const Text('Hubungi'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryOrange,
-                  side: BorderSide(color: AppColors.primaryOrange),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
                 ),
               ),
             ],
@@ -675,39 +656,37 @@ class _DriverDeliveryConfirmationScreenState
           // Secondary buttons row
           Row(
             children: [
-              CourierWhatsAppIconButton(
-                key: const Key('confirm_receiver_wa_bottom'),
-                size: 44,
-                iconSize: 20,
-                tooltip: 'Chat WA Penerima',
-                onTap: () => CourierContactHelper.openWhatsAppChat(
-                  context,
-                  phone: CourierContactHelper.extractReceiverPhone(
-                        widget.order,
-                      ) ??
-                      _orderDetail['receiver']['phone']?.toString(),
-                  isSender: false,
-                  order: widget.order,
-                ),
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () =>
-                      _callPhone(_orderDetail['receiver']['phone']),
-                  icon: const Icon(Icons.phone, size: 18),
+                  key: const Key('confirm_receiver_wa_bottom'),
+                  onPressed: () => CourierContactHelper.openWhatsAppChat(
+                    context,
+                    phone: CourierContactHelper.extractReceiverPhone(
+                          widget.order,
+                        ) ??
+                        _orderDetail['receiver']['phone']?.toString(),
+                    role: WhatsAppContactRole.receiver,
+                    order: widget.order,
+                  ),
+                  icon: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    size: 18,
+                    color: CourierContactHelper.whatsappColor,
+                  ),
                   label: Text(
-                    'Hubungi Penerima',
+                    'Chat WA Penerima',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.caption.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      color: CourierContactHelper.whatsappColor,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: const BorderSide(
-                      color: AppColors.dashboardCardBorder,
+                    foregroundColor: CourierContactHelper.whatsappColor,
+                    backgroundColor: CourierContactHelper.whatsappBgColor,
+                    side: BorderSide(
+                      color: CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.55),
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(

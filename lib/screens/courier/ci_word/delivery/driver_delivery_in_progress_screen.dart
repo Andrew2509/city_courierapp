@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_confirmation_screen.dart';
 
 class DriverDeliveryInProgressScreen extends StatefulWidget {
@@ -45,19 +45,13 @@ class _DriverDeliveryInProgressScreenState
         'Tolong ketuk pintu pagar, jangan dibunyikan bel. Letakkan di teras jika tidak ada orang.',
   };
 
-  Future<void> _openWhatsApp(String phoneNumber) async {
-    final cleanNumber = phoneNumber.replaceAll(RegExp(r'[\s\-\+]'), '');
-    // Format for WhatsApp: remove leading 0 and add country code if needed
-    String waNumber = cleanNumber;
-    if (waNumber.startsWith('0')) {
-      waNumber = '62${waNumber.substring(1)}';
-    } else if (!waNumber.startsWith('62')) {
-      waNumber = '62$waNumber';
-    }
-    final uri = Uri.parse('https://wa.me/$waNumber');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  void _openWhatsApp(String phoneNumber) {
+    CourierContactHelper.openWhatsAppChat(
+      context,
+      phone: phoneNumber,
+      role: WhatsAppContactRole.receiver,
+      order: widget.order,
+    );
   }
 
   void _arriveAtLocation() async {
@@ -247,9 +241,9 @@ class _DriverDeliveryInProgressScreenState
           Row(
             children: [
               Icon(
-                Icons.phone_outlined,
-                size: 20,
-                color: AppColors.textSecondary,
+                FontAwesomeIcons.whatsapp,
+                size: 18,
+                color: CourierContactHelper.whatsappColor,
               ),
               const SizedBox(width: 12),
               Text(phone, style: AppTypography.bodyMedium),

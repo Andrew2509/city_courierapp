@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
+import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/screens/home/tracking/tracking_detail_screen.dart';
 import 'package:city_courierapp/services/shipping/active_order_service.dart';
 
@@ -579,63 +578,31 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
                 ),
               ),
 
-              // Call & Chat Circular Buttons
-              Row(
-                children: [
-                  _buildCircleAction(
-                    icon: Icons.phone_outlined,
-                    size: 32,
-                    iconSize: 15,
-                    onTap: () async {
-                      if (!hasCourier || courierPhone.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Menunggu kurir menerima pengantaran...'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      final url = Uri.parse('tel:$courierPhone');
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url);
-                      } else {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Nomor kurir: $courierPhone'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCircleAction(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    size: 32,
-                    iconSize: 15,
-                    onTap: () async {
-                      if (!hasCourier) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Menunggu kurir menerima pengantaran...'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      final resolvedOrderId =
-                          ChatLaunchHelper.extractOrderIdentifier(shipmentData) ??
-                              orderId.toString();
-                      await ChatLaunchHelper.openOrderChat(
-                        context,
-                        orderIdentifier: resolvedOrderId,
-                      );
-                    },
-                  ),
-                ],
+              // WhatsApp Action Button (Komunikasi Langsung)
+              CourierWhatsAppIconButton(
+                key: const Key('floating_active_order_wa_button'),
+                size: 34,
+                iconSize: 17,
+                tooltip: 'Hubungi Kurir via WhatsApp',
+                onTap: () {
+                  if (!hasCourier) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Menunggu kurir menerima pengantaran...'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  CourierContactHelper.openWhatsAppChat(
+                    context,
+                    phone: courierPhone,
+                    role: WhatsAppContactRole.courier,
+                    order: shipmentData,
+                    trackingNumber: orderId.toString(),
+                    contactName: courierName,
+                  );
+                },
               ),
             ],
           ),
@@ -969,31 +936,5 @@ class _FloatingActiveOrderWidgetState extends State<FloatingActiveOrderWidget> {
     } else {
       return '$baseHost/storage/$path';
     }
-  }
-
-  Widget _buildCircleAction({
-    required IconData icon,
-    required VoidCallback onTap,
-    double size = 32,
-    double iconSize = 15,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(size / 2),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Icon(
-          icon,
-          size: iconSize,
-          color: const Color(0xFF334155),
-        ),
-      ),
-    );
   }
 }

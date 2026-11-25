@@ -2,8 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_confirmation_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_summary_screen.dart';
@@ -100,22 +98,6 @@ class _DriverDetailShipmentScreenState
           {'status': 'Pesanan Dibuat', 'time': '10:00', 'isCompleted': true},
           {'status': 'Siap Dijemput', 'time': '10:30', 'isCompleted': false},
         ];
-    }
-  }
-
-  Future<void> _makePhoneCall(String? phoneNumber) =>
-      CourierContactHelper.callPhone(context, phoneNumber);
-
-  Future<void> _openWhatsApp(String phoneNumber) async {
-    final cleanNumber = phoneNumber.replaceAll(RegExp(r'[\s\-\+]'), '');
-    String waNumber = cleanNumber.startsWith('0')
-        ? '62${cleanNumber.substring(1)}'
-        : cleanNumber;
-    if (!waNumber.startsWith('62')) waNumber = '62$waNumber';
-
-    final uri = Uri.parse('https://wa.me/$waNumber');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -532,40 +514,18 @@ class _DriverDetailShipmentScreenState
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                children: [
-                  GestureDetector(
-                    onTap: () => _openWhatsApp(phone),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF25D366).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const FaIcon(
-                        FontAwesomeIcons.whatsapp,
-                        color: Color(0xFF25D366),
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () => _makePhoneCall(phone),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryOrange.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.phone_in_talk_rounded,
-                        color: AppColors.primaryOrange,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ],
+              CourierWhatsAppIconButton(
+                key: const Key('order_detail_wa_button'),
+                size: 40,
+                iconSize: 20,
+                isCircular: true,
+                tooltip: 'Hubungi via WhatsApp',
+                onTap: () => CourierContactHelper.openWhatsAppChat(
+                  context,
+                  phone: phone,
+                  role: WhatsAppContactRole.customer,
+                  order: _shipmentDetail,
+                ),
               ),
             ],
           ),

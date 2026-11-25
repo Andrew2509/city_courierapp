@@ -65,17 +65,7 @@ class ShipmentModel {
   final String? dropPointName;
   final String? dropPointAddress;
   final int? orderId;
-  final int? conversationId;
   final int? courierUserId;
-
-  String get chatOrderIdentifier {
-    if (orderId != null && orderId! > 0) return orderId.toString();
-    if (trackingNumber != null && trackingNumber!.trim().isNotEmpty) {
-      return trackingNumber!.trim();
-    }
-    if (orderNumber.trim().isNotEmpty) return orderNumber.trim();
-    return id.toString();
-  }
 
   bool get isDropoff {
     final m = (shippingMethod ?? '').toLowerCase();
@@ -130,7 +120,6 @@ class ShipmentModel {
     this.dropPointName,
     this.dropPointAddress,
     this.orderId,
-    this.conversationId,
     this.courierUserId,
   });
 
@@ -244,7 +233,6 @@ class ShipmentModel {
       dropPointAddress:
           (json['drop_point_address'] ?? dropPointMap?['address'])?.toString(),
       orderId: int.tryParse((json['order_id'] ?? '').toString()),
-      conversationId: int.tryParse((json['conversation_id'] ?? '').toString()),
       courierUserId: int.tryParse(
         (json['courier_user_id'] ??
                 (json['courier'] is Map ? json['courier']['user_id'] : null) ??

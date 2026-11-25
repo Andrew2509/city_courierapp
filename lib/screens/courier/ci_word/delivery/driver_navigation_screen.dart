@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:city_courierapp/core/config/app_colors.dart';
@@ -15,7 +16,6 @@ import 'package:city_courierapp/widgets/maps/navigation_turn_banner.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_at_delivery_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery_flow_screen.dart';
-import 'package:city_courierapp/screens/chat/chat_launch_helper.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 
 /// Memetakan fase navigasi ke halaman tujuan setelah kurir tiba di lokasi.
@@ -514,9 +514,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
   String get _dropoffAddress =>
       _orderValue(const ['dropoff_address', 'delivery_address']) ??
       'Alamat penerima';
-
-  Future<void> _call(String? phone) =>
-      CourierContactHelper.callPhone(context, phone);
 
   void _scheduleAutoArrival() {
     _arrivalRedirector.schedule(
@@ -1478,43 +1475,42 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
         ),
         if (phone != null) ...[
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _call(phone),
-                  icon: const Icon(Icons.phone, size: 18),
-                  label: Text(
-                    isPickup ? 'Hubungi Pengirim' : 'Hubungi Penerima',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryOrange,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryOrange,
-                    side: const BorderSide(color: AppColors.primaryOrange),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const Key('nav_error_wa_button'),
+              onPressed: () => CourierContactHelper.openWhatsAppChat(
+                context,
+                phone: phone,
+                role: isPickup
+                    ? WhatsAppContactRole.sender
+                    : WhatsAppContactRole.receiver,
+                order: widget.order,
+              ),
+              icon: const FaIcon(
+                FontAwesomeIcons.whatsapp,
+                size: 18,
+                color: CourierContactHelper.whatsappColor,
+              ),
+              label: Text(
+                isPickup ? 'Chat WA Pengirim' : 'Chat WA Penerima',
+                style: AppTypography.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: CourierContactHelper.whatsappColor,
                 ),
               ),
-              const SizedBox(width: 8),
-              CourierWhatsAppIconButton(
-                key: const Key('nav_error_wa_button'),
-                size: 48,
-                iconSize: 21,
-                tooltip: isPickup ? 'Chat WA Pengirim' : 'Chat WA Penerima',
-                onTap: () => CourierContactHelper.openWhatsAppChat(
-                  context,
-                  phone: phone,
-                  isSender: isPickup,
-                  order: widget.order,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: CourierContactHelper.whatsappColor,
+                backgroundColor: CourierContactHelper.whatsappBgColor,
+                side: BorderSide(
+                  color: CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.55),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-            ],
+            ),
           ),
         ],
         const SizedBox(height: 6),
@@ -1974,38 +1970,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Material(
-                        color: const Color(0xFFFFF7ED),
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: () => _call(phone),
-                          borderRadius: BorderRadius.circular(12),
-                          child: const SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: Icon(
-                              Icons.phone,
-                              color: AppColors.primaryOrange,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      ChatOrderIconButton(
-                        key: const Key('nav_internal_chat_button'),
-                        size: 40,
-                        iconSize: 18,
-                        isCircular: true,
-                        tooltip: 'Chat Dalam Aplikasi',
-                        onTap: () => ChatLaunchHelper.openOrderChat(
-                          context,
-                          orderIdentifier: ChatLaunchHelper.extractOrderIdentifier(
-                            widget.order,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
                       CourierWhatsAppIconButton(
                         key: const Key('nav_wa_button'),
                         size: 40,
@@ -2024,7 +1988,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
                                   : CourierContactHelper.extractReceiverPhone(
                                       widget.order,
                                     )),
-                          isSender: isPickup,
+                          role: isPickup
+                              ? WhatsAppContactRole.sender
+                              : WhatsAppContactRole.receiver,
                           order: widget.order,
                         ),
                       ),
@@ -2041,7 +2007,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
 
   Widget _buildArrivedCard() {
     final isPickup = _controller.phase == NavigationPhase.pickup;
-    final contactLabel = isPickup ? 'Hubungi Pengirim' : 'Hubungi Penerima';
     final phone = isPickup ? _senderPhone : _receiverPhone;
     final actionLabel = isPickup
         ? 'Konfirmasi Tiba di Pengirim'
@@ -2125,36 +2090,36 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen>
             Row(
               children: [
                 if (phone != null) ...[
-                  CourierWhatsAppIconButton(
-                    key: const Key('nav_arrived_wa_button'),
-                    size: 50,
-                    iconSize: 21,
-                    tooltip: isPickup
-                        ? 'Chat WA Pengirim'
-                        : 'Chat WA Penerima',
-                    onTap: () => CourierContactHelper.openWhatsAppChat(
-                      context,
-                      phone: phone,
-                      isSender: isPickup,
-                      order: widget.order,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _call(phone),
-                      icon: const Icon(Icons.phone, size: 18),
+                      key: const Key('nav_arrived_wa_button'),
+                      onPressed: () => CourierContactHelper.openWhatsAppChat(
+                        context,
+                        phone: phone,
+                        role: isPickup
+                            ? WhatsAppContactRole.sender
+                            : WhatsAppContactRole.receiver,
+                        order: widget.order,
+                      ),
+                      icon: const FaIcon(
+                        FontAwesomeIcons.whatsapp,
+                        size: 18,
+                        color: CourierContactHelper.whatsappColor,
+                      ),
                       label: Text(
-                        contactLabel,
+                        isPickup ? 'WA Pengirim' : 'WA Penerima',
                         textAlign: TextAlign.center,
                         style: AppTypography.bodySmall.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primaryOrange,
+                          color: CourierContactHelper.whatsappColor,
                         ),
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryOrange,
-                        side: const BorderSide(color: AppColors.primaryOrange),
+                        foregroundColor: CourierContactHelper.whatsappColor,
+                        backgroundColor: CourierContactHelper.whatsappBgColor,
+                        side: BorderSide(
+                          color: CourierContactHelper.whatsappBorderColor.withValues(alpha: 0.55),
+                        ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 16,

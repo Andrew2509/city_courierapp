@@ -191,9 +191,6 @@ class _DriverDetailShipmentScreenState
     );
   }
 
-  Future<void> _makePhoneCall(String? phoneNumber) =>
-      CourierContactHelper.callPhone(context, phoneNumber);
-
   String _formatCurrency(double amount) {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}';
   }
@@ -969,22 +966,6 @@ class _DriverDetailShipmentScreenState
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () => _makePhoneCall(senderPhone),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(7),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: const Color(0xFFFF5A00)),
-                                          boxShadow: [
-                                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4),
-                                          ],
-                                        ),
-                                        child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFFFF5A00)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
                                     CourierWhatsAppIconButton(
                                       key: const Key('wa_detail_sender_button'),
                                       size: 30,
@@ -993,8 +974,8 @@ class _DriverDetailShipmentScreenState
                                       tooltip: 'Chat WhatsApp Pengirim',
                                       onTap: () => CourierContactHelper.openWhatsAppChat(
                                         context,
-                                        phone: CourierContactHelper.extractSenderPhone(widget.shipment),
-                                        isSender: true,
+                                        phone: CourierContactHelper.extractSenderPhone(widget.shipment) ?? senderPhone,
+                                        role: WhatsAppContactRole.sender,
                                         order: widget.shipment,
                                       ),
                                     ),
@@ -1065,22 +1046,6 @@ class _DriverDetailShipmentScreenState
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    GestureDetector(
-                                      onTap: () => _makePhoneCall(receiverPhone),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(7),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: const Color(0xFF22C55E)),
-                                          boxShadow: [
-                                            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4),
-                                          ],
-                                        ),
-                                        child: const Icon(Icons.phone_rounded, size: 14, color: Color(0xFF22C55E)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
                                     CourierWhatsAppIconButton(
                                       key: const Key('wa_detail_receiver_button'),
                                       size: 30,
@@ -1089,8 +1054,8 @@ class _DriverDetailShipmentScreenState
                                       tooltip: 'Chat WhatsApp Penerima',
                                       onTap: () => CourierContactHelper.openWhatsAppChat(
                                         context,
-                                        phone: CourierContactHelper.extractReceiverPhone(widget.shipment),
-                                        isSender: false,
+                                        phone: CourierContactHelper.extractReceiverPhone(widget.shipment) ?? receiverPhone,
+                                        role: WhatsAppContactRole.receiver,
                                         order: widget.shipment,
                                       ),
                                     ),
@@ -1099,6 +1064,48 @@ class _DriverDetailShipmentScreenState
                               ],
                             ),
                           ),
+
+                          // 3b. Kontak Customer (jika berbeda / tersedia)
+                          if (CourierContactHelper.extractCustomerPhone(widget.shipment) != null) ...[
+                            Container(
+                              margin: const EdgeInsets.only(top: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.black12),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.person_outline_rounded, size: 15, color: Color(0xFFFF5A00)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Customer: ${(widget.shipment['customer_name'] ?? 'Pelanggan').toString()}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  CourierWhatsAppIconButton(
+                                    key: const Key('wa_detail_customer_button'),
+                                    size: 30,
+                                    iconSize: 15,
+                                    isCircular: true,
+                                    tooltip: 'Chat WhatsApp Customer',
+                                    onTap: () => CourierContactHelper.openWhatsAppChat(
+                                      context,
+                                      phone: CourierContactHelper.extractCustomerPhone(widget.shipment),
+                                      role: WhatsAppContactRole.customer,
+                                      order: widget.shipment,
+                                      contactName: widget.shipment['customer_name']?.toString(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
 
                           // 4. Detail Paket Tile
                           Container(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:city_courierapp/services/api_service.dart';
+import 'package:city_courierapp/services/token_store.dart';
 import 'package:city_courierapp/models/shipping/tracking_model.dart';
 import 'package:city_courierapp/services/courier/courier_directory_service.dart';
 
@@ -48,8 +49,11 @@ class TrackingService {
       final info = await CourierDirectoryService.findCourier(name: c.name, phone: c.phone);
       if (info == null) return model;
 
+      final contactsAllowed = model.rawJson?['contacts_authorized'] != false;
       final updatedCourier = c.copyWith(
-        phone: (c.phone == null || c.phone!.trim().isEmpty) ? info.phone : c.phone,
+        phone: (c.phone == null || c.phone!.trim().isEmpty)
+            ? (contactsAllowed ? info.phone : null)
+            : c.phone,
         photo: needsPhoto ? info.photo : c.photo,
         vehicleBrand: (c.vehicleBrand == null || c.vehicleBrand!.trim().isEmpty) ? info.vehicleBrand : c.vehicleBrand,
         vehicleModel: (c.vehicleModel == null || c.vehicleModel!.trim().isEmpty) ? info.vehicleModel : c.vehicleModel,
@@ -70,12 +74,18 @@ class TrackingService {
     }
   }
 
-  /// GET /shipments/{number}/tracking — data tracking lengkap (public).
+  /// GET /shipments/{number}/tracking — data tracking lengkap.
+  /// Mengirim Bearer token jika tersedia agar kontak WhatsApp hanya terbuka
+  /// untuk pihak yang berhak melihat pesanan.
   static Future<Map<String, dynamic>?> _getTrackingData(String trackingNumber) async {
     try {
+      final token = await TokenStore.read();
       final response = await http.get(
         Uri.parse('${ApiService.baseUrl}/shipments/$trackingNumber/tracking'),
-        headers: {'Accept': 'application/json'},
+        headers: {
+          'Accept': 'application/json',
+          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
