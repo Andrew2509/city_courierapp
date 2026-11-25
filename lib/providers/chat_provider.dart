@@ -33,6 +33,7 @@ class ChatProvider extends ChangeNotifier {
 
   int? _activeConversationId;
   WhatsappBridgeStatus? _whatsappStatus;
+  String? _lastWhatsappError;
 
   Timer? _fallbackPollingTimer;
   final List<StreamSubscription> _subscriptions = [];
@@ -53,6 +54,7 @@ class ChatProvider extends ChangeNotifier {
   int get totalUnreadCount => _totalUnreadCount;
   int? get activeConversationId => _activeConversationId;
   WhatsappBridgeStatus? get whatsappStatus => _whatsappStatus;
+  String? get lastWhatsappError => _lastWhatsappError;
   bool get isRealtimeConnected => _realtimeService.isConnected;
   ValueListenable<bool> get realtimeConnectedListenable => _realtimeService.isConnectedNotifier;
 
@@ -323,6 +325,7 @@ class ChatProvider extends ChangeNotifier {
   }
 
   Future<bool> toggleWhatsappOptIn({required bool optIn, int? conversationId}) async {
+    _lastWhatsappError = null;
     try {
       _whatsappStatus = await _apiService.updateWhatsappOptIn(
         optIn: optIn,
@@ -330,7 +333,13 @@ class ChatProvider extends ChangeNotifier {
       );
       notifyListeners();
       return true;
+    } on ChatApiException catch (e) {
+      _lastWhatsappError = e.message;
+      notifyListeners();
+      return false;
     } catch (_) {
+      _lastWhatsappError = 'Gagal memperbarui preferensi WhatsApp.';
+      notifyListeners();
       return false;
     }
   }

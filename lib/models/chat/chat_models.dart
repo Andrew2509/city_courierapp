@@ -32,12 +32,14 @@ class ChatCounterparty {
   final String role;
   final String? name;
   final String? phone;
+  final bool waOptedIn;
 
   const ChatCounterparty({
     this.userId,
     required this.role,
     this.name,
     this.phone,
+    this.waOptedIn = false,
   });
 
   factory ChatCounterparty.fromJson(Map<String, dynamic>? json) {
@@ -49,6 +51,7 @@ class ChatCounterparty {
       role: (json['role'] ?? 'courier').toString(),
       name: json['name']?.toString(),
       phone: json['phone']?.toString(),
+      waOptedIn: json['wa_opted_in'] == true || json['wa_opted_in'] == 1,
     );
   }
 }
@@ -174,6 +177,8 @@ class ChatMessageModel {
   final ChatDeliveryStatus deliveryStatus;
   final String? waMessageId;
   final String? waStatus;
+  final String? waErrorCode;
+  final String? waErrorMessage;
   final DateTime? sentAt;
   final DateTime? deliveredAt;
   final DateTime? readAt;
@@ -197,6 +202,8 @@ class ChatMessageModel {
     this.deliveryStatus = ChatDeliveryStatus.sent,
     this.waMessageId,
     this.waStatus,
+    this.waErrorCode,
+    this.waErrorMessage,
     this.sentAt,
     this.deliveredAt,
     this.readAt,
@@ -229,6 +236,8 @@ class ChatMessageModel {
     DateTime? readAt,
     String? waMessageId,
     String? waStatus,
+    String? waErrorCode,
+    String? waErrorMessage,
     String? errorMessage,
     String? mediaUrl,
   }) {
@@ -249,6 +258,8 @@ class ChatMessageModel {
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
       waMessageId: waMessageId ?? this.waMessageId,
       waStatus: waStatus ?? this.waStatus,
+      waErrorCode: waErrorCode ?? this.waErrorCode,
+      waErrorMessage: waErrorMessage ?? this.waErrorMessage,
       sentAt: sentAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       readAt: readAt ?? this.readAt,
@@ -274,6 +285,8 @@ class ChatMessageModel {
       deliveryStatus: ChatDeliveryStatus.fromString(json['delivery_status']?.toString()),
       waMessageId: json['wa_message_id']?.toString(),
       waStatus: json['wa_status']?.toString(),
+      waErrorCode: json['wa_error_code']?.toString(),
+      waErrorMessage: json['wa_error_message']?.toString(),
       sentAt: _toDate(json['sent_at']),
       deliveredAt: _toDate(json['delivered_at']),
       readAt: _toDate(json['read_at']),

@@ -308,6 +308,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
       body: Column(
         children: [
+          _WhatsappBridgeBanner(
+            conversation: conv,
+            isDark: isDark,
+            onOpenWhatsappDirect: (counterpartyPhone != null && counterpartyPhone.trim().isNotEmpty)
+                ? () => CourierContactHelper.callPhone(context, counterpartyPhone)
+                : null,
+          ),
           Expanded(
             child: Consumer<ChatProvider>(
               builder: (context, provider, _) {
@@ -631,6 +638,18 @@ class _MessageBubble extends StatelessWidget {
                   ],
                 ],
               ),
+              if (isMine && message.waStatus == 'failed' && message.waErrorCode != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    'WA gagal (${message.waErrorCode})',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFFDE68A),
+                    ),
+                  ),
+                ),
               if (onRetry != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -735,5 +754,138 @@ class _MessageBubble extends StatelessWidget {
       ChatDeliveryStatus.failed =>
         const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFFEE2E2)),
     };
+  }
+}
+
+class _WhatsappBridgeBanner extends StatelessWidget {
+  final ConversationModel conversation;
+  final bool isDark;
+  final VoidCallback? onOpenWhatsappDirect;
+
+  const _WhatsappBridgeBanner({
+    required this.conversation,
+    required this.isDark,
+    this.onOpenWhatsappDirect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ChatProvider>(
+      builder: (context, provider, _) {
+        final st = provider.whatsappStatus;
+        if (st == null || !st.whatsappCloudEnabled) {
+          return const SizedBox.shrink();
+        }
+
+        if (!st.isOptedIn) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF064E3B).withValues(alpha: 0.45) : const Color(0xFFECFDF5),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? Colors.white12 : const Color(0xFFA7F3D0),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.mark_chat_unread_outlined, size: 18, color: Color(0xFF15803D)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    st.phoneVerified
+                        ? 'Aktifkan notifikasi WhatsApp agar balasan chat masuk ke WA Anda.'
+                        : 'Verifikasi nomor HP akun Anda dulu agar pesan bisa masuk ke WA Anda.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white : const Color(0xFF14532D),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () async {
+                    final ok = await provider.toggleWhatsappOptIn(
+                      optIn: true,
+                      conversationId: conversation.id,
+                    );
+                    if (!context.mounted) return;
+                    final msg = ok
+                        ? 'Notifikasi WhatsApp diaktifkan untuk akun Anda.'
+                        : (provider.lastWhatsappError ??
+                            'Nomor HP harus terverifikasi OTP terlebih dahulu.');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(msg),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Aktifkan',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (!conversation.counterparty.waOptedIn) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFBEB),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? Colors.white12 : const Color(0xFFFDE68A),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFB45309)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${conversation.displayTitle} belum mengaktifkan notif WA di aplikasinya.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.amber.shade200 : const Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+                if (onOpenWhatsappDirect != null)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      minimumSize: const Size(0, 26),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: onOpenWhatsappDirect,
+                    child: const Text(
+                      'Chat WA',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }
+
+        return const SizedBox.shrink();
+      },
+    );
   }
 }

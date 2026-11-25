@@ -201,6 +201,21 @@ void main() {
           200,
         );
       }
+      if (req.url.path == '/api/v1/chat/whatsapp/status') {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'whatsapp_cloud_enabled': true,
+              'phone_e164': '6281234567890',
+              'phone_verified': true,
+              'opt_in_status': 'pending',
+              'window_open': false,
+            },
+          }),
+          200,
+        );
+      }
       if (req.url.path == '/api/v1/chat/conversations/15/messages' && req.method == 'GET') {
         return http.Response(
           jsonEncode({
@@ -292,6 +307,7 @@ void main() {
 
     expect(find.text('Halo bu paket siap diantar.'), findsOneWidget);
     expect(find.text('via WhatsApp'), findsOneWidget);
+    expect(find.text('Aktifkan'), findsOneWidget);
 
     ws.serverToClient.add(jsonEncode({
       'event': 'pusher:connection_established',
