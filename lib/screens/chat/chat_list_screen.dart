@@ -27,10 +27,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       if (widget.knownUserId != null) {
         await provider.bindAuthenticatedUser(widget.knownUserId!);
       }
-      await Future.wait([
-        provider.loadConversations(),
-        provider.loadWhatsappStatus(),
-      ]);
+      await provider.loadConversations();
     });
   }
 
@@ -85,12 +82,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       ),
       body: Consumer<ChatProvider>(
         builder: (context, provider, _) {
-          final waStatus = provider.whatsappStatus;
           final conversations = provider.conversations;
 
           return Column(
             children: [
-              if (waStatus != null) _WhatsappOptInBanner(status: waStatus, isDark: isDark),
               Expanded(
                 child: RefreshIndicator(
                   color: _primaryOrange,
@@ -209,86 +204,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
           },
         );
       },
-    );
-  }
-}
-
-class _WhatsappOptInBanner extends StatelessWidget {
-  final WhatsappBridgeStatus status;
-  final bool isDark;
-
-  const _WhatsappOptInBanner({required this.status, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final bool optedIn = status.isOptedIn;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: optedIn
-              ? const Color(0xFF22C55E).withValues(alpha: 0.5)
-              : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: const BoxDecoration(
-              color: Color(0xFFE8F7EE),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.mark_chat_read_rounded,
-              color: Color(0xFF16A34A),
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Notifikasi WhatsApp Bisnis Resmi',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  optedIn
-                      ? 'Aktif ke ${status.phoneE164 ?? "nomor terverifikasi"} (via akun resmi City Courier).'
-                      : 'Aktifkan untuk menerima pesan pengiriman ke WhatsApp Anda.',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: optedIn,
-            activeTrackColor: const Color(0xFF16A34A),
-            onChanged: (next) async {
-              final ok = await context.read<ChatProvider>().toggleWhatsappOptIn(optIn: next);
-              if (!ok && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Verifikasi nomor telepon akun Anda terlebih dahulu.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
     );
   }
 }

@@ -71,9 +71,8 @@ class _TestWsChannel implements WebSocketChannel {
 }
 
 void main() {
-  testWidgets('ChatListScreen displays conversations, unread badge, and toggles WA opt-in',
+  testWidgets('ChatListScreen displays conversations and unread badge without WhatsApp opt-in banner',
       (tester) async {
-    bool optedInState = false;
     final ws = _TestWsChannel();
 
     final mockHttp = MockClient((req) async {
@@ -97,7 +96,7 @@ void main() {
                   'customer_user_id': 1,
                   'courier_user_id': 9,
                   'status': 'active',
-                  'wa_bridged_enabled': true,
+                  'wa_bridged_enabled': false,
                   'viewer_role': 'customer',
                   'unread_count': 3,
                   'last_message_preview': 'Paket sudah di depan pagar ya.',
@@ -106,38 +105,6 @@ void main() {
                 },
               ],
               'pagination': {'current_page': 1, 'last_page': 1, 'per_page': 20, 'total': 1},
-            },
-          }),
-          200,
-        );
-      }
-      if (req.url.path == '/api/v1/chat/whatsapp/status') {
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'whatsapp_cloud_enabled': true,
-              'phone_e164': '6281234567890',
-              'phone_verified': true,
-              'opt_in_status': optedInState ? 'opted_in' : 'pending',
-              'window_open': false,
-            },
-          }),
-          200,
-        );
-      }
-      if (req.url.path == '/api/v1/chat/whatsapp/opt-in') {
-        final reqJson = jsonDecode(req.body) as Map<String, dynamic>;
-        optedInState = reqJson['opt_in'] == true;
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'whatsapp_cloud_enabled': true,
-              'phone_e164': '6281234567890',
-              'phone_verified': true,
-              'opt_in_status': optedInState ? 'opted_in' : 'opted_out',
-              'window_open': false,
             },
           }),
           200,
@@ -170,11 +137,8 @@ void main() {
     expect(find.text('Kurir • #ORD-77'), findsOneWidget);
     expect(find.text('Paket sudah di depan pagar ya.'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
-    expect(find.text('Notifikasi WhatsApp Bisnis Resmi'), findsOneWidget);
-
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-    expect(optedInState, true);
+    expect(find.text('Notifikasi WhatsApp Bisnis Resmi'), findsNothing);
+    expect(find.byType(Switch), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -307,7 +271,9 @@ void main() {
 
     expect(find.text('Halo bu paket siap diantar.'), findsOneWidget);
     expect(find.text('via WhatsApp'), findsOneWidget);
-    expect(find.text('Aktifkan'), findsOneWidget);
+    expect(find.text('Aktifkan'), findsNothing);
+    expect(find.byIcon(Icons.more_vert_rounded), findsNothing);
+    expect(find.textContaining('WA gagal'), findsNothing);
 
     ws.serverToClient.add(jsonEncode({
       'event': 'pusher:connection_established',
