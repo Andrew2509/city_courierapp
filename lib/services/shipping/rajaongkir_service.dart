@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +13,19 @@ class RajaOngkirService {
     Uri uri,
     Map<String, String> headers,
   )? httpGetOverride;
+
+  static String _formatNetworkError(Object error) {
+    if (error is TimeoutException) {
+      return 'Waktu koneksi ke server habis. Periksa jaringan/Wi-Fi Anda lalu tekan Coba Lagi.';
+    }
+    final raw = error.toString();
+    if (raw.contains('SocketException') ||
+        raw.contains('ClientException') ||
+        raw.contains('HandshakeException')) {
+      return 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda lalu coba lagi.';
+    }
+    return 'Gagal menghubungi server wilayah. Silakan coba beberapa saat lagi.';
+  }
 
   static Future<String?> _getToken() async => TokenStore.read();
 
@@ -83,11 +97,11 @@ class RajaOngkirService {
           ? await httpGetOverride!(uri, headers)
           : await http
               .get(uri, headers: headers)
-              .timeout(const Duration(seconds: 15));
+              .timeout(const Duration(seconds: 25));
 
       return _normalizeResponse(response, fallbackError: fallbackError);
     } catch (e) {
-      return {'success': false, 'message': e.toString()};
+      return {'success': false, 'message': _formatNetworkError(e)};
     }
   }
 
@@ -137,14 +151,14 @@ class RajaOngkirService {
               'courier': courier,
             }),
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 25));
 
       return _normalizeResponse(
         response,
         fallbackError: 'Respons tarif tidak valid',
       );
     } catch (e) {
-      return {'success': false, 'message': e.toString()};
+      return {'success': false, 'message': _formatNetworkError(e)};
     }
   }
 
@@ -192,7 +206,7 @@ class RajaOngkirService {
 
       return json.decode(response.body);
     } catch (e) {
-      return {'matched': false, 'message': e.toString()};
+      return {'matched': false, 'message': _formatNetworkError(e)};
     }
   }
 }

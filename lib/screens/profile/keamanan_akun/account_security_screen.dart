@@ -1262,7 +1262,8 @@ class _AccountSecurityScreenState extends State<AccountSecurityScreen> {
                             ),
                           ],
                         ),
-                        subtitle: 'Sidik jari / Face ID',
+                        subtitle:
+                            'Sidik jari / Face ID untuk buka aplikasi & bayar saldo',
                         trailing: SizedBox(
                           height: 28,
                           child: Switch.adaptive(

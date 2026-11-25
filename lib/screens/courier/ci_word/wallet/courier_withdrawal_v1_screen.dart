@@ -6,6 +6,7 @@ import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_de
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/courier_wallet_ui.dart';
 import 'package:city_courierapp/screens/profile/keamanan_akun/widgets/transaction_pin_prompt_sheet.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
+import 'package:city_courierapp/services/security/transaction_security_guard.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:flutter/material.dart';
 
@@ -169,17 +170,33 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
       return;
     }
 
-    String? pin;
-    if (summary.hasTransactionPin) {
-      pin = await TransactionPinPromptSheet.show(
-        context,
-        subtitle: 'Masukkan 6 digit PIN transaksi untuk menarik saldo.',
-      );
-      if (pin == null || !mounted) return;
-    }
-
     setState(() => _submitting = true);
     try {
+      final auth = await TransactionSecurityGuard.authorize(
+        context,
+        biometricEnabled: summary.biometricEnabled,
+        hasTransactionPin: summary.hasTransactionPin,
+        biometricReason:
+            'Verifikasi sidik jari atau wajah untuk menarik saldo kurir',
+        pinSubtitle: 'Masukkan 6 digit PIN transaksi untuk menarik saldo.',
+        beforeDialog: () {
+          if (mounted) setState(() => _submitting = false);
+        },
+      );
+      if (!mounted) return;
+      if (!auth.authorized) {
+        if (auth.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(auth.errorMessage!),
+              backgroundColor: CourierWalletUi.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+      if (!_submitting) setState(() => _submitting = true);
+      final String? pin = auth.pin;
       final payout = await _service.requestWithdrawal(
         amount: amount,
         destinationId: dest.id,

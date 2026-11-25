@@ -3,6 +3,8 @@ import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/wallet/topup_instruction_screen.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
+import 'package:city_courierapp/services/security/account_security_service.dart';
+import 'package:city_courierapp/services/security/transaction_security_guard.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ class TopupAmountScreen extends StatefulWidget {
   final int maxAmount;
   final int? currentBalance;
   final CustomerWalletService? service;
+  final AccountSecurityService? securityService;
 
   const TopupAmountScreen({
     super.key,
@@ -19,6 +22,7 @@ class TopupAmountScreen extends StatefulWidget {
     this.maxAmount = 10000000,
     this.currentBalance,
     this.service,
+    this.securityService,
   });
 
   @override
@@ -37,11 +41,14 @@ class _TopupAmountScreenState extends State<TopupAmountScreen> {
 
   late final CustomerWalletService _service =
       widget.service ?? CustomerWalletService.instance;
+  late final AccountSecurityService _securityService =
+      widget.securityService ?? AccountSecurityService.instance;
   final TextEditingController _controller = TextEditingController(
     text: RupiahDigitsInputFormatter.formatDigits(50000),
   );
 
   int? _walletBalance;
+  CustomerWalletSummary? _walletSummary;
   TopupMethodsBundle? _bundle;
   TopupMethodOption? _selectedMethod;
   bool _loadingMethods = true;
@@ -66,7 +73,7 @@ class _TopupAmountScreenState extends State<TopupAmountScreen> {
   Future<void> _loadInitialData() async {
     await Future.wait([
       _loadMethods(),
-      if (_walletBalance == null) _loadWalletBalanceSilently(),
+      _loadWalletBalanceSilently(),
     ]);
   }
 
@@ -75,7 +82,8 @@ class _TopupAmountScreenState extends State<TopupAmountScreen> {
       final wallet = await _service.getWallet();
       if (!mounted) return;
       setState(() {
-        _walletBalance = wallet.availableBalance;
+        _walletSummary = wallet;
+        _walletBalance ??= wallet.availableBalance;
       });
     } catch (_) {
       // Tetap tampil tanpa memblokir layar bila saldo gagal diambil.
@@ -295,6 +303,31 @@ class _TopupAmountScreenState extends State<TopupAmountScreen> {
 
     setState(() => _submitting = true);
     try {
+      final auth = await TransactionSecurityGuard.authorize(
+        context,
+        biometricEnabled: _walletSummary?.biometricEnabled == true,
+        hasTransactionPin: _walletSummary?.hasTransactionPin == true,
+        biometricReason:
+            'Verifikasi sidik jari atau wajah untuk melakukan top-up City Wallet',
+        pinSubtitle: 'Masukkan 6 digit PIN transaksi untuk melanjutkan top-up.',
+        verifyPinFn: _securityService.verifyPin,
+        beforeDialog: () {
+          if (mounted) setState(() => _submitting = false);
+        },
+      );
+      if (!mounted) return;
+      if (!auth.authorized) {
+        if (auth.errorMessage != null) {
+          CityWalletUi.showSnackBar(
+            context,
+            auth.errorMessage!,
+            backgroundColor: CityWalletUi.errorRed,
+          );
+        }
+        return;
+      }
+      if (!_submitting) setState(() => _submitting = true);
+
       final topup = await _service.createTopup(
         amount: _selectedAmount,
         paymentType: option.paymentType,

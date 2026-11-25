@@ -158,6 +158,7 @@ class BiometricGuardService {
 
   static BiometricDriver driver = LocalAuthBiometricDriver();
   static bool _sessionUnlocked = false;
+  static bool? _localEnabledCache;
 
   static Future<BiometricCheckResult> checkAvailability() =>
       driver.checkAvailability();
@@ -177,17 +178,24 @@ class BiometricGuardService {
   }
 
   static Future<bool> isLocallyEnabled() async {
+    if (_localEnabledCache != null) return _localEnabledCache!;
     try {
       final raw = await _storage
           .read(key: _biometricEnabledKey)
-          .timeout(const Duration(milliseconds: 200));
-      return raw == 'true';
+          .timeout(const Duration(seconds: 2));
+      final enabled = raw == 'true';
+      _localEnabledCache = enabled;
+      return enabled;
     } catch (_) {
       return false;
     }
   }
 
   static Future<void> setLocalEnabled(bool enabled, {int? userId}) async {
+    _localEnabledCache = enabled;
+    if (!enabled) {
+      _sessionUnlocked = false;
+    }
     try {
       await _storage.write(
         key: _biometricEnabledKey,
@@ -199,15 +207,13 @@ class BiometricGuardService {
           value: userId.toString(),
         );
       }
-      if (!enabled) {
-        _sessionUnlocked = false;
-      }
     } catch (_) {}
   }
 
   static Future<void> clearSessionUnlock({bool clearPreference = false}) async {
     _sessionUnlocked = false;
     if (clearPreference) {
+      _localEnabledCache = false;
       try {
         await _storage.delete(key: _biometricEnabledKey);
         await _storage.delete(key: _biometricUserIdKey);

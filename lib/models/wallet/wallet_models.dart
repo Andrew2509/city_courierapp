@@ -603,6 +603,7 @@ class CourierWalletV1Summary {
   final String scheduleCron;
   final bool eligibleForNextAutoPayout;
   final bool hasTransactionPin;
+  final bool biometricEnabled;
   final CourierEarningsSummaryV1 earningsSummary;
   final PayoutDestinationV1? defaultDestination;
 
@@ -626,6 +627,7 @@ class CourierWalletV1Summary {
     required this.scheduleCron,
     required this.eligibleForNextAutoPayout,
     this.hasTransactionPin = false,
+    this.biometricEnabled = false,
     required this.earningsSummary,
     this.defaultDestination,
   });
@@ -658,6 +660,7 @@ class CourierWalletV1Summary {
       scheduleCron: (policy['schedule_cron'] ?? '0 * * * *').toString(),
       eligibleForNextAutoPayout: policy['eligible_for_next_auto_payout'] == true,
       hasTransactionPin: security['has_transaction_pin'] == true,
+      biometricEnabled: security['biometric_enabled'] == true,
       earningsSummary: CourierEarningsSummaryV1.fromJson(earnings),
       defaultDestination: dest,
     );

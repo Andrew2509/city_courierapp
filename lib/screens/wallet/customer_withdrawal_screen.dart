@@ -3,6 +3,7 @@ import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/profile/keamanan_akun/widgets/transaction_pin_prompt_sheet.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
+import 'package:city_courierapp/services/security/transaction_security_guard.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 import 'package:flutter/material.dart';
@@ -320,19 +321,34 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
       }
     }
 
-    String? pin;
-    if (widget.wallet.hasTransactionPin) {
-      pin = await TransactionPinPromptSheet.show(
-        context,
-        subtitle:
-            'Masukkan 6 digit PIN untuk mengonfirmasi penarikan saldo.',
-      );
-      if (pin == null || !mounted) return;
-    }
-
     setState(() => _submitting = true);
     int? resolvedDestId;
     try {
+      final auth = await TransactionSecurityGuard.authorize(
+        context,
+        biometricEnabled: widget.wallet.biometricEnabled,
+        hasTransactionPin: widget.wallet.hasTransactionPin,
+        biometricReason:
+            'Verifikasi sidik jari atau wajah untuk menarik saldo City Wallet',
+        pinSubtitle:
+            'Masukkan 6 digit PIN untuk mengonfirmasi penarikan saldo.',
+        beforeDialog: () {
+          if (mounted) setState(() => _submitting = false);
+        },
+      );
+      if (!mounted) return;
+      if (!auth.authorized) {
+        if (auth.errorMessage != null) {
+          CityWalletUi.showSnackBar(
+            context,
+            auth.errorMessage!,
+            backgroundColor: CityWalletUi.errorRed,
+          );
+        }
+        return;
+      }
+      if (!_submitting) setState(() => _submitting = true);
+      final String? pin = auth.pin;
       if (usingSaved) {
         resolvedDestId = _selectedSavedDest!.id;
       } else {

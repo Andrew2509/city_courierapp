@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -41,6 +42,14 @@ void main() {
     final htmlRes = await RajaOngkirService.getCities(11);
     expect(htmlRes['success'], isFalse);
     expect(htmlRes['message'], contains('Gagal mengambil data kota/kabupaten'));
+
+    RajaOngkirService.httpGetOverride = (uri, headers) async {
+      throw TimeoutException('Future not completed');
+    };
+    final timeoutRes = await RajaOngkirService.getProvinces();
+    expect(timeoutRes['success'], isFalse);
+    expect(timeoutRes['message'], contains('Waktu koneksi ke server habis'));
+    expect(timeoutRes['message'], isNot(contains('TimeoutException')));
   });
 
   testWidgets(

@@ -12,6 +12,7 @@ import 'package:city_courierapp/screens/wallet/wallet_payment_confirmation_scree
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/payment/payment_service.dart';
 import 'package:city_courierapp/services/provider_availability_service.dart';
+import 'package:city_courierapp/services/security/transaction_security_guard.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:city_courierapp/widgets/payment/payment_brand_logo.dart';
 
@@ -681,9 +682,19 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
         );
         return 'Saldo tidak mencukupi (kurang $short)';
       }
-      return summary != null
-          ? 'Saldo cukup untuk pembayaran instan'
-          : 'Bayar instan menggunakan saldo City Wallet';
+      if (summary != null) {
+        if (summary.biometricEnabled && summary.hasTransactionPin) {
+          return 'Saldo tersedia • Dilindungi Biometrik & PIN';
+        }
+        if (summary.biometricEnabled) {
+          return 'Saldo tersedia • Dilindungi Biometrik';
+        }
+        if (summary.hasTransactionPin) {
+          return 'Saldo tersedia • Dilindungi PIN Transaksi';
+        }
+        return 'Saldo cukup untuk pembayaran instan';
+      }
+      return 'Bayar instan menggunakan saldo City Wallet';
     }
     return 'Bayar tunai di agen/drop point';
   }
@@ -1119,9 +1130,41 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
           return;
         }
 
+        if (!mounted) return;
+        final auth = await TransactionSecurityGuard.authorize(
+          context,
+          biometricEnabled: summary?.biometricEnabled == true,
+          hasTransactionPin: summary?.hasTransactionPin == true,
+          biometricReason:
+              'Verifikasi sidik jari atau wajah untuk membayar dengan saldo City Wallet',
+          pinSubtitle:
+              'Masukkan 6 digit PIN untuk menyelesaikan pembayaran City Wallet.',
+          beforeDialog: () {
+            if (mounted) setState(() => isLoading = false);
+          },
+        );
+        if (!mounted) return;
+        if (!auth.authorized) {
+          setState(() => isLoading = false);
+          if (auth.errorMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(auth.errorMessage!),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+        if (mounted) setState(() => isLoading = true);
+
         Map<String, dynamic> res;
         try {
-          res = await walletSvc.payOrderWithWallet(shipmentId: shipmentIntId);
+          res = await walletSvc.payOrderWithWallet(
+            shipmentId: shipmentIntId,
+            transactionPin: auth.pin,
+          );
         } on WalletApiException catch (e) {
           if (e.errorCode == 'TRANSACTION_PIN_REQUIRED' && mounted) {
             setState(() => isLoading = false);
@@ -1378,7 +1421,10 @@ class _PaymentMethodScreenState extends State<PaymentMethodScreen> {
       }
     } finally {
       if (mounted) {
-        _isProcessingPayment = false;
+        setState(() {
+          _isProcessingPayment = false;
+          isLoading = false;
+        });
       }
     }
   }
