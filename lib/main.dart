@@ -21,8 +21,12 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e, st) {
+    debugPrint('[Main] Firebase.initializeApp warning: $e\n$st');
+  }
 
   // Siapkan deep link sebelum runApp agar cold-start tidak terlewat (PRD Â§32).
   await DeepLinkService.instance.init();
