@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_destinations_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_withdrawal_v1_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/riwayat_transaksi_screen.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 import 'package:flutter/material.dart';
@@ -229,6 +230,16 @@ void main() {
       expect(find.text('DANA'), findsNothing);
       expect(find.textContaining('Metode pencairan saldo penghasilan'), findsNothing);
 
+      // Quick Actions & Layout selaras dengan Customer Wallet (tanpa halaman Tujuan Pencairan terpisah)
+      expect(find.text('Saldo Tersedia'), findsOneWidget);
+      expect(find.text('Dana tertahan'), findsOneWidget);
+      expect(find.text('Total saldo'), findsOneWidget);
+      expect(find.text('Riwayat'), findsOneWidget);
+      expect(find.text('Tujuan Pencairan'), findsNothing);
+      expect(find.text('Notifikasi'), findsOneWidget);
+      expect(find.text('Lihat Semua'), findsOneWidget);
+      expect(find.text('Belum ada transaksi dompet'), findsOneWidget);
+
       // Sandbox badge hidden; Tarik Saldo remains visible
       expect(find.text('SANDBOX (SIMULASI)'), findsNothing);
       expect(find.textContaining('SANDBOX'), findsNothing);
@@ -239,10 +250,31 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ajukan Penarikan'), findsOneWidget);
+      expect(find.text('Kelola Rekening'), findsNothing);
+      expect(find.text('Pilih Tujuan Penarikan'), findsOneWidget);
+      expect(find.text('Rekening Bank'), findsWidgets);
+      expect(find.text('E-Wallet'), findsOneWidget);
+      expect(find.text('Masukkan Informasi Tujuan'), findsOneWidget);
+      expect(find.text('Konfirmasi Penarikan'), findsOneWidget);
       expect(find.text('SANDBOX (SIMULASI)'), findsNothing);
       expect(find.textContaining('Bank BCA'), findsWidgets);
 
-      // Enter nominal 50000 and submit
+      // Pastikan mode input tujuan baru selaras dengan tampilan customer
+      await tester.tap(find.text('+ Tujuan Baru'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilih Bank'), findsOneWidget);
+
+      await tester.tap(find.text('E-Wallet'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilih E-Wallet'), findsOneWidget);
+
+      // Kembali ke Rekening Bank tersimpan dan ajukan penarikan 50000
+      await tester.tap(find.text('Rekening Bank').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Masukkan Informasi Tujuan'), findsOneWidget);
+
+      // Scroll ke input nominal lalu isi 50000 dan ajukan penarikan
+      await tester.ensureVisible(find.byType(TextField));
       await tester.enterText(find.byType(TextField), '50000');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Ajukan Penarikan'));
@@ -258,51 +290,142 @@ void main() {
   );
 
   testWidgets(
-    'Kelola Rekening, Tambah Rekening Bank, dan Tambah Akun E-Wallet berfungsi sesuai desain baru',
+    'CourierWithdrawalV1Screen mendukung pengisian tujuan Bank & E-Wallet baru langsung inline tanpa halaman Tujuan Pencairan terpisah',
     (tester) async {
       final v1Service = buildMockV1Service();
 
       await tester.pumpWidget(
         MaterialApp(
-          home: CourierPayoutDestinationsScreen(service: v1Service),
+          home: CourierWithdrawalV1Screen(service: v1Service),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Rekening & E-Wallet'), findsOneWidget);
-      expect(find.text('Bank BCA'), findsOneWidget);
-      expect(find.text('+ Rekening Bank'), findsOneWidget);
-      expect(find.text('+ E-Wallet'), findsOneWidget);
+      expect(find.text('Kelola Rekening'), findsNothing);
+      expect(find.text('Tujuan Pencairan'), findsNothing);
+      expect(find.text('+ Tujuan Baru'), findsOneWidget);
 
-      // Tambah Rekening Bank
-      await tester.tap(find.text('+ Rekening Bank'));
+      // Tambah & pakai tujuan E-Wallet baru langsung inline saat Tarik Saldo
+      await tester.tap(find.text('E-Wallet'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilih E-Wallet'), findsOneWidget);
+
+      final inputs = find.byType(TextField);
+      // Input 0: Nomor Telepon E-Wallet, Input 1: Nominal Penarikan
+      await tester.enterText(inputs.at(0), '081234567890');
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(1), 'Budi OVO');
+      await tester.enterText(find.byType(TextField).last, '40000');
       await tester.pumpAndSettle();
 
-      expect(find.text('Tambah Rekening Bank'), findsOneWidget);
-      final bankFields = find.byType(TextField);
-      await tester.enterText(bankFields.at(0), '9988776655');
-      await tester.enterText(bankFields.at(1), 'Budi Kurir');
-      await tester.tap(find.text('Simpan Rekening Bank'));
+      await tester.tap(find.text('Ajukan Penarikan'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Rekening & E-Wallet'), findsOneWidget);
-      expect(find.textContaining('Budi Kurir'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.textContaining('WD-CUR-SANDBOX-99'),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('WD-CUR-SANDBOX-99'), findsOneWidget);
+    },
+  );
 
-      // Tambah Akun E-Wallet
-      await tester.tap(find.text('+ E-Wallet'));
+  testWidgets(
+    'RiwayatTransaksiScreen menampilkan penarikan v1 saat menekan filter Penarikan meski history legacy kosong dan mencegah duplikasi',
+    (tester) async {
+      final createdIso = DateTime.now().toUtc().toIso8601String();
+      final v1Service = buildMockV1Service(
+        initialPayouts: [
+          {
+            'id': 99,
+            'reference': 'WD-CUR-SANDBOX-99',
+            'owner_type': 'courier',
+            'payout_type': 'courier_manual_withdrawal',
+            'provider': 'mock',
+            'mode': 'sandbox',
+            'is_simulated': true,
+            'channel_code': 'ID_BCA',
+            'account_number_masked': '******3456',
+            'account_holder_name': 'Kurir Sandbox',
+            'amount': 50000,
+            'fee': 0,
+            'net_amount': 50000,
+            'status': 'completed',
+            'status_history': [],
+            'created_at': createdIso,
+            'completed_at': createdIso,
+          },
+        ],
+      );
+
+      final earningItem = WalletHistoryItem(
+        id: 'tx-10',
+        kind: 'earning',
+        title: 'Pengantaran #10',
+        amount: 75000,
+        status: 'success',
+        statusLabel: 'Berhasil',
+        orderId: 10,
+        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RiwayatTransaksiScreen(
+            v1Service: v1Service,
+            historyFetcher: ({int page = 1, String? filter, String? status}) async {
+              if (filter == 'withdrawal') {
+                // Simulasi backend legacy yang belum mengembalikan payout v1
+                return {'success': true, 'items': <WalletHistoryItem>[], 'hasMore': false};
+              }
+              return {
+                'success': true,
+                'items': [earningItem],
+                'hasMore': false,
+              };
+            },
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.text('Tambah Akun E-Wallet'), findsOneWidget);
-      await tester.tap(find.text('OVO'));
-      await tester.pumpAndSettle();
-      final ewalletFields = find.byType(TextField);
-      await tester.enterText(ewalletFields.at(0), '081234567890');
-      await tester.enterText(ewalletFields.at(1), 'Budi OVO');
-      await tester.tap(find.text('Simpan E-Wallet'));
-      await tester.pumpAndSettle();
+      // Tab Semua menampilkan earning + penarikan v1
+      expect(find.text('Pengantaran #10'), findsOneWidget);
+      expect(find.text('Penarikan ke Bank BCA'), findsOneWidget);
 
-      expect(find.text('OVO'), findsOneWidget);
-      expect(find.textContaining('Budi OVO'), findsOneWidget);
+      // Tekan filter Penarikan -> penarikan v1 tetap tampil (tidak kosong)
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Penarikan'));
+      await tester.pumpAndSettle();
+      expect(find.text('Penarikan ke Bank BCA'), findsOneWidget);
+      expect(find.text('Pengantaran #10'), findsNothing);
+      expect(find.text('Belum ada transaksi'), findsNothing);
+      expect(find.text('1 transaksi dimuat'), findsOneWidget);
+
+      // Tekan filter Pendapatan -> hanya pendapatan tampil
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Pendapatan'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pengantaran #10'), findsOneWidget);
+      expect(find.text('Penarikan ke Bank BCA'), findsNothing);
+
+      // Uji deduplikasi jika backend sudah mengembalikan payout v1 di /history
+      final duplicateCheck = WalletService.mergeHistoryWithPayouts(
+        historyItems: [
+          WalletHistoryItem(
+            id: 'po-99',
+            kind: 'withdrawal',
+            title: 'Penarikan ke Bank BCA',
+            amount: -50000,
+            status: 'success',
+            statusLabel: 'Berhasil',
+            reference: 'WD-CUR-SANDBOX-99',
+            payoutId: 99,
+            createdAt: DateTime.now(),
+          ),
+        ],
+        payouts: (await v1Service.getPayouts()).items,
+        filter: 'withdrawal',
+      );
+      expect(duplicateCheck.length, 1);
     },
   );
 }

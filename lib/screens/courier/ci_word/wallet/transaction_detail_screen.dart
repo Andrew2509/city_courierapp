@@ -2,22 +2,30 @@ import 'package:flutter/material.dart';
 
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
+import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Detail satu transaksi dompet.
 ///
 /// Semua data berasal dari backend. Untuk penarikan yang belum final,
-/// kurir dapat meminta sinkronisasi status resmi ke provider (DANA).
+/// kurir dapat meminta sinkronisasi status resmi ke provider (DANA / Xendit).
 class TransactionDetailScreen extends StatefulWidget {
   final WalletHistoryItem item;
+  final CourierWalletV1Service? v1Service;
 
-  const TransactionDetailScreen({super.key, required this.item});
+  const TransactionDetailScreen({
+    super.key,
+    required this.item,
+    this.v1Service,
+  });
 
   @override
   State<TransactionDetailScreen> createState() => _TransactionDetailScreenState();
 }
 
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
+  late final CourierWalletV1Service _v1Service =
+      widget.v1Service ?? CourierWalletV1Service.instance;
   late String _status;
   late String _statusLabel;
   String? _providerReference;
@@ -37,9 +45,42 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   Future<void> _syncStatus() async {
     final withdrawalId = widget.item.withdrawalId;
-    if (withdrawalId == null || _isSyncing) return;
+    final payoutId = widget.item.payoutId;
+    if ((withdrawalId == null && payoutId == null) || _isSyncing) return;
 
     setState(() => _isSyncing = true);
+
+    if (payoutId != null) {
+      try {
+        final detail = await _v1Service.getPayoutDetail(payoutId);
+        if (!mounted) return;
+        final synced = WalletHistoryItem.fromPayoutV1(detail.payout);
+        setState(() {
+          _isSyncing = false;
+          _status = synced.status;
+          _statusLabel = synced.statusLabel;
+          _providerReference = synced.reference;
+          _processedAt = synced.processedAt;
+          _failureReason = synced.description;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status terbaru: $_statusLabel'),
+            backgroundColor: const Color(0xFF16A34A),
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isSyncing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
 
     final result = await WalletService.getWithdrawalStatus('$withdrawalId');
 
@@ -129,7 +170,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final canSync = item.isWithdrawal &&
-        item.withdrawalId != null &&
+        (item.withdrawalId != null || item.payoutId != null) &&
         const ['pending', 'processing'].contains(_normalizedStatus(_status));
 
     return Scaffold(

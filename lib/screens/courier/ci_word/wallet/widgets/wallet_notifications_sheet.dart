@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Bottom sheet notifikasi dompet.
@@ -29,12 +30,18 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
   @override
   void initState() {
     super.initState();
-    _future = WalletService.getNotifications();
+    _future = _loadNotifications();
+  }
+
+  Future<Map<String, dynamic>> _loadNotifications() {
+    return WalletService.getMergedNotifications(
+      v1Fetcher: () => CourierWalletV1Service.instance.getNotifications(),
+    );
   }
 
   void _reload() {
     setState(() {
-      _future = WalletService.getNotifications();
+      _future = _loadNotifications();
     });
   }
 

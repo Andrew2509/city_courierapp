@@ -1,6 +1,6 @@
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
-import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_payout_destinations_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_withdrawal_v1_screen.dart';
 import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:flutter/material.dart';
@@ -131,7 +131,7 @@ class _AutoPayoutStatusScreenState extends State<AutoPayoutStatusScreen> {
                                   await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => CourierPayoutDestinationsScreen(service: _service),
+                                      builder: (_) => CourierWithdrawalV1Screen(service: _service),
                                     ),
                                   );
                                   _load();

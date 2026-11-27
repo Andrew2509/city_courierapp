@@ -1,137 +1,190 @@
 import 'package:flutter/material.dart';
 
-import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
+import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
-/// Baris riwayat dompet yang dipakai bersama oleh halaman Dompet dan
-/// Riwayat Transaksi. Seluruh nilai berasal dari backend.
+/// Baris riwayat dompet kurir yang selaras dengan komponen `WalletTxTile`
+/// pada City Wallet pelanggan.
 class WalletHistoryTile extends StatelessWidget {
   final WalletHistoryItem item;
   final VoidCallback? onTap;
+  final bool cardStyle;
 
-  const WalletHistoryTile({super.key, required this.item, this.onTap});
+  const WalletHistoryTile({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.cardStyle = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final visual = _visualFor(item);
+    final visual = _visualFor(context, item);
     final statusColor = _statusColor(item.status);
-    final amountColor = item.isIncoming ? const Color(0xFF16A34A) : const Color(0xFF191B23);
+    final amountColor = item.isIncoming
+        ? const Color(0xFF15803D)
+        : CityWalletUi.ink(context);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: visual.background,
-                shape: BoxShape.circle,
+    final content = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(cardStyle ? 14 : 10),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: cardStyle ? 14 : 12,
+            vertical: cardStyle ? 12 : 10,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: cardStyle ? 40 : 38,
+                height: cardStyle ? 40 : 38,
+                decoration: BoxDecoration(
+                  color: visual.background,
+                  borderRadius: cardStyle ? BorderRadius.circular(12) : null,
+                  shape: cardStyle ? BoxShape.rectangle : BoxShape.circle,
+                ),
+                child: Icon(visual.icon, size: 18, color: visual.foreground),
               ),
-              child: Icon(visual.icon, size: 18, color: visual.foreground),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF191B23),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      if (item.createdAt != null)
-                        Text(
-                          _formatDateTime(item.createdAt!),
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
-                        ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6),
-                        child: Text('•', style: TextStyle(fontSize: 11.5, color: Color(0xFFCBD5E1))),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: CityWalletUi.cardTitleStyle(context).copyWith(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
                       ),
-                      Flexible(
-                        child: Text(
-                          item.statusLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            item.statusLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.caption.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        if (item.createdAt != null) ...[
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _formatDateTime(item.createdAt!),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: CityWalletUi.captionStyle(context)
+                                  .copyWith(fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${item.isIncoming ? '+' : '-'}${formatRupiah(item.amount.abs())}',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: amountColor,
+              const SizedBox(width: 8),
+              Text(
+                '${item.isIncoming ? '+' : '-'}${formatRupiah(item.amount.abs())}',
+                style: AppTypography.titleSmall.copyWith(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  color: amountColor,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+
+    if (!cardStyle) {
+      return content;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: CityWalletUi.cardDecoration(context, radius: 14),
+      child: content,
     );
   }
 
   static String _formatDateTime(DateTime value) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
     final day = value.day.toString().padLeft(2, '0');
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$day ${months[value.month - 1]} ${value.year}, $hour:$minute';
   }
 
-  static _TileVisual _visualFor(WalletHistoryItem item) {
+  static _TileVisual _visualFor(BuildContext context, WalletHistoryItem item) {
+    final dark = CityWalletUi.isDark(context);
     switch (item.kind) {
       case 'withdrawal':
         return _TileVisual(
-          icon: Icons.arrow_outward,
-          background: const Color(0xFFFEF2F2),
-          foreground: const Color(0xFFEF4444),
+          icon: Icons.north_east_rounded,
+          background: CityWalletUi.primaryColor.withValues(alpha: 0.1),
+          foreground: CityWalletUi.primaryColor,
         );
       case 'reversal':
         return _TileVisual(
-          icon: Icons.undo,
-          background: const Color(0xFFEFF6FF),
+          icon: Icons.undo_rounded,
+          background: dark
+              ? const Color(0xFF1E3A8A).withValues(alpha: 0.35)
+              : const Color(0xFFEFF6FF),
           foreground: const Color(0xFF2563EB),
         );
       case 'bonus':
         return _TileVisual(
-          icon: Icons.card_giftcard,
-          background: const Color(0xFFFFF7ED),
-          foreground: AppColors.primaryOrange,
+          icon: Icons.card_giftcard_rounded,
+          background: CityWalletUi.primaryColor.withValues(alpha: 0.1),
+          foreground: CityWalletUi.primaryColor,
         );
       case 'adjustment':
         return _TileVisual(
-          icon: Icons.tune,
-          background: const Color(0xFFF1F5F9),
-          foreground: const Color(0xFF64748B),
+          icon: Icons.tune_rounded,
+          background: dark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          foreground: CityWalletUi.secondaryInk(context),
         );
       default:
         return _TileVisual(
-          icon: Icons.local_shipping_outlined,
-          background: const Color(0xFFECFDF5),
-          foreground: const Color(0xFF16A34A),
+          icon: Icons.south_west_rounded,
+          background:
+              dark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
+          foreground: const Color(0xFF15803D),
         );
     }
   }

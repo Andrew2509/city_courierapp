@@ -1,23 +1,36 @@
 import 'package:flutter/material.dart';
 
 import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/transaction_detail_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/widgets/wallet_history_tile.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
+import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
 /// Riwayat Transaksi Dompet.
 ///
-/// Sumber data: GET /api/courier/wallet/history — sudah dinormalisasi backend
-/// (pendapatan, bonus, penarikan, pengembalian saldo) dan mendukung filter
-/// jenis transaksi serta status.
+/// Sumber data utama: GET /api/courier/wallet/history dan digabung (deduplikasi)
+/// dengan GET /api/v1/courier/wallet/payouts agar penarikan v1 selalu tampil
+/// di tab Semua & Penarikan meski backend lama belum sinkron.
 class RiwayatTransaksiScreen extends StatefulWidget {
   final String initialFilter;
+  final CourierWalletV1Service? v1Service;
+  final Future<Map<String, dynamic>> Function({
+    int page,
+    String? filter,
+    String? status,
+  })? historyFetcher;
 
-  const RiwayatTransaksiScreen({super.key, this.initialFilter = 'all'});
+  const RiwayatTransaksiScreen({
+    super.key,
+    this.initialFilter = 'all',
+    this.v1Service,
+    this.historyFetcher,
+  });
 
   @override
   State<RiwayatTransaksiScreen> createState() => _RiwayatTransaksiScreenState();
@@ -41,6 +54,8 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
 
   late String _filter;
   String? _status;
+  late final CourierWalletV1Service _v1Service =
+      widget.v1Service ?? CourierWalletV1Service.instance;
 
   final List<WalletHistoryItem> _items = [];
   int _page = 1;
@@ -56,29 +71,64 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
     _load();
   }
 
+  Future<Map<String, dynamic>> _fetchHistoryPage(int page) {
+    final fetcher = widget.historyFetcher;
+    if (fetcher != null) {
+      return fetcher(page: page, filter: _filter, status: _status);
+    }
+    return WalletService.getHistory(
+      page: page,
+      filter: _filter,
+      status: _status,
+    );
+  }
+
+  Future<List<PayoutTransactionV1>?> _fetchV1PayoutsIfNeeded() async {
+    if (_filter == 'earning') return null;
+    if (widget.historyFetcher != null && widget.v1Service == null) return null;
+    try {
+      final res = await _v1Service.getPayouts(page: 1);
+      return res.items;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
-    final result = await WalletService.getHistory(
-      page: 1,
-      filter: _filter,
-      status: _status,
-    );
+    final results = await Future.wait<dynamic>([
+      _fetchHistoryPage(1),
+      _fetchV1PayoutsIfNeeded(),
+    ]);
 
     if (!mounted) return;
+
+    final result = results[0] as Map<String, dynamic>;
+    final v1Payouts = results[1] as List<PayoutTransactionV1>?;
+    final legacyOk = result['success'] == true;
+    final legacyItems = legacyOk
+        ? (result['items'] as List<WalletHistoryItem>)
+        : const <WalletHistoryItem>[];
 
     setState(() {
       _isLoading = false;
 
-      if (result['success'] == true) {
+      if (legacyOk || v1Payouts != null) {
+        final merged = WalletService.mergeHistoryWithPayouts(
+          historyItems: legacyItems,
+          payouts: v1Payouts ?? const <PayoutTransactionV1>[],
+          filter: _filter,
+          status: _status,
+        );
         _items
           ..clear()
-          ..addAll(result['items'] as List<WalletHistoryItem>);
+          ..addAll(merged);
         _page = 1;
-        _hasMore = result['hasMore'] == true;
+        _hasMore = legacyOk && result['hasMore'] == true;
       } else {
         _items.clear();
         _hasMore = false;
@@ -93,11 +143,7 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
     setState(() => _isLoadingMore = true);
 
     final nextPage = _page + 1;
-    final result = await WalletService.getHistory(
-      page: nextPage,
-      filter: _filter,
-      status: _status,
-    );
+    final result = await _fetchHistoryPage(nextPage);
 
     if (!mounted) return;
 
@@ -105,7 +151,10 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
       _isLoadingMore = false;
 
       if (result['success'] == true) {
-        _items.addAll(result['items'] as List<WalletHistoryItem>);
+        final existingIds = _items.map((e) => e.id).toSet();
+        final nextItems = (result['items'] as List<WalletHistoryItem>)
+            .where((item) => !existingIds.contains(item.id));
+        _items.addAll(nextItems);
         _page = nextPage;
         _hasMore = result['hasMore'] == true;
       } else {
@@ -377,7 +426,10 @@ class _RiwayatTransaksiScreenState extends State<RiwayatTransaksiScreen> {
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => TransactionDetailScreen(item: item),
+                        builder: (_) => TransactionDetailScreen(
+                          item: item,
+                          v1Service: _v1Service,
+                        ),
                       ),
                     );
                     if (mounted) await _load();

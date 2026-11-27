@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/services/api_service.dart';
 import 'package:city_courierapp/services/token_store.dart';
 
@@ -133,6 +134,7 @@ class WalletHistoryItem {
   final String? provider;
   final int? orderId;
   final int? withdrawalId;
+  final int? payoutId;
   final DateTime? createdAt;
   final DateTime? processedAt;
 
@@ -152,6 +154,7 @@ class WalletHistoryItem {
     this.provider,
     this.orderId,
     this.withdrawalId,
+    this.payoutId,
     this.createdAt,
     this.processedAt,
   });
@@ -173,9 +176,96 @@ class WalletHistoryItem {
       provider: json['provider']?.toString(),
       orderId: (json['order_id'] as num?)?.toInt(),
       withdrawalId: (json['withdrawal_id'] as num?)?.toInt(),
+      payoutId: (json['payout_id'] as num?)?.toInt(),
       createdAt: DateTime.tryParse((json['created_at'] ?? '').toString())?.toLocal(),
       processedAt: DateTime.tryParse((json['processed_at'] ?? '').toString())?.toLocal(),
     );
+  }
+
+  factory WalletHistoryItem.fromPayoutV1(PayoutTransactionV1 payout) {
+    final normalizedStatus = normalizeStatus(payout.status);
+    final channelLabel = formatChannelLabel(payout.channelCode, payout.provider);
+    final created = (payout.createdAt ?? payout.scheduledAt)?.toLocal();
+    final processed = (payout.completedAt ?? payout.failedAt)?.toLocal();
+    final ref = (payout.providerReference ?? '').trim().isNotEmpty
+        ? payout.providerReference!.trim()
+        : payout.reference;
+
+    return WalletHistoryItem(
+      id: 'po-${payout.id}',
+      kind: 'withdrawal',
+      title: 'Penarikan ke $channelLabel',
+      description: payout.failureReason,
+      amount: -payout.amount.toDouble(),
+      fee: payout.fee.toDouble(),
+      netAmount: payout.netAmount.toDouble(),
+      status: normalizedStatus,
+      statusLabel: statusLabelFor(normalizedStatus),
+      reference: ref,
+      destination: payout.accountNumberMasked,
+      accountName: payout.accountHolderName,
+      provider: channelLabel,
+      payoutId: payout.id,
+      createdAt: created,
+      processedAt: processed,
+    );
+  }
+
+  static String normalizeStatus(String? rawStatus) {
+    switch ((rawStatus ?? '').trim().toLowerCase()) {
+      case 'success':
+      case 'completed':
+        return 'success';
+      case 'processing':
+      case 'approved':
+        return 'processing';
+      case 'failed':
+      case 'rejected':
+      case 'reversed':
+        return 'failed';
+      case 'cancelled':
+        return 'cancelled';
+      default:
+        return 'pending';
+    }
+  }
+
+  static String statusLabelFor(String status) {
+    switch (normalizeStatus(status)) {
+      case 'success':
+        return 'Berhasil';
+      case 'processing':
+        return 'Diproses';
+      case 'failed':
+        return 'Gagal';
+      case 'cancelled':
+        return 'Dibatalkan';
+      default:
+        return 'Menunggu';
+    }
+  }
+
+  static String formatChannelLabel(String channelCode, [String? provider]) {
+    final code = channelCode.trim().toUpperCase();
+    const names = <String, String>{
+      'ID_BCA': 'Bank BCA',
+      'ID_BRI': 'Bank BRI',
+      'ID_BNI': 'Bank BNI',
+      'ID_MANDIRI': 'Bank Mandiri',
+      'ID_CIMB': 'CIMB Niaga',
+      'ID_PERMATA': 'Bank Permata',
+      'ID_BSI': 'BSI',
+      'ID_DANA': 'DANA',
+      'ID_OVO': 'OVO',
+      'ID_GOPAY': 'GoPay',
+      'ID_SHOPEEPAY': 'ShopeePay',
+      'ID_LINKAJA': 'LinkAja',
+    };
+    if (names.containsKey(code)) return names[code]!;
+    if (code.startsWith('ID_') && code.length > 3) return code.substring(3);
+    if (code.isNotEmpty) return code;
+    final p = (provider ?? '').trim().toUpperCase();
+    return p.isNotEmpty ? p : 'PAYOUT';
   }
 
   bool get isIncoming => amount > 0;
@@ -468,6 +558,140 @@ class WalletService {
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  /// Gabungkan riwayat legacy `/courier/wallet/history` dengan `/v1/courier/wallet/payouts`
+  /// tanpa duplikasi, menghormati filter jenis (`all` | `earning` | `withdrawal`) dan status.
+  static List<WalletHistoryItem> mergeHistoryWithPayouts({
+    required List<WalletHistoryItem> historyItems,
+    required List<PayoutTransactionV1> payouts,
+    String? filter,
+    String? status,
+  }) {
+    final normFilter = (filter ?? 'all').trim().toLowerCase();
+    final normStatus = (status ?? '').trim().toLowerCase();
+    final includePayouts =
+        normFilter != 'earning' && normFilter != 'pendapatan';
+
+    final merged = List<WalletHistoryItem>.from(historyItems);
+    if (!includePayouts || payouts.isEmpty) {
+      return merged;
+    }
+
+    final seenIds = merged.map((e) => e.id).where((s) => s.isNotEmpty).toSet();
+    final seenPayoutIds =
+        merged.map((e) => e.payoutId).whereType<int>().toSet();
+    final seenRefs = merged
+        .map((e) => (e.reference ?? '').trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+
+    for (final payout in payouts) {
+      final converted = WalletHistoryItem.fromPayoutV1(payout);
+      if (normStatus.isNotEmpty && converted.status != normStatus) {
+        continue;
+      }
+
+      final ref = payout.reference.trim();
+      final providerRef = (payout.providerReference ?? '').trim();
+      final isDuplicate = seenIds.contains(converted.id) ||
+          seenPayoutIds.contains(payout.id) ||
+          (ref.isNotEmpty && seenRefs.contains(ref)) ||
+          (providerRef.isNotEmpty && seenRefs.contains(providerRef));
+
+      if (isDuplicate) continue;
+
+      seenIds.add(converted.id);
+      seenPayoutIds.add(payout.id);
+      if (ref.isNotEmpty) seenRefs.add(ref);
+      if (providerRef.isNotEmpty) seenRefs.add(providerRef);
+      merged.add(converted);
+    }
+
+    merged.sort((a, b) {
+      final at = a.createdAt ?? a.processedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bt = b.createdAt ?? b.processedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bt.compareTo(at);
+    });
+
+    return merged;
+  }
+
+  /// Gabungkan notifikasi legacy dan notifikasi payout v1 tanpa duplikasi.
+  static List<WalletNotificationItem> mergeNotificationsWithPayouts({
+    required List<WalletNotificationItem> legacy,
+    required List<CourierPayoutNotificationV1> v1,
+  }) {
+    final merged = List<WalletNotificationItem>.from(legacy);
+    final seenIds = merged.map((e) => e.id).where((s) => s.isNotEmpty).toSet();
+
+    for (final n in v1) {
+      final mappedId = n.id.isNotEmpty ? n.id : 'payout-${n.payoutId}';
+      if (seenIds.contains(mappedId) || seenIds.contains('payout-${n.payoutId}')) {
+        continue;
+      }
+      final st = WalletHistoryItem.normalizeStatus(n.status);
+      final level = switch (st) {
+        'success' => 'success',
+        'failed' => 'error',
+        'cancelled' => 'warning',
+        _ => 'info',
+      };
+      seenIds.add(mappedId);
+      merged.add(
+        WalletNotificationItem(
+          id: mappedId,
+          type: 'withdrawal_$st',
+          title: n.title,
+          message: n.message,
+          level: level,
+          createdAt: n.createdAt?.toLocal(),
+        ),
+      );
+    }
+
+    merged.sort((a, b) {
+      final at = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bt = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bt.compareTo(at);
+    });
+
+    return merged;
+  }
+
+  /// Muat notifikasi dompet terpadu (legacy + v1 payout).
+  static Future<Map<String, dynamic>> getMergedNotifications({
+    Future<List<CourierPayoutNotificationV1>> Function()? v1Fetcher,
+  }) async {
+    final legacyFuture = getNotifications();
+    Future<List<CourierPayoutNotificationV1>?> v1Future() async {
+      try {
+        if (v1Fetcher != null) return await v1Fetcher();
+        return null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final results = await Future.wait<dynamic>([legacyFuture, v1Future()]);
+    final legacyRes = results[0] as Map<String, dynamic>;
+    final v1Items = results[1] as List<CourierPayoutNotificationV1>?;
+    final legacyOk = legacyRes['success'] == true;
+    final legacyItems = legacyOk
+        ? (legacyRes['items'] as List<WalletNotificationItem>)
+        : const <WalletNotificationItem>[];
+
+    if (!legacyOk && v1Items == null) {
+      return legacyRes;
+    }
+
+    return {
+      'success': true,
+      'items': mergeNotificationsWithPayouts(
+        legacy: legacyItems,
+        v1: v1Items ?? const [],
+      ),
+    };
   }
 
   /// Get wallet transactions (ledger, tanpa filter).
