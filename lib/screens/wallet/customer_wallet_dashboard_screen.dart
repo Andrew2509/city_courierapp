@@ -1,5 +1,4 @@
 import 'package:city_courierapp/core/config/app_typography.dart';
-import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/wallet/customer_refund_screen.dart';
 import 'package:city_courierapp/screens/wallet/customer_withdrawal_screen.dart';
@@ -10,6 +9,7 @@ import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart
 import 'package:city_courierapp/services/security/biometric_guard_service.dart';
 import 'package:city_courierapp/services/wallet/customer_wallet_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class CustomerWalletDashboardScreen extends StatefulWidget {
   final CustomerWalletService? service;
@@ -28,6 +28,7 @@ class _CustomerWalletDashboardScreenState
   CustomerWalletSummary? _wallet;
   List<WalletTransactionV1> _recentTx = [];
   bool _loading = true;
+  bool _hideBalance = false;
   bool _biometricLocked = false;
   String? _biometricHint;
   String? _error;
@@ -82,50 +83,164 @@ class _CustomerWalletDashboardScreenState
     }
   }
 
+  void _openTransactions() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WalletTransactionsScreen(service: _service),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: CityWalletUi.scaffoldBg(context),
-      appBar: CityWalletUi.buildAppBar(
-        context,
-        title: 'City Wallet Saya',
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: Icon(
-              Icons.refresh,
-              color: CityWalletUi.ink(context),
-              size: 20,
-            ),
-            tooltip: 'Muat ulang',
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: CityWalletUi.primaryColor,
-              ),
-            )
-          : _biometricLocked
-              ? _buildBiometricLockState()
-              : _error != null
-                  ? WalletErrorState(message: _error!, onRetry: _load)
-                  : RefreshIndicator(
-                      color: CityWalletUi.primaryColor,
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                        children: [
-                          if (_wallet!.isFrozen) _buildFrozenBanner(),
-                          _buildBalanceCard(),
-                          const SizedBox(height: 16),
-                          _buildQuickActions(),
-                          const SizedBox(height: 24),
-                          _buildRecentTransactionsSection(),
-                        ],
+    final canPop = Navigator.canPop(context);
+    final topInset = MediaQuery.paddingOf(context).top;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: CityWalletUi.scaffoldBg(context),
+        body: _loading
+            ? Column(
+                children: [
+                  _buildOrangeHeaderStandalone(topInset, canPop),
+                  const Expanded(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: CityWalletUi.primaryColor,
                       ),
                     ),
+                  ),
+                ],
+              )
+            : _biometricLocked
+                ? Column(
+                    children: [
+                      _buildOrangeHeaderStandalone(topInset, canPop),
+                      Expanded(child: _buildBiometricLockState()),
+                    ],
+                  )
+                : _error != null
+                    ? Column(
+                        children: [
+                          _buildOrangeHeaderStandalone(topInset, canPop),
+                          Expanded(
+                            child: WalletErrorState(
+                              message: _error!,
+                              onRetry: _load,
+                            ),
+                          ),
+                        ],
+                      )
+                    : RefreshIndicator(
+                        color: CityWalletUi.primaryColor,
+                        onRefresh: _load,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          children: [
+                            Stack(
+                              children: [
+                                WalletOrangeBannerBackground(
+                                  height: topInset + 206,
+                                ),
+                                Column(
+                                  children: [
+                                    SizedBox(height: topInset),
+                                    _buildHeaderRow(canPop),
+                                    const SizedBox(height: 8),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          if (_wallet!.isFrozen)
+                                            _buildFrozenBanner(),
+                                          _buildBalanceCard(),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: _buildQuickActions(),
+                            ),
+                            const SizedBox(height: 16),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                              child: _buildRecentTransactionsSection(),
+                            ),
+                          ],
+                        ),
+                      ),
+      ),
+    );
+  }
+
+  Widget _buildOrangeHeaderStandalone(double topInset, bool canPop) {
+    return Stack(
+      children: [
+        WalletOrangeBannerBackground(height: topInset + 58),
+        Column(
+          children: [
+            SizedBox(height: topInset),
+            _buildHeaderRow(canPop),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderRow(bool canPop) {
+    return SizedBox(
+      height: 54,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          children: [
+            if (canPop)
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                tooltip: 'Kembali',
+              )
+            else
+              const SizedBox(width: 48),
+            Expanded(
+              child: Text(
+                'City Wallet Saya',
+                textAlign: TextAlign.center,
+                style: AppTypography.titleMedium.copyWith(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: _loading ? null : _load,
+              icon: const Icon(
+                Icons.refresh,
+                color: Colors.white,
+                size: 21,
+              ),
+              tooltip: 'Muat ulang',
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -184,7 +299,7 @@ class _CustomerWalletDashboardScreenState
   Widget _buildFrozenBanner() {
     return Container(
       padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFEF2F2),
         borderRadius: BorderRadius.circular(14),
@@ -217,146 +332,42 @@ class _CustomerWalletDashboardScreenState
     final w = _wallet!;
     final canTopup = !w.isFrozen && w.topupProviderEnabled;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-      decoration: CityWalletUi.heroCardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Saldo Tersedia',
-                  style: AppTypography.caption.copyWith(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70,
+    return WalletFloatingBalanceCard(
+      availableBalance: w.availableBalance,
+      hideBalance: _hideBalance,
+      onToggleHideBalance: () => setState(() => _hideBalance = !_hideBalance),
+      leftStatIcon: Icons.lock_outline_rounded,
+      leftStatLabel: 'Dana tertahan',
+      leftStatAmount: w.reservedBalance,
+      rightStatIcon: Icons.layers_outlined,
+      rightStatLabel: 'Total masuk',
+      rightStatAmount: w.totalCredited,
+      primaryIcon: Icons.add_circle_outline,
+      primaryLabel:
+          w.topupProviderEnabled ? 'Top-Up Saldo' : 'Top-Up Dinonaktifkan Admin',
+      onPrimaryPressed: !canTopup
+          ? null
+          : () async {
+              final changed = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TopupAmountScreen(
+                    minAmount: w.topupMinIdr,
+                    maxAmount: w.topupMaxIdr,
+                    currentBalance: w.availableBalance,
+                    service: _service,
                   ),
                 ),
-              ),
-              EnvironmentModeBadge(
-                mode: w.mode,
-                isSimulated: w.isSandboxOrDemo,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            formatRupiah(w.availableBalance),
-            style: AppTypography.headline1.copyWith(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Container(height: 1, color: Colors.white24),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _statColumn(
-                  label: 'Dana tertahan',
-                  value: formatRupiah(w.reservedBalance),
-                ),
-              ),
-              Container(width: 1, height: 28, color: Colors.white24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _statColumn(
-                  label: 'Total masuk',
-                  value: formatRupiah(w.totalCredited),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              onPressed: !canTopup
-                  ? null
-                  : () async {
-                      final changed = await Navigator.push<bool>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TopupAmountScreen(
-                            minAmount: w.topupMinIdr,
-                            maxAmount: w.topupMaxIdr,
-                            currentBalance: w.availableBalance,
-                            service: _service,
-                          ),
-                        ),
-                      );
-                      if (changed == true) _load();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: CityWalletUi.primaryColor,
-                disabledBackgroundColor: Colors.white.withValues(alpha: 0.24),
-                disabledForegroundColor: Colors.white70,
-                elevation: 0,
-                textStyle: AppTypography.titleSmall.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.add_circle_outline, size: 18),
-              label: Text(
-                w.topupProviderEnabled
-                    ? 'Top-Up Saldo'
-                    : 'Top-Up Dinonaktifkan Admin',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statColumn({required String label, required String value}) {
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '$label\n',
-            style: AppTypography.caption.copyWith(
-              fontSize: 11.5,
-              color: Colors.white70,
-              height: 1.4,
-            ),
-          ),
-          TextSpan(
-            text: value,
-            style: AppTypography.titleSmall.copyWith(
-              fontSize: 13.5,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
+              );
+              if (changed == true) _load();
+            },
     );
   }
 
   Widget _buildQuickActions() {
     return Row(
       children: [
-        _actionChip(Icons.history_rounded, 'Riwayat', () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => WalletTransactionsScreen(service: _service),
-            ),
-          );
-        }),
+        _actionChip(Icons.history_rounded, 'Riwayat', _openTransactions),
         const SizedBox(width: 10),
         _actionChip(Icons.outbond_outlined, 'Tarik Dana', () async {
           await Navigator.push(
@@ -385,63 +396,16 @@ class _CustomerWalletDashboardScreenState
   }
 
   Widget _buildRecentTransactionsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Transaksi Terbaru',
-                style: CityWalletUi.sectionTitleStyle(context),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => WalletTransactionsScreen(service: _service),
-                ),
-              ),
-              style: CityWalletUi.textButtonStyle,
-              child: const Text('Lihat Semua'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (_recentTx.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-            decoration: CityWalletUi.cardDecoration(context, radius: 16),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.receipt_long_outlined,
-                  size: 36,
-                  color: CityWalletUi.mutedInk(context),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Belum ada transaksi wallet',
-                  style: CityWalletUi.cardTitleStyle(context).copyWith(
-                    fontSize: 13.5,
-                    color: CityWalletUi.secondaryInk(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Top-up, pembayaran, dan refund Anda akan tercatat di sini.',
-                  textAlign: TextAlign.center,
-                  style: CityWalletUi.captionStyle(context),
-                ),
-              ],
-            ),
-          )
-        else
-          ..._recentTx.map(
+    return WalletDashboardHistoryCard(
+      onSeeAll: _openTransactions,
+      isEmpty: _recentTx.isEmpty,
+      emptyTitle: 'Belum ada transaksi wallet',
+      emptySubtitle: 'Top-up, pembayaran, dan refund Anda akan tercatat di sini.',
+      children: _recentTx
+          .map(
             (tx) => WalletTxTile(
               tx: tx,
+              compactDashboardStyle: true,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -449,8 +413,8 @@ class _CustomerWalletDashboardScreenState
                 ),
               ),
             ),
-          ),
-      ],
+          )
+          .toList(),
     );
   }
 

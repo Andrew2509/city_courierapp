@@ -138,11 +138,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('City Wallet Saya'), findsOneWidget);
+      expect(find.text('Saldo Tersedia'), findsOneWidget);
       expect(find.text('Rp 215.000'), findsOneWidget);
+      expect(find.text('Riwayat Transaksi'), findsOneWidget);
+      expect(find.text('Lihat Semua'), findsOneWidget);
       expect(find.text('Riwayat'), findsOneWidget);
       expect(find.text('Rekening'), findsNothing);
       expect(find.text('Tarik Dana'), findsOneWidget);
       expect(find.text('Refund'), findsOneWidget);
+
+      // Uji toggle sembunyikan saldo di City Wallet Saya pelanggan
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Rp ••••••'), findsNWidgets(3));
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Rp 215.000'), findsOneWidget);
 
       await tester.tap(find.text('Riwayat'));
       await tester.pumpAndSettle();
@@ -165,7 +176,23 @@ void main() {
 
       expect(find.byType(WalletTransactionDetailScreen), findsOneWidget);
       expect(find.text('Detail Transaksi'), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('Bukti Transaksi'), findsOneWidget);
+      expect(find.text('Transaksi Berhasil'), findsOneWidget);
+      expect(find.text('Top-Up Saldo'), findsNWidgets(2));
+      expect(find.text('Rincian Transaksi'), findsOneWidget);
       expect(find.text('TOPUP-101'), findsOneWidget);
+      expect(find.text('Informasi'), findsOneWidget);
+      expect(find.text('Bagikan'), findsOneWidget);
+      expect(find.text('Selesai'), findsOneWidget);
+
+      await tester.tap(find.text('Bagikan'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        find.text('Rincian transaksi disalin, siap dibagikan.'),
+        findsOneWidget,
+      );
     },
   );
 

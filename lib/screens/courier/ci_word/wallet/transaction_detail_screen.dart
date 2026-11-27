@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'package:city_courierapp/core/config/app_colors.dart';
+import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
+import 'package:city_courierapp/screens/wallet/widgets/wallet_ui_components.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 
@@ -63,11 +65,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           _processedAt = synced.processedAt;
           _failureReason = synced.description;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Status terbaru: $_statusLabel'),
-            backgroundColor: const Color(0xFF16A34A),
-          ),
+        final syncedNorm = _normalizedStatus(synced.status);
+        final snackColor = switch (syncedNorm) {
+          'success' => CityWalletUi.successGreen,
+          'failed' || 'cancelled' => CityWalletUi.errorRed,
+          _ => const Color(0xFFD97706),
+        };
+        CityWalletUi.showSnackBar(
+          context,
+          'Status terbaru: $_statusLabel',
+          backgroundColor: snackColor,
         );
       } catch (e) {
         if (!mounted) return;
@@ -166,147 +173,115 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  void _shareTransaction() {
+    final item = widget.item;
+    final sign = item.isIncoming ? '+' : '-';
+    final lines = <String>[
+      'Bukti Transaksi City Courier',
+      'Status: $_statusLabel',
+      'Judul: ${item.title}',
+      'Nominal: $sign${formatRupiah(item.amount.abs())}',
+      if ((_providerReference ?? '').isNotEmpty)
+        'No. Referensi: $_providerReference',
+      if (item.createdAt != null) 'Tanggal: ${_formatShortWithWib(item.createdAt!)}',
+    ];
+    Clipboard.setData(ClipboardData(text: lines.join('\n'))).catchError((_) {});
+    CityWalletUi.showSnackBar(
+      context,
+      'Rincian transaksi disalin, siap dibagikan.',
+      backgroundColor: CityWalletUi.successGreen,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final normalized = _normalizedStatus(_status);
     final canSync = item.isWithdrawal &&
         (item.withdrawalId != null || item.payoutId != null) &&
-        const ['pending', 'processing'].contains(_normalizedStatus(_status));
+        const ['pending', 'processing'].contains(normalized);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
+      backgroundColor: CityWalletUi.scaffoldBg(context),
+      appBar: CityWalletUi.buildAppBar(context, title: 'Detail Transaksi'),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         child: Column(
           children: [
-            _buildHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            _buildReceiptPaper(item, normalized),
+            if (canSync)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSummary(item),
-                    const SizedBox(height: 20),
-                    _buildDetailCard(item),
-                    if (canSync) ...[
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _isSyncing ? null : _syncStatus,
-                          icon: _isSyncing
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.sync, size: 18),
-                          label: Text(
-                            _isSyncing ? 'Memeriksa...' : 'Perbarui Status dari ${item.provider ?? 'DANA'}',
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isSyncing ? null : _syncStatus,
+                        icon: _isSyncing
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: CityWalletUi.primaryColor,
+                                ),
+                              )
+                            : const Icon(Icons.sync, size: 18),
+                        label: Text(
+                          _isSyncing
+                              ? 'Memeriksa...'
+                              : 'Perbarui Status dari ${item.provider ?? 'DANA'}',
+                          style: AppTypography.titleSmall.copyWith(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
                           ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primaryOrange,
-                            side: const BorderSide(color: Color(0xFFE8E8E8)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: CityWalletUi.primaryColor,
+                          side: BorderSide(color: CityWalletUi.lineColor(context)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Status akhir penarikan mengikuti hasil verifikasi resmi dari penyedia pembayaran.',
-                        style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8), height: 1.4),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Status akhir penarikan mengikuti hasil verifikasi resmi dari penyedia pembayaran.',
+                      style: CityWalletUi.captionStyle(context).copyWith(
+                        fontSize: 11.5,
+                        height: 1.4,
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
-            ),
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomActions(),
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF191B23)),
-          ),
-          const Expanded(
-            child: Text(
-              'Detail Transaksi',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF191B23),
-              ),
-            ),
-          ),
-          const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
+  Widget _buildReceiptPaper(WalletHistoryItem item, String normalized) {
+    final statusColor = _statusColor(normalized);
+    final statusIcon = switch (normalized) {
+      'success' => Icons.check_rounded,
+      'processing' || 'pending' => Icons.schedule_rounded,
+      _ => Icons.close_rounded,
+    };
+    final statusHeading = switch (normalized) {
+      'success' => 'Transaksi Berhasil',
+      'processing' => 'Transaksi Diproses',
+      'failed' => 'Transaksi Gagal',
+      'cancelled' => 'Transaksi Dibatalkan',
+      _ => 'Menunggu Diproses',
+    };
 
-  Widget _buildSummary(WalletHistoryItem item) {
-    final statusColor = _statusColor(_normalizedStatus(_status));
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            item.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${item.isIncoming ? '+' : '-'}${formatRupiah(item.amount.abs())}',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-              color: item.isIncoming ? const Color(0xFF16A34A) : const Color(0xFF191B23),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              _statusLabel,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: statusColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailCard(WalletHistoryItem item) {
     final rows = <MapEntry<String, String>>[];
-
     if (item.isWithdrawal) {
       rows.add(MapEntry('Metode', item.provider ?? 'DANA'));
       rows.add(MapEntry('Nomor tujuan', item.destination ?? '-'));
@@ -318,80 +293,84 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       rows.add(MapEntry('Dana diterima', formatRupiah(item.netAmount)));
     } else {
       rows.add(MapEntry('Jenis', _kindLabel(item.kind)));
-      if (item.orderId != null) {
-        rows.add(MapEntry('ID Pesanan', '#${item.orderId}'));
-      }
       rows.add(MapEntry('Nominal', formatRupiah(item.amount.abs())));
     }
 
     if ((_providerReference ?? '').isNotEmpty) {
       rows.add(MapEntry('No. Referensi', _providerReference!));
     }
-
     if (item.createdAt != null) {
-      rows.add(MapEntry('Tanggal', _formatFull(item.createdAt!)));
+      rows.add(
+        MapEntry(
+          'Tanggal',
+          CityWalletUi.formatShortDateTime(item.createdAt!, includeWib: true),
+        ),
+      );
     }
-
     if (_processedAt != null) {
-      rows.add(MapEntry('Diproses', _formatFull(_processedAt!)));
+      rows.add(
+        MapEntry(
+          'Diproses',
+          CityWalletUi.formatShortDateTime(_processedAt!, includeWib: true),
+        ),
+      );
     }
 
-    if ((_failureReason ?? '').isNotEmpty) {
-      rows.add(MapEntry('Keterangan', _failureReason!));
-    }
+    final amountCardLabel = item.orderId != null
+        ? 'Pendapatan Order #${item.orderId}'
+        : item.title;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Rincian',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF191B23),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...rows.map(
-            (row) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      row.key,
-                      style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 6,
-                    child: Text(
-                      row.value,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF191B23),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+    return WalletReceiptPaper(
+      subtitle: _subtitleLabel(item.kind),
+      statusColor: statusColor,
+      statusIcon: statusIcon,
+      statusHeading: statusHeading,
+      timestampText: item.createdAt != null
+          ? CityWalletUi.formatShortDateTime(item.createdAt!, includeWib: true)
+          : null,
+      amountLabel: amountCardLabel,
+      amountText: formatRupiah(item.amount.abs()),
+      rows: rows,
+      infoMessage: _resolveInfoMessage(item),
     );
+  }
+
+  Widget _buildBottomActions() {
+    return WalletReceiptBottomActions(
+      onShare: _shareTransaction,
+      onDone: () => Navigator.pop(context),
+    );
+  }
+
+  String _resolveInfoMessage(WalletHistoryItem item) {
+    if ((_failureReason ?? '').trim().isNotEmpty) {
+      return _failureReason!.trim();
+    }
+    if ((item.description ?? '').trim().isNotEmpty) {
+      return item.description!.trim();
+    }
+    if (item.orderId != null) {
+      return 'Pendapatan dari penyelesaian order #${item.orderId}.';
+    }
+    if (item.isWithdrawal) {
+      return 'Penarikan dana ke ${item.provider ?? "rekening tujuan"} (${item.destination ?? "-"}).';
+    }
+    return 'Transaksi tercatat pada riwayat dompet kurir Anda.';
+  }
+
+  static String _subtitleLabel(String kind) {
+    switch (kind) {
+      case 'bonus':
+        return 'Bonus Kurir';
+      case 'reversal':
+        return 'Pengembalian Saldo';
+      case 'adjustment':
+        return 'Penyesuaian Saldo';
+      case 'withdrawal':
+        return 'Penarikan Saldo';
+      default:
+        return 'Pendapatan Pengiriman';
+    }
   }
 
   static String _kindLabel(String kind) {
@@ -409,24 +388,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  static String _formatFull(DateTime value) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    final day = value.day.toString().padLeft(2, '0');
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
-    return '$day ${months[value.month - 1]} ${value.year} • $hour:$minute';
-  }
+  static String _formatShortWithWib(DateTime value) =>
+      CityWalletUi.formatShortDateTime(value, includeWib: true);
 
   static Color _statusColor(String status) {
     switch (status) {
       case 'success':
-        return const Color(0xFF16A34A);
+        return CityWalletUi.successGreen;
       case 'processing':
         return const Color(0xFFD97706);
       case 'failed':
-        return const Color(0xFFDC2626);
+        return CityWalletUi.errorRed;
       default:
-        return const Color(0xFF64748B);
+        return CityWalletUi.inkSecondary;
     }
   }
 }

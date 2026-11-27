@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:city_courierapp/core/config/app_typography.dart';
-import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
@@ -21,7 +21,7 @@ import 'package:city_courierapp/services/wallet/wallet_service.dart';
 ///
 /// Mengadopsi tata letak dan komponen visual yang seragam dengan
 /// `CustomerWalletDashboardScreen`: AppBar bersih, hero card gradasi oranye
-/// dengan tombol Tarik Saldo, quick action chips, dan daftar transaksi terbaru.
+/// dengan tombol Tarik Saldo, dan daftar transaksi terbaru.
 class DompetScreen extends StatefulWidget {
   final CourierWalletV1Service? v1Service;
   final Future<Map<String, dynamic>> Function()? walletFetcher;
@@ -195,116 +195,190 @@ class _DompetScreenState extends State<DompetScreen> {
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
-    final inkColor = CityWalletUi.ink(context);
+    final topInset = MediaQuery.paddingOf(context).top;
 
-    return Scaffold(
-      backgroundColor: CityWalletUi.scaffoldBg(context),
-      appBar: AppBar(
-        backgroundColor: CityWalletUi.cardBg(context),
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        leading: canPop
-            ? IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: Icon(Icons.arrow_back, color: inkColor, size: 22),
-                tooltip: 'Kembali',
-              )
-            : null,
-        title: Text(
-          'Dompet Saya',
-          style: CityWalletUi.appBarTitleStyle(context),
-        ),
-        actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                onPressed: () => showWalletNotifications(context),
-                icon: Icon(
-                  Icons.notifications_none_rounded,
-                  color: inkColor,
-                  size: 21,
-                ),
-                tooltip: 'Notifikasi',
-              ),
-              if (_notificationCount > 0)
-                Positioned(
-                  right: 11,
-                  top: 12,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: CityWalletUi.errorRed,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          IconButton(
-            onPressed: _isLoading ? null : _load,
-            icon: Icon(Icons.refresh, color: inkColor, size: 20),
-            tooltip: 'Muat ulang',
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: CityWalletUi.lineColor(context)),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: CityWalletUi.primaryColor,
-              ),
-            )
-          : _biometricLocked
-              ? _buildBiometricLockState()
-              : _error != null
-                  ? WalletErrorState(message: _error!, onRetry: _load)
-                  : RefreshIndicator(
-                      color: CityWalletUi.primaryColor,
-                      onRefresh: _load,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                        children: [
-                          if (_v1Summary?.isFrozen == true) _buildFrozenBanner(),
-                          _buildSaldoCard(),
-                          const SizedBox(height: 16),
-                          _buildQuickActions(),
-                          const SizedBox(height: 24),
-                          _buildRiwayatSection(),
-                          const SizedBox(height: 80),
-                        ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: CityWalletUi.scaffoldBg(context),
+        body: _isLoading
+            ? Column(
+                children: [
+                  _buildOrangeHeaderStandalone(topInset, canPop),
+                  const Expanded(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: CityWalletUi.primaryColor,
                       ),
                     ),
-      bottomNavigationBar: DriverBottomNavigation(
-        currentIndex: 2,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const DriverHomeScreen()),
-            );
-          } else if (index == 1) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const DriverShipmentScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const DriverProfileScreen()),
-            );
-          }
-        },
+                  ),
+                ],
+              )
+            : _biometricLocked
+                ? Column(
+                    children: [
+                      _buildOrangeHeaderStandalone(topInset, canPop),
+                      Expanded(child: _buildBiometricLockState()),
+                    ],
+                  )
+                : _error != null
+                    ? Column(
+                        children: [
+                          _buildOrangeHeaderStandalone(topInset, canPop),
+                          Expanded(
+                            child: WalletErrorState(
+                              message: _error!,
+                              onRetry: _load,
+                            ),
+                          ),
+                        ],
+                      )
+                    : RefreshIndicator(
+                        color: CityWalletUi.primaryColor,
+                        onRefresh: _load,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          children: [
+                            Stack(
+                              children: [
+                                WalletOrangeBannerBackground(
+                                  height: topInset + 206,
+                                ),
+                                Column(
+                                  children: [
+                                    SizedBox(height: topInset),
+                                    _buildHeaderRow(canPop),
+                                    const SizedBox(height: 8),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          if (_v1Summary?.isFrozen == true)
+                                            _buildFrozenBanner(),
+                                          _buildSaldoCard(),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                              child: _buildRiwayatSection(),
+                            ),
+                          ],
+                        ),
+                      ),
+        bottomNavigationBar: DriverBottomNavigation(
+          currentIndex: 2,
+          onTap: (index) {
+            if (index == 0) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const DriverHomeScreen()),
+              );
+            } else if (index == 1) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const DriverShipmentScreen()),
+              );
+            } else if (index == 3) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const DriverProfileScreen()),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrangeHeaderStandalone(double topInset, bool canPop) {
+    return Stack(
+      children: [
+        WalletOrangeBannerBackground(height: topInset + 58),
+        Column(
+          children: [
+            SizedBox(height: topInset),
+            _buildHeaderRow(canPop),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderRow(bool canPop) {
+    return SizedBox(
+      height: 54,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          children: [
+            if (canPop)
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                tooltip: 'Kembali',
+              )
+            else
+              const SizedBox(width: 48),
+            Expanded(
+              child: Text(
+                'Dompet Saya',
+                textAlign: TextAlign.center,
+                style: AppTypography.titleMedium.copyWith(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  onPressed: () => showWalletNotifications(context),
+                  icon: const Icon(
+                    Icons.notifications_none_rounded,
+                    color: Colors.white,
+                    size: 23,
+                  ),
+                  tooltip: 'Notifikasi',
+                ),
+                if (_notificationCount > 0)
+                  Positioned(
+                    right: 12,
+                    top: 12,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFA5A00),
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -364,7 +438,7 @@ class _DompetScreenState extends State<DompetScreen> {
   Widget _buildFrozenBanner() {
     return Container(
       padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFEF2F2),
         borderRadius: BorderRadius.circular(14),
@@ -407,251 +481,36 @@ class _DompetScreenState extends State<DompetScreen> {
     final canWithdraw =
         !isFrozen && (_v1Summary?.payoutProviderEnabled ?? true);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-      decoration: CityWalletUi.heroCardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Saldo Tersedia',
-                  style: AppTypography.caption.copyWith(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
-              if (_v1Summary != null) ...[
-                EnvironmentModeBadge(
-                  mode: _v1Summary!.mode,
-                  isSimulated: _v1Summary!.isSandboxOrDemo,
-                ),
-                const SizedBox(width: 6),
-              ],
-              GestureDetector(
-                onTap: () => setState(() => _hideBalance = !_hideBalance),
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    _hideBalance
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 18,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _hideBalance ? '••••••' : formatRupiah(available),
-            style: AppTypography.headline1.copyWith(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Container(height: 1, color: Colors.white24),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _statColumn(
-                  label: 'Dana tertahan',
-                  value: _hideBalance ? '••••••' : formatRupiah(pending),
-                ),
-              ),
-              Container(width: 1, height: 28, color: Colors.white24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _statColumn(
-                  label: 'Total saldo',
-                  value: _hideBalance ? '••••••' : formatRupiah(total),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              onPressed: canWithdraw ? _openTarikSaldo : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: CityWalletUi.primaryColor,
-                disabledBackgroundColor: Colors.white.withValues(alpha: 0.24),
-                disabledForegroundColor: Colors.white70,
-                elevation: 0,
-                textStyle: AppTypography.titleSmall.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.outbond_outlined, size: 18),
-              label: const Text('Tarik Saldo'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statColumn({required String label, required String value}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: AppTypography.caption.copyWith(
-            fontSize: 11.5,
-            color: Colors.white70,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: AppTypography.titleSmall.copyWith(
-            fontSize: 13.5,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ───────────────────────── QUICK ACTIONS ─────────────────────────
-
-  Widget _buildQuickActions() {
-    return Row(
-      children: [
-        _actionChip(Icons.history_rounded, 'Riwayat', _openHistory),
-        const SizedBox(width: 10),
-        _actionChip(
-          Icons.notifications_none_rounded,
-          'Notifikasi',
-          () => showWalletNotifications(context),
-        ),
-      ],
-    );
-  }
-
-  Widget _actionChip(IconData icon, String label, VoidCallback onTap) {
-    return Expanded(
-      child: Container(
-        decoration: CityWalletUi.cardDecoration(context, radius: 16),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-              child: Column(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: CityWalletUi.primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: CityWalletUi.primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.caption.copyWith(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: CityWalletUi.ink(context),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return WalletFloatingBalanceCard(
+      availableBalance: available,
+      hideBalance: _hideBalance,
+      onToggleHideBalance: () => setState(() => _hideBalance = !_hideBalance),
+      leftStatIcon: Icons.lock_outline_rounded,
+      leftStatLabel: 'Dana tertahan',
+      leftStatAmount: pending,
+      rightStatIcon: Icons.layers_outlined,
+      rightStatLabel: 'Total saldo',
+      rightStatAmount: total,
+      primaryIcon: Icons.save_alt_rounded,
+      primaryLabel: 'Tarik Saldo',
+      onPrimaryPressed: canWithdraw ? _openTarikSaldo : null,
     );
   }
 
   // ───────────────────────── RIWAYAT ─────────────────────────
 
   Widget _buildRiwayatSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Transaksi Terbaru',
-                style: CityWalletUi.sectionTitleStyle(context),
-              ),
-            ),
-            TextButton(
-              onPressed: _openHistory,
-              style: CityWalletUi.textButtonStyle,
-              child: const Text('Lihat Semua'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (_recent.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-            decoration: CityWalletUi.cardDecoration(context, radius: 16),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.receipt_long_outlined,
-                  size: 36,
-                  color: CityWalletUi.mutedInk(context),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Belum ada transaksi dompet',
-                  style: CityWalletUi.cardTitleStyle(context).copyWith(
-                    fontSize: 13.5,
-                    color: CityWalletUi.secondaryInk(context),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Pendapatan pengantaran dan penarikan saldo Anda akan tercatat di sini.',
-                  textAlign: TextAlign.center,
-                  style: CityWalletUi.captionStyle(context),
-                ),
-              ],
-            ),
-          )
-        else
-          ..._recent.map(
+    return WalletDashboardHistoryCard(
+      onSeeAll: _openHistory,
+      isEmpty: _recent.isEmpty,
+      emptyTitle: 'Belum ada transaksi dompet',
+      emptySubtitle:
+          'Pendapatan pengantaran dan penarikan saldo Anda akan tercatat di sini.',
+      children: _recent
+          .map(
             (item) => WalletHistoryTile(
               item: item,
-              cardStyle: true,
+              compactDashboardStyle: true,
               onTap: () async {
                 await Navigator.push(
                   context,
@@ -665,8 +524,8 @@ class _DompetScreenState extends State<DompetScreen> {
                 if (mounted) await _load();
               },
             ),
-          ),
-      ],
+          )
+          .toList(),
     );
   }
 }

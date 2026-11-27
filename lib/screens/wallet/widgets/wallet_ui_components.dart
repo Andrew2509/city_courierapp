@@ -95,6 +95,31 @@ class CityWalletUi {
         color: mutedInk(context),
       );
 
+  static String formatShortDateTime(
+    DateTime value, {
+    bool includeWib = false,
+  }) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    final day = value.day.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    final base = '$day ${months[value.month - 1]} ${value.year}, $hour:$minute';
+    return includeWib ? '$base WIB' : base;
+  }
+
   static TextStyle get buttonTextStyle => AppTypography.titleSmall.copyWith(
         fontSize: 14,
         fontWeight: FontWeight.bold,
@@ -534,6 +559,60 @@ class WalletStatusChip extends StatelessWidget {
 
   const WalletStatusChip({super.key, required this.status});
 
+  static String labelFor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'settled':
+      case 'paid':
+      case 'completed':
+      case 'success':
+      case 'active':
+      case 'available':
+        return 'Berhasil';
+      case 'processing':
+      case 'approved':
+        return 'Diproses';
+      case 'pending':
+      case 'requested':
+      case 'reserved':
+        return 'Menunggu';
+      case 'failed':
+      case 'expired':
+      case 'rejected':
+      case 'frozen':
+        return 'Gagal';
+      case 'cancelled':
+      case 'reversed':
+        return 'Dibatalkan';
+      default:
+        return status.isEmpty ? 'Menunggu' : status;
+    }
+  }
+
+  static Color colorFor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'settled':
+      case 'paid':
+      case 'completed':
+      case 'success':
+      case 'active':
+      case 'available':
+        return CityWalletUi.successGreen;
+      case 'processing':
+      case 'approved':
+      case 'pending':
+      case 'requested':
+      case 'reserved':
+        return const Color(0xFFD97706);
+      case 'failed':
+      case 'expired':
+      case 'rejected':
+      case 'frozen':
+        return CityWalletUi.errorRed;
+      default:
+        return CityWalletUi.inkSecondary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
@@ -600,64 +679,110 @@ class WalletStatusChip extends StatelessWidget {
 class WalletTxTile extends StatelessWidget {
   final WalletTransactionV1 tx;
   final VoidCallback? onTap;
+  final bool compactDashboardStyle;
 
-  const WalletTxTile({super.key, required this.tx, this.onTap});
+  const WalletTxTile({
+    super.key,
+    required this.tx,
+    this.onTap,
+    this.compactDashboardStyle = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isCredit = tx.isCredit;
     final dark = CityWalletUi.isDark(context);
+    final normalized = tx.status.toLowerCase();
+    final isSuccess = const {'completed', 'settled', 'paid', 'success'}
+        .contains(normalized);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: CityWalletUi.cardDecoration(context, radius: 14),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isCredit
-                        ? (dark
-                            ? const Color(0xFF064E3B)
-                            : const Color(0xFFECFDF5))
-                        : CityWalletUi.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isCredit
-                        ? Icons.south_west_rounded
-                        : Icons.north_east_rounded,
-                    color: isCredit
-                        ? const Color(0xFF15803D)
-                        : CityWalletUi.primaryColor,
-                    size: 18,
-                  ),
+    final content = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(compactDashboardStyle ? 12 : 14),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compactDashboardStyle ? 2 : 14,
+            vertical: compactDashboardStyle ? 10 : 12,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isCredit
+                      ? (dark
+                          ? const Color(0xFF064E3B)
+                          : const Color(0xFFECFDF5))
+                      : CityWalletUi.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tx.description.isNotEmpty
-                            ? tx.description
-                            : tx.type.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: CityWalletUi.cardTitleStyle(context).copyWith(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                        ),
+                child: Icon(
+                  isCredit
+                      ? (compactDashboardStyle
+                          ? Icons.save_alt_rounded
+                          : Icons.south_west_rounded)
+                      : Icons.north_east_rounded,
+                  color: isCredit
+                      ? CityWalletUi.successGreen
+                      : CityWalletUi.primaryColor,
+                  size: compactDashboardStyle ? 20 : 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tx.description.isNotEmpty
+                          ? tx.description
+                          : tx.type.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: CityWalletUi.cardTitleStyle(context).copyWith(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 4),
+                    ),
+                    SizedBox(height: compactDashboardStyle ? 3 : 4),
+                    if (compactDashboardStyle)
+                      Row(
+                        children: [
+                          if (tx.createdAt != null ||
+                              (tx.referenceId ?? '').isNotEmpty)
+                            Flexible(
+                              child: Text(
+                                tx.createdAt != null
+                                    ? CityWalletUi.formatShortDateTime(
+                                        tx.createdAt!.toLocal(),
+                                      )
+                                    : tx.referenceId!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CityWalletUi.captionStyle(context)
+                                    .copyWith(fontSize: 11.5),
+                              ),
+                            ),
+                          if (!isSuccess)
+                            Text(
+                              (tx.createdAt != null ||
+                                      (tx.referenceId ?? '').isNotEmpty)
+                                  ? ' • ${WalletStatusChip.labelFor(tx.status)}'
+                                  : WalletStatusChip.labelFor(tx.status),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.caption.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: WalletStatusChip.colorFor(tx.status),
+                              ),
+                            ),
+                        ],
+                      )
+                    else
                       Row(
                         children: [
                           WalletStatusChip(status: tx.status),
@@ -674,25 +799,34 @@ class WalletTxTile extends StatelessWidget {
                             ),
                         ],
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '${isCredit ? '+' : '-'}${formatRupiah(tx.amount)}',
-                  style: AppTypography.titleSmall.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13.5,
-                    color: isCredit
-                        ? const Color(0xFF15803D)
-                        : CityWalletUi.ink(context),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${isCredit ? '+' : '-'}${formatRupiah(tx.amount)}',
+                style: AppTypography.titleSmall.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13.5,
+                  color: isCredit
+                      ? CityWalletUi.successGreen
+                      : CityWalletUi.ink(context),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+
+    if (compactDashboardStyle) {
+      return content;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: CityWalletUi.cardDecoration(context, radius: 14),
+      child: content,
     );
   }
 }
@@ -1247,4 +1381,794 @@ class WalletHeroIllustration extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Latar belakang header oranye gradasi dengan aksen lengkung lembut di pojok kanan atas,
+/// dipakai bersama oleh halaman Dompet Kurir dan City Wallet Pelanggan.
+class WalletOrangeBannerBackground extends StatelessWidget {
+  final double height;
+
+  const WalletOrangeBannerBackground({super.key, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Container(
+        width: double.infinity,
+        height: height,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFEB5908),
+              Color(0xFFFA5A00),
+              Color(0xFFFF7A22),
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -36,
+              right: -28,
+              child: Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 28,
+              right: 20,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Kartu saldo putih melayang yang tumpang-tindih di atas banner oranye.
+class WalletFloatingBalanceCard extends StatelessWidget {
+  final num availableBalance;
+  final bool hideBalance;
+  final VoidCallback onToggleHideBalance;
+  final IconData leftStatIcon;
+  final String leftStatLabel;
+  final num leftStatAmount;
+  final IconData rightStatIcon;
+  final String rightStatLabel;
+  final num rightStatAmount;
+  final IconData primaryIcon;
+  final String primaryLabel;
+  final VoidCallback? onPrimaryPressed;
+
+  const WalletFloatingBalanceCard({
+    super.key,
+    required this.availableBalance,
+    required this.hideBalance,
+    required this.onToggleHideBalance,
+    required this.leftStatIcon,
+    required this.leftStatLabel,
+    required this.leftStatAmount,
+    required this.rightStatIcon,
+    required this.rightStatLabel,
+    required this.rightStatAmount,
+    required this.primaryIcon,
+    required this.primaryLabel,
+    this.onPrimaryPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = CityWalletUi.isDark(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: CityWalletUi.cardBg(context),
+        borderRadius: BorderRadius.circular(20),
+        border: dark ? Border.all(color: CityWalletUi.lineColor(context)) : null,
+        boxShadow: dark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Saldo Tersedia',
+                  style: AppTypography.caption.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: CityWalletUi.secondaryInk(context),
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: onToggleHideBalance,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    hideBalance
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 20,
+                    color: CityWalletUi.ink(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hideBalance ? 'Rp ••••••' : formatRupiah(availableBalance),
+            style: AppTypography.headline1.copyWith(
+              color: CityWalletUi.ink(context),
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FA),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _statColumn(
+                    context,
+                    icon: leftStatIcon,
+                    label: leftStatLabel,
+                    value: hideBalance ? 'Rp ••••••' : formatRupiah(leftStatAmount),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 30,
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  color: CityWalletUi.lineColor(context),
+                ),
+                Expanded(
+                  child: _statColumn(
+                    context,
+                    icon: rightStatIcon,
+                    label: rightStatLabel,
+                    value:
+                        hideBalance ? 'Rp ••••••' : formatRupiah(rightStatAmount),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: ElevatedButton.icon(
+              onPressed: onPrimaryPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CityWalletUi.primaryColor,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: CityWalletUi.disabledSurface(context),
+                disabledForegroundColor: CityWalletUi.mutedInk(context),
+                elevation: 0,
+                textStyle: AppTypography.titleSmall.copyWith(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: Icon(primaryIcon, size: 19),
+              label: Text(primaryLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statColumn(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: CityWalletUi.primaryColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.caption.copyWith(
+                  fontSize: 11.5,
+                  color: CityWalletUi.secondaryInk(context),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.titleSmall.copyWith(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: CityWalletUi.ink(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Card tunggal putih untuk daftar ringkas Riwayat Transaksi di dashboard wallet.
+class WalletDashboardHistoryCard extends StatelessWidget {
+  final VoidCallback onSeeAll;
+  final bool isEmpty;
+  final String emptyTitle;
+  final String emptySubtitle;
+  final List<Widget> children;
+
+  const WalletDashboardHistoryCard({
+    super.key,
+    required this.onSeeAll,
+    required this.isEmpty,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = CityWalletUi.isDark(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: CityWalletUi.cardBg(context),
+        borderRadius: BorderRadius.circular(18),
+        border: dark ? Border.all(color: CityWalletUi.lineColor(context)) : null,
+        boxShadow: dark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Riwayat Transaksi',
+                  style: AppTypography.titleSmall.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: CityWalletUi.ink(context),
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: onSeeAll,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Lihat Semua',
+                        style: AppTypography.caption.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: CityWalletUi.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 17,
+                        color: CityWalletUi.primaryColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.receipt_long_outlined,
+                      size: 36,
+                      color: CityWalletUi.mutedInk(context),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      emptyTitle,
+                      style: CityWalletUi.cardTitleStyle(context).copyWith(
+                        fontSize: 13.5,
+                        color: CityWalletUi.secondaryInk(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      emptySubtitle,
+                      textAlign: TextAlign.center,
+                      style: CityWalletUi.captionStyle(context),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...children,
+        ],
+      ),
+    );
+  }
+}
+
+/// Struk kertas bergerigi Bukti Transaksi untuk detail transaksi Kurir & Pelanggan.
+class WalletReceiptPaper extends StatelessWidget {
+  final String subtitle;
+  final Color statusColor;
+  final IconData statusIcon;
+  final String statusHeading;
+  final String? timestampText;
+  final String amountLabel;
+  final String amountText;
+  final List<MapEntry<String, String>> rows;
+  final String infoMessage;
+
+  const WalletReceiptPaper({
+    super.key,
+    required this.subtitle,
+    required this.statusColor,
+    required this.statusIcon,
+    required this.statusHeading,
+    this.timestampText,
+    required this.amountLabel,
+    required this.amountText,
+    required this.rows,
+    required this.infoMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = CityWalletUi.isDark(context);
+
+    return PhysicalShape(
+      clipper: const WalletReceiptClipper(),
+      color: CityWalletUi.cardBg(context),
+      elevation: dark ? 0 : 4,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 26, 20, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    padding: dark
+                        ? const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          )
+                        : EdgeInsets.zero,
+                    decoration: dark
+                        ? BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.94),
+                            borderRadius: BorderRadius.circular(10),
+                          )
+                        : null,
+                    child: Image.asset(
+                      'assets/images/Logo City Courie.png',
+                      height: 48,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => Text(
+                        'CityCourier',
+                        style: AppTypography.titleLarge.copyWith(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: CityWalletUi.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Bukti Transaksi',
+                    style: AppTypography.titleMedium.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: CityWalletUi.ink(context),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: AppTypography.bodySmall.copyWith(
+                      fontSize: 13,
+                      color: CityWalletUi.secondaryInk(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            WalletDashedDivider(color: CityWalletUi.lineColor(context)),
+            const SizedBox(height: 18),
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(statusIcon, size: 28, color: Colors.white),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    statusHeading,
+                    style: AppTypography.titleMedium.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                    ),
+                  ),
+                  if (timestampText != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      timestampText!,
+                      style: AppTypography.caption.copyWith(
+                        fontSize: 12.5,
+                        color: CityWalletUi.secondaryInk(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            WalletDashedDivider(color: CityWalletUi.lineColor(context)),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: dark
+                    ? CityWalletUi.primaryColor.withValues(alpha: 0.14)
+                    : const Color(0xFFFFF4EC),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    amountLabel,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.titleSmall.copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: CityWalletUi.ink(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    amountText,
+                    textAlign: TextAlign.center,
+                    style: AppTypography.headline1.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      color: CityWalletUi.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Rincian Transaksi',
+              style: CityWalletUi.cardTitleStyle(context).copyWith(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (var i = 0; i < rows.length; i++) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Text(
+                        rows[i].key,
+                        style: AppTypography.bodySmall.copyWith(
+                          fontSize: 13,
+                          color: CityWalletUi.secondaryInk(context),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 6,
+                      child: Text(
+                        rows[i].value,
+                        textAlign: TextAlign.right,
+                        style: AppTypography.bodySmall.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: CityWalletUi.ink(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (i < rows.length - 1)
+                Divider(height: 1, color: CityWalletUi.divider(context)),
+            ],
+            const SizedBox(height: 8),
+            WalletDashedDivider(color: CityWalletUi.lineColor(context)),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: CityWalletUi.primaryColor,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Informasi',
+                        style: AppTypography.titleSmall.copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: CityWalletUi.ink(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        infoMessage,
+                        style: AppTypography.bodySmall.copyWith(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: CityWalletUi.secondaryInk(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bar aksi bawah Bagikan & Selesai pada detail struk transaksi.
+class WalletReceiptBottomActions extends StatelessWidget {
+  final VoidCallback onShare;
+  final VoidCallback onDone;
+
+  const WalletReceiptBottomActions({
+    super.key,
+    required this.onShare,
+    required this.onDone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: CityWalletUi.cardBg(context),
+        border: Border(
+          top: BorderSide(color: CityWalletUi.lineColor(context), width: 0.8),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: onShare,
+                    icon: const Icon(Icons.share_outlined, size: 19),
+                    label: const Text('Bagikan'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CityWalletUi.primaryColor,
+                      backgroundColor: CityWalletUi.cardBg(context),
+                      side: const BorderSide(
+                        color: CityWalletUi.primaryColor,
+                        width: 1.4,
+                      ),
+                      textStyle: CityWalletUi.buttonTextStyle.copyWith(
+                        fontSize: 14.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: onDone,
+                    icon: const Icon(Icons.check_circle, size: 19),
+                    label: const Text('Selesai'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CityWalletUi.primaryColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      textStyle: CityWalletUi.buttonTextStyle.copyWith(
+                        fontSize: 14.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WalletDashedDivider extends StatelessWidget {
+  final Color color;
+
+  const WalletDashedDivider({super.key, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _WalletDashedLinePainter(color: color),
+      child: const SizedBox(width: double.infinity, height: 1),
+    );
+  }
+}
+
+class _WalletDashedLinePainter extends CustomPainter {
+  final Color color;
+
+  const _WalletDashedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.1;
+    const dashWidth = 5.0;
+    const dashSpace = 4.0;
+    double x = 0;
+    while (x < size.width) {
+      final endX = (x + dashWidth).clamp(0.0, size.width);
+      canvas.drawLine(Offset(x, 0), Offset(endX, 0), paint);
+      x += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WalletDashedLinePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class WalletReceiptClipper extends CustomClipper<Path> {
+  const WalletReceiptClipper();
+
+  @override
+  Path getClip(Size size) {
+    const toothWidth = 14.0;
+    const toothHeight = 6.0;
+    final path = Path()..moveTo(0, toothHeight);
+
+    final count = (size.width / toothWidth).floor().clamp(1, 200);
+    final step = size.width / count;
+
+    for (var i = 0; i < count; i++) {
+      final startX = i * step;
+      path.quadraticBezierTo(
+        startX + step / 2,
+        0,
+        startX + step,
+        toothHeight,
+      );
+    }
+
+    path.lineTo(size.width, size.height - toothHeight);
+
+    for (var i = count - 1; i >= 0; i--) {
+      final leftX = i * step;
+      path.quadraticBezierTo(
+        leftX + step / 2,
+        size.height,
+        leftX,
+        size.height - toothHeight,
+      );
+    }
+
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }

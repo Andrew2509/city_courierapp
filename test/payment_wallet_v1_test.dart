@@ -276,7 +276,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: CustomerWalletDashboardScreen(service: service)));
       await tester.pumpAndSettle();
 
-      expect(find.text('Rp 250.000'), findsOneWidget);
+      expect(find.text('Rp 250.000'), findsNWidgets(2));
       expect(find.textContaining('Wallet Dibekukan: Review keamanan'), findsOneWidget);
       expect(find.text('Top-up QRIS berhasil'), findsOneWidget);
       expect(find.text('SANDBOX (SIMULASI)'), findsNothing);

@@ -11,12 +11,14 @@ class WalletHistoryTile extends StatelessWidget {
   final WalletHistoryItem item;
   final VoidCallback? onTap;
   final bool cardStyle;
+  final bool compactDashboardStyle;
 
   const WalletHistoryTile({
     super.key,
     required this.item,
     this.onTap,
     this.cardStyle = false,
+    this.compactDashboardStyle = false,
   });
 
   @override
@@ -24,30 +26,42 @@ class WalletHistoryTile extends StatelessWidget {
     final visual = _visualFor(context, item);
     final statusColor = _statusColor(item.status);
     final amountColor = item.isIncoming
-        ? const Color(0xFF15803D)
+        ? CityWalletUi.successGreen
         : CityWalletUi.ink(context);
 
     final content = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(cardStyle ? 14 : 10),
+        borderRadius: BorderRadius.circular(
+          cardStyle ? 14 : (compactDashboardStyle ? 12 : 10),
+        ),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: cardStyle ? 14 : 12,
-            vertical: cardStyle ? 12 : 10,
+            horizontal: cardStyle ? 14 : (compactDashboardStyle ? 2 : 12),
+            vertical: cardStyle ? 12 : (compactDashboardStyle ? 10 : 10),
           ),
           child: Row(
             children: [
               Container(
-                width: cardStyle ? 40 : 38,
-                height: cardStyle ? 40 : 38,
+                width: cardStyle || compactDashboardStyle ? 40 : 38,
+                height: cardStyle || compactDashboardStyle ? 40 : 38,
                 decoration: BoxDecoration(
                   color: visual.background,
-                  borderRadius: cardStyle ? BorderRadius.circular(12) : null,
-                  shape: cardStyle ? BoxShape.rectangle : BoxShape.circle,
+                  borderRadius: cardStyle || compactDashboardStyle
+                      ? BorderRadius.circular(12)
+                      : null,
+                  shape: cardStyle || compactDashboardStyle
+                      ? BoxShape.rectangle
+                      : BoxShape.circle,
                 ),
-                child: Icon(visual.icon, size: 18, color: visual.foreground),
+                child: Icon(
+                  compactDashboardStyle && item.isIncoming
+                      ? Icons.save_alt_rounded
+                      : visual.icon,
+                  size: compactDashboardStyle ? 20 : 18,
+                  color: visual.foreground,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -63,43 +77,73 @@ class WalletHistoryTile extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            item.statusLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.caption.copyWith(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: statusColor,
+                    SizedBox(height: compactDashboardStyle ? 3 : 4),
+                    if (compactDashboardStyle)
+                      Row(
+                        children: [
+                          if (item.createdAt != null)
+                            Flexible(
+                              child: Text(
+                                _formatDateTime(item.createdAt!),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CityWalletUi.captionStyle(context)
+                                    .copyWith(fontSize: 11.5),
+                              ),
                             ),
-                          ),
-                        ),
-                        if (item.createdAt != null) ...[
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _formatDateTime(item.createdAt!),
+                          if (item.status != 'success') ...[
+                            Text(
+                              item.createdAt != null
+                                  ? ' • ${item.statusLabel}'
+                                  : item.statusLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: CityWalletUi.captionStyle(context)
-                                  .copyWith(fontSize: 11),
+                              style: AppTypography.caption.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: statusColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              item.statusLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.caption.copyWith(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: statusColor,
+                              ),
                             ),
                           ),
+                          if (item.createdAt != null) ...[
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _formatDateTime(item.createdAt!),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CityWalletUi.captionStyle(context)
+                                    .copyWith(fontSize: 11),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
                   ],
                 ),
               ),

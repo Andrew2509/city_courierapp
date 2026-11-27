@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
@@ -69,6 +71,8 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
   bool _loading = true;
   bool _submitting = false;
   String? _error;
+  Timer? _followUpPollTimer;
+  int _followUpAttempts = 0;
 
   @override
   void initState() {
@@ -79,6 +83,7 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
 
   @override
   void dispose() {
+    _followUpPollTimer?.cancel();
     _inquiry.removeListener(_onInquiryUpdated);
     _inquiry.dispose();
     _numberCtrl.dispose();
@@ -467,6 +472,41 @@ class _CourierWithdrawalV1ScreenState extends State<CourierWithdrawalV1Screen> {
     _showManualNameField = false;
     CityWalletUi.showWithdrawalOutcomeSnackBar(context, payout);
     await _load();
+    _scheduleFollowUpPollIfNeeded(payout);
+  }
+
+  void _scheduleFollowUpPollIfNeeded(PayoutTransactionV1 payout) {
+    _followUpPollTimer?.cancel();
+    _followUpAttempts = 0;
+    final st = payout.status.trim().toLowerCase();
+    final isInFlight = st == 'pending' || st == 'processing';
+    if (!isInFlight || payout.provider.trim().toLowerCase() == 'mock') {
+      return;
+    }
+    _scheduleNextFollowUpPoll(payout.id);
+  }
+
+  void _scheduleNextFollowUpPoll(int payoutId) {
+    if (!mounted || _followUpAttempts >= 3) return;
+    final delaySeconds = _followUpAttempts == 0 ? 3 : 5;
+    _followUpAttempts++;
+    _followUpPollTimer = Timer(Duration(seconds: delaySeconds), () async {
+      if (!mounted) return;
+      try {
+        final detail = await _service.getPayoutDetail(payoutId);
+        if (!mounted) return;
+        final synced = detail.payout;
+        final norm = synced.status.trim().toLowerCase();
+        if (norm != 'pending' && norm != 'processing') {
+          CityWalletUi.showWithdrawalOutcomeSnackBar(context, synced);
+          await _load();
+          return;
+        }
+      } catch (_) {
+        // Ignore transient inquiry errors during background polling
+      }
+      _scheduleNextFollowUpPoll(payoutId);
+    });
   }
 
   @override

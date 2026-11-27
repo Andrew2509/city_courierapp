@@ -21,7 +21,8 @@ class _WalletNotificationsSheet extends StatefulWidget {
   const _WalletNotificationsSheet();
 
   @override
-  State<_WalletNotificationsSheet> createState() => _WalletNotificationsSheetState();
+  State<_WalletNotificationsSheet> createState() =>
+      _WalletNotificationsSheetState();
 }
 
 class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
@@ -85,7 +86,11 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
                   ),
                   IconButton(
                     onPressed: _reload,
-                    icon: const Icon(Icons.refresh, size: 20, color: Color(0xFF64748B)),
+                    icon: const Icon(
+                      Icons.refresh,
+                      size: 20,
+                      color: Color(0xFF64748B),
+                    ),
                     tooltip: 'Muat ulang',
                   ),
                 ],
@@ -99,7 +104,9 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 40),
                       child: Center(
-                        child: CircularProgressIndicator(color: AppColors.primaryOrange),
+                        child: CircularProgressIndicator(
+                          color: AppColors.primaryOrange,
+                        ),
                       ),
                     );
                   }
@@ -108,18 +115,23 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
                     return _buildMessage(
                       icon: Icons.cloud_off,
                       title: 'Gagal memuat notifikasi',
-                      subtitle: snapshot.data?['message']?.toString() ??
+                      subtitle:
+                          snapshot.data?['message']?.toString() ??
                           'Periksa koneksi internet Anda.',
                     );
                   }
 
-                  final items = (snapshot.data?['items'] as List<WalletNotificationItem>?) ?? [];
+                  final items =
+                      (snapshot.data?['items']
+                          as List<WalletNotificationItem>?) ??
+                      [];
 
                   if (items.isEmpty) {
                     return _buildMessage(
                       icon: Icons.notifications_none,
                       title: 'Belum ada notifikasi',
-                      subtitle: 'Pemberitahuan penghubungan DANA dan status penarikan '
+                      subtitle:
+                          'Pemberitahuan penghubungan DANA dan status penarikan '
                           'akan muncul di sini.',
                     );
                   }
@@ -127,7 +139,8 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                     itemCount: items.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     itemBuilder: (context, index) => _buildItem(items[index]),
                   );
                 },
@@ -194,7 +207,10 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
                   const SizedBox(height: 4),
                   Text(
                     _relativeTime(item.createdAt!),
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
                   ),
                 ],
               ],
@@ -230,7 +246,11 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B), height: 1.4),
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: Color(0xFF64748B),
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -245,7 +265,20 @@ class _WalletNotificationsSheetState extends State<_WalletNotificationsSheet> {
     if (diff.inHours < 24) return '${diff.inHours} jam lalu';
     if (diff.inDays < 7) return '${diff.inDays} hari lalu';
 
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
     return '${value.day} ${months[value.month - 1]} ${value.year}';
   }
 }

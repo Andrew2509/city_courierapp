@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/core/utils/currency_format.dart';
 import 'package:city_courierapp/models/wallet/wallet_models.dart';
@@ -64,6 +66,8 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
   bool _loading = true;
   bool _submitting = false;
   String? _error;
+  Timer? _followUpPollTimer;
+  int _followUpAttempts = 0;
 
   @override
   void initState() {
@@ -74,6 +78,7 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
 
   @override
   void dispose() {
+    _followUpPollTimer?.cancel();
     _inquiry.removeListener(_onInquiryUpdated);
     _inquiry.dispose();
     _numberCtrl.dispose();
@@ -426,6 +431,49 @@ class _CustomerWithdrawalScreenState extends State<CustomerWithdrawalScreen> {
     _showManualNameField = false;
     CityWalletUi.showWithdrawalOutcomeSnackBar(context, payout);
     _load();
+    _scheduleFollowUpPollIfNeeded(payout);
+  }
+
+  void _scheduleFollowUpPollIfNeeded(PayoutTransactionV1 payout) {
+    _followUpPollTimer?.cancel();
+    _followUpAttempts = 0;
+    final st = payout.status.trim().toLowerCase();
+    final isInFlight = st == 'pending' || st == 'processing';
+    if (!isInFlight || payout.provider.trim().toLowerCase() == 'mock') {
+      return;
+    }
+    _scheduleNextFollowUpPoll(payout.id);
+  }
+
+  void _scheduleNextFollowUpPoll(int payoutId) {
+    if (!mounted || _followUpAttempts >= 3) return;
+    final delaySeconds = _followUpAttempts == 0 ? 3 : 5;
+    _followUpAttempts++;
+    _followUpPollTimer = Timer(Duration(seconds: delaySeconds), () async {
+      if (!mounted) return;
+      try {
+        final items = await _service.getWithdrawals();
+        if (!mounted) return;
+        PayoutTransactionV1? match;
+        for (final item in items) {
+          if (item.id == payoutId) {
+            match = item;
+            break;
+          }
+        }
+        if (match != null) {
+          final norm = match.status.trim().toLowerCase();
+          if (norm != 'pending' && norm != 'processing') {
+            setState(() => _history = items);
+            CityWalletUi.showWithdrawalOutcomeSnackBar(context, match);
+            return;
+          }
+        }
+      } catch (_) {
+        // Ignore transient sync errors during follow-up polling
+      }
+      _scheduleNextFollowUpPoll(payoutId);
+    });
   }
 
   @override

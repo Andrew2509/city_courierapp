@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/courier_withdrawal_v1_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/dompet_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/wallet/riwayat_transaksi_screen.dart';
+import 'package:city_courierapp/screens/courier/ci_word/wallet/transaction_detail_screen.dart';
 import 'package:city_courierapp/services/wallet/courier_wallet_v1_service.dart';
 import 'package:city_courierapp/services/wallet/wallet_service.dart';
 import 'package:flutter/material.dart';
@@ -230,13 +231,16 @@ void main() {
       expect(find.text('DANA'), findsNothing);
       expect(find.textContaining('Metode pencairan saldo penghasilan'), findsNothing);
 
-      // Quick Actions & Layout selaras dengan Customer Wallet (tanpa halaman Tujuan Pencairan terpisah)
+      // Layout sesuai referensi baru Dompet Saya: header oranye + floating white saldo card + card Riwayat Transaksi (tanpa 2 tombol tengah)
+      expect(find.text('Dompet Saya'), findsOneWidget);
       expect(find.text('Saldo Tersedia'), findsOneWidget);
       expect(find.text('Dana tertahan'), findsOneWidget);
       expect(find.text('Total saldo'), findsOneWidget);
-      expect(find.text('Riwayat'), findsOneWidget);
+      expect(find.text('Riwayat'), findsNothing);
       expect(find.text('Tujuan Pencairan'), findsNothing);
-      expect(find.text('Notifikasi'), findsOneWidget);
+      expect(find.text('Notifikasi'), findsNothing);
+      expect(find.byTooltip('Notifikasi'), findsOneWidget);
+      expect(find.text('Riwayat Transaksi'), findsOneWidget);
       expect(find.text('Lihat Semua'), findsOneWidget);
       expect(find.text('Belum ada transaksi dompet'), findsOneWidget);
 
@@ -426,6 +430,194 @@ void main() {
         filter: 'withdrawal',
       );
       expect(duplicateCheck.length, 1);
+    },
+  );
+
+  testWidgets(
+    'DompetScreen menampilkan kartu saldo putih, toggle sembunyikan saldo, dan baris ringkas Riwayat Transaksi',
+    (tester) async {
+      final v1Service = buildMockV1Service();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DompetScreen(
+            v1Service: v1Service,
+            walletFetcher: () async => {
+              'success': true,
+              'data': {
+                'available_balance': 8440,
+                'pending_balance': 20000,
+              },
+            },
+            historyFetcher: () async => {
+              'success': true,
+              'items': [
+                WalletHistoryItem(
+                  id: 'tx-51',
+                  kind: 'earning',
+                  title: 'Pendapatan order #51 siap dicairkan',
+                  amount: 14220,
+                  status: 'success',
+                  statusLabel: 'Berhasil',
+                  orderId: 51,
+                  createdAt: DateTime(2026, 11, 27, 10, 7),
+                ),
+              ],
+            },
+            notificationsFetcher: () async => {
+              'success': true,
+              'items': <WalletNotificationItem>[],
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dompet Saya'), findsOneWidget);
+      expect(find.text('Saldo Tersedia'), findsOneWidget);
+      expect(find.text('Riwayat Transaksi'), findsOneWidget);
+      expect(find.text('Lihat Semua'), findsOneWidget);
+      expect(find.text('Pendapatan order #51 siap dicairkan'), findsOneWidget);
+      expect(find.text('27 Nov 2026, 10:07'), findsOneWidget);
+      expect(find.text('+Rp 14.220'), findsOneWidget);
+
+      // Toggle sembunyikan saldo
+      await tester.tap(find.byIcon(Icons.visibility_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Rp ••••••'), findsNWidgets(3));
+    },
+  );
+
+  testWidgets(
+    'TransactionDetailScreen menampilkan struk Bukti Transaksi bergerigi, rincian transaksi, Informasi, serta tombol Bagikan dan Selesai',
+    (tester) async {
+      final item = WalletHistoryItem(
+        id: 'tx-51',
+        kind: 'earning',
+        title: 'Pendapatan order #51 siap dicairkan',
+        amount: 14220,
+        status: 'success',
+        statusLabel: 'Berhasil',
+        reference: 'ERN-ORD-51-2838-AVAIL',
+        orderId: 51,
+        createdAt: DateTime(2026, 11, 27, 10, 7),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TransactionDetailScreen(item: item),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Detail Transaksi'), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('Bukti Transaksi'), findsOneWidget);
+      expect(find.text('Pendapatan Pengiriman'), findsOneWidget);
+      expect(find.text('Transaksi Berhasil'), findsOneWidget);
+      expect(find.text('Pendapatan Order #51'), findsOneWidget);
+      expect(find.text('Rp 14.220'), findsNWidgets(2));
+      expect(find.text('Rincian Transaksi'), findsOneWidget);
+      expect(find.text('Pendapatan pengiriman'), findsOneWidget);
+      expect(find.text('ERN-ORD-51-2838-AVAIL'), findsOneWidget);
+      expect(find.text('27 Nov 2026, 10:07 WIB'), findsNWidgets(2));
+      expect(find.text('Informasi'), findsOneWidget);
+      expect(
+        find.text('Pendapatan dari penyelesaian order #51.'),
+        findsOneWidget,
+      );
+      expect(find.text('Bagikan'), findsOneWidget);
+      expect(find.text('Selesai'), findsOneWidget);
+
+      await tester.tap(find.text('Bagikan'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        find.text('Rincian transaksi disalin, siap dibagikan.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'TransactionDetailScreen tombol Perbarui Status menyinkronkan penarikan processing v1 menjadi berhasil',
+    (tester) async {
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/v1/courier/wallet/payouts/42') &&
+            request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': 42,
+                'reference': 'WD-CUR-8-20261127102137-EAEA',
+                'owner_type': 'courier',
+                'payout_type': 'courier_manual_withdrawal',
+                'provider': 'xendit',
+                'mode': 'sandbox',
+                'is_simulated': false,
+                'channel_code': 'ID_DANA',
+                'account_number_masked': '******7890',
+                'account_holder_name': 'Kurir Xendit',
+                'amount': 20000,
+                'fee': 0,
+                'net_amount': 20000,
+                'status': 'completed',
+                'provider_reference': 'disb-eaea-001',
+                'status_history': const [],
+                'created_at': '2026-11-27T03:21:37Z',
+                'completed_at': '2026-11-27T03:24:00Z',
+              },
+            }),
+            200,
+          );
+        }
+        return http.Response('{"success":false}', 404);
+      });
+
+      final v1Service = CourierWalletV1Service(
+        client: client,
+        baseUrl: 'https://example.test/api',
+        tokenReader: () async => 'test-token',
+      );
+
+      final item = WalletHistoryItem(
+        id: 'po-42',
+        kind: 'withdrawal',
+        title: 'Penarikan ke DANA',
+        amount: -20000,
+        status: 'processing',
+        statusLabel: 'Diproses',
+        reference: 'WD-CUR-8-20261127102137-EAEA',
+        destination: '******7890',
+        accountName: 'Kurir Xendit',
+        provider: 'DANA',
+        payoutId: 42,
+        createdAt: DateTime(2026, 11, 27, 10, 21),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TransactionDetailScreen(
+            item: item,
+            v1Service: v1Service,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Transaksi Diproses'), findsOneWidget);
+      final syncFinder = find.text('Perbarui Status dari DANA');
+      expect(syncFinder, findsOneWidget);
+
+      await tester.ensureVisible(syncFinder);
+      await tester.pumpAndSettle();
+      await tester.tap(syncFinder);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Transaksi Berhasil'), findsOneWidget);
+      expect(find.text('Status terbaru: Berhasil'), findsOneWidget);
+      expect(find.text('Perbarui Status dari DANA'), findsNothing);
     },
   );
 }
