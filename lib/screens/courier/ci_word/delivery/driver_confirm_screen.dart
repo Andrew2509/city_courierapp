@@ -3,12 +3,14 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'dart:ui';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_complete_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/home/driver_home_screen.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
+import 'package:city_courierapp/services/courier/courier_status_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/earnings/driver_earnings_screen.dart';
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
@@ -81,6 +83,17 @@ class _DriverConfirmScreenState extends State<DriverConfirmScreen> {
         });
 
         if (result['success'] == true) {
+          try {
+            final statusService =
+                Provider.of<CourierStatusService>(context, listen: false);
+            final serverSnapshot = result['courier_status'] is Map<String, dynamic>
+                ? result['courier_status'] as Map<String, dynamic>
+                : null;
+            statusService.syncFromActiveOrder(
+              null,
+              serverStatusPayload: serverSnapshot,
+            );
+          } catch (_) {}
           Navigator.push(
             context,
             MaterialPageRoute(

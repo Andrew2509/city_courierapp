@@ -26,15 +26,24 @@ class CourierApiService {
 
       final data = json.decode(response.body);
       if (response.statusCode == 200 && data['success'] == true) {
+        final payload = data['data'] is Map<String, dynamic>
+            ? data['data'] as Map<String, dynamic>
+            : <String, dynamic>{};
         return {
           'success': true,
-          'status': data['data']['work_status'] ?? 'offline',
-          'data': data['data'],
+          'status': payload['work_status'] ?? 'offline',
+          'data': payload,
+          'statusCode': response.statusCode,
         };
       }
-      return {'success': false, 'status': 'offline'};
+      return {
+        'success': false,
+        'status': 'offline',
+        'message': data is Map ? data['message'] : null,
+        'statusCode': response.statusCode,
+      };
     } catch (e) {
-      return {'success': false, 'status': 'offline'};
+      return {'success': false, 'status': 'offline', 'message': e.toString()};
     }
   }
 
@@ -46,8 +55,8 @@ class CourierApiService {
     try {
       final body = {
         'status': status,
-        if (latitude != null) 'latitude': latitude,
-        if (longitude != null) 'longitude': longitude,
+        'latitude': ?latitude,
+        'longitude': ?longitude,
       };
 
       final response = await http.put(
@@ -56,11 +65,20 @@ class CourierApiService {
         body: json.encode(body),
       );
 
-      final data = json.decode(response.body);
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      }
-      return {'success': false, 'message': data['message'] ?? 'Gagal update status'};
+      final data = response.body.isNotEmpty
+          ? (json.decode(response.body) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      final bool isSuccess =
+          response.statusCode == 200 && data['success'] == true;
+
+      return {
+        'success': isSuccess,
+        'data': data['data'],
+        'error_code': data['error_code'],
+        'message':
+            data['message'] ?? (isSuccess ? 'Status berhasil diperbarui.' : 'Gagal update status'),
+        'statusCode': response.statusCode,
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
@@ -77,9 +95,9 @@ class CourierApiService {
       final body = {
         'latitude': latitude,
         'longitude': longitude,
-        if (accuracy != null) 'accuracy': accuracy,
-        if (speedKmh != null) 'speed_kmh': speedKmh,
-        if (batteryPercent != null) 'battery_percent': batteryPercent,
+        'accuracy': ?accuracy,
+        'speed_kmh': ?speedKmh,
+        'battery_percent': ?batteryPercent,
       };
 
       final response = await http.put(

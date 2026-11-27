@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:city_courierapp/services/api_service.dart';
+import 'package:provider/provider.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
+import 'package:city_courierapp/services/courier/courier_status_service.dart';
 import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_detail_shipment_screen.dart';
+
+typedef ActiveOrderFetcher = Future<Map<String, dynamic>> Function();
+typedef PendingOrdersFetcher = Future<Map<String, dynamic>> Function();
+typedef OfferPresenter = Future<void> Function(Map<String, dynamic> requestData);
 
 class PickupRequestPollingService {
   static PickupRequestPollingService? _instance;
@@ -14,71 +18,184 @@ class PickupRequestPollingService {
 
   PickupRequestPollingService._();
 
+  @visibleForTesting
+  PickupRequestPollingService.forTesting({
+    ActiveOrderFetcher? activeOrderFetcher,
+    PendingOrdersFetcher? pendingOrdersFetcher,
+    OfferPresenter? offerPresenter,
+  })  : _activeOrderFetcher =
+            activeOrderFetcher ?? CourierOrderService.getActiveOrder,
+        _pendingOrdersFetcher =
+            pendingOrdersFetcher ?? CourierOrderService.getPendingPickupRequests,
+        _offerPresenter = offerPresenter;
+
+  ActiveOrderFetcher _activeOrderFetcher = CourierOrderService.getActiveOrder;
+  PendingOrdersFetcher _pendingOrdersFetcher =
+      CourierOrderService.getPendingPickupRequests;
+  OfferPresenter? _offerPresenter;
+
   Timer? _pollingTimer;
   bool _isPolling = false;
   bool _isShowingNotification = false;
+  int _pollGeneration = 0;
   BuildContext? _context;
+  CourierStatusService? _statusService;
   final Set<String> _shownRequestIds = {};
+  Map<String, dynamic>? _currentOffer;
 
   static const int _pollingIntervalSeconds = 5;
 
-  void startPolling(BuildContext context) {
+  bool get isPolling => _isPolling;
+  Map<String, dynamic>? get currentOffer => _currentOffer;
+
+  void startPolling(
+    BuildContext context, {
+    CourierStatusService? statusService,
+  }) {
     _context = context;
+    _statusService ??= statusService ?? _tryResolveStatusService(context);
+    _attachStatusListener();
+
+    // Jangan mulai polling apabila kurir Offline, Busy/On Delivery, atau memiliki pesanan aktif.
+    if (_statusService != null && !_statusService!.canReceiveNewOffers) {
+      stopPolling(clearContext: false);
+      return;
+    }
+
     if (_isPolling) return;
 
     _isPolling = true;
-
-    // Fetch initial settings
-    _fetchSettings();
-
+    _pollGeneration++;
     _checkForNewRequests();
 
     _pollingTimer = Timer.periodic(
-      Duration(seconds: _pollingIntervalSeconds),
+      const Duration(seconds: _pollingIntervalSeconds),
       (_) => _checkForNewRequests(),
     );
   }
 
-  void stopPolling() {
+  @visibleForTesting
+  void startPollingForTest(
+    CourierStatusService statusService, {
+    bool triggerImmediatePoll = true,
+  }) {
+    _statusService = statusService;
+    _attachStatusListener();
+    if (!statusService.canReceiveNewOffers) {
+      stopPolling(clearContext: false);
+      return;
+    }
+    _isPolling = true;
+    _pollGeneration++;
+    if (triggerImmediatePoll) {
+      _checkForNewRequests();
+    }
+  }
+
+  void stopPolling({bool clearContext = true}) {
     _pollingTimer?.cancel();
     _pollingTimer = null;
     _isPolling = false;
-    _context = null;
-  }
-
-  double _maxDistanceRadius = 2000.0;
-
-  Future<void> _fetchSettings() async {
-    try {
-      final settings = await ApiService.getSettings();
-      if (settings != null && settings['courier_max_distance_meters'] != null) {
-        _maxDistanceRadius =
-            double.tryParse(
-              settings['courier_max_distance_meters'].toString(),
-            ) ??
-            2000.0;
-      }
-    } catch (e) {
-      debugPrint('Error fetching settings: $e');
+    _pollGeneration++;
+    clearPendingOffers();
+    if (clearContext) {
+      _detachStatusListener();
+      _context = null;
+      _statusService = null;
     }
   }
 
-  Future<void> _checkForNewRequests() async {
-    if (_isShowingNotification) return;
+  /// Hapus cache penawaran saat kurir menjadi Offline atau Busy sehingga
+  /// penawaran lama tidak tampil lagi.
+  void clearPendingOffers() {
+    _currentOffer = null;
+  }
 
-    if (_context == null || !_context!.mounted) {
+  CourierStatusService? _tryResolveStatusService(BuildContext context) {
+    try {
+      return Provider.of<CourierStatusService>(context, listen: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _attachStatusListener() {
+    _statusService?.removeListener(_handleStatusChanged);
+    _statusService?.addListener(_handleStatusChanged);
+  }
+
+  void _detachStatusListener() {
+    _statusService?.removeListener(_handleStatusChanged);
+  }
+
+  void _handleStatusChanged() {
+    final service = _statusService;
+    if (service == null) return;
+    if (!service.canReceiveNewOffers && _isPolling) {
+      stopPolling(clearContext: false);
+    }
+  }
+
+  @visibleForTesting
+  Future<Map<String, dynamic>?> pollOnce() => _checkForNewRequests();
+
+  Future<Map<String, dynamic>?> _checkForNewRequests() async {
+    if (_isShowingNotification) return null;
+
+    final int generation = _pollGeneration;
+    final statusService = _statusService ??
+        (_context != null ? _tryResolveStatusService(_context!) : null);
+
+    // Dalam widget/UI mode (tanpa offerPresenter test), pastikan context masih mounted.
+    if (_offerPresenter == null && (_context == null || !_context!.mounted)) {
       stopPolling();
-      return;
+      return null;
+    }
+
+    // 1. Tolak sebelum memanggil API apabila status bukan Online atau memiliki pesanan aktif.
+    if (!_isPolling || statusService == null || !statusService.canReceiveNewOffers) {
+      clearPendingOffers();
+      return null;
     }
 
     try {
-      bool hasActiveOrder = false;
-      final activeResult = await CourierOrderService.getActiveOrder();
-      if (activeResult['success'] == true && activeResult['data'] != null) {
-        hasActiveOrder = true;
+      // 2. Cek sumber kebenaran backend: apakah kurir memiliki pesanan aktif.
+      final activeResult = await _activeOrderFetcher();
+      if (generation != _pollGeneration ||
+          !_isPolling ||
+          !statusService.canReceiveNewOffers) {
+        clearPendingOffers();
+        return null;
       }
 
-      final result = await CourierOrderService.getPendingPickupRequests();
+      if (activeResult['success'] == true && activeResult['data'] != null) {
+        final activeMap = activeResult['data'] is Map<String, dynamic>
+            ? activeResult['data'] as Map<String, dynamic>
+            : null;
+        if (activeMap != null) {
+          statusService.syncFromActiveOrder(activeMap);
+        }
+        stopPolling(clearContext: false);
+        return null;
+      }
+
+      // 3. Ambil penawaran pesanan tersedia hanya bila kurir benar-benar idle & Online.
+      final result = await _pendingOrdersFetcher();
+
+      // Re-validasi setelah async I/O selesai: jika selama request kurir berubah
+      // ke Offline atau Busy/On Delivery, buang seluruh penawaran lama secara senyap.
+      if (generation != _pollGeneration ||
+          !_isPolling ||
+          !statusService.canReceiveNewOffers) {
+        clearPendingOffers();
+        return null;
+      }
+
+      final meta = result['meta'];
+      if (meta is Map && meta['eligible_for_orders'] == false) {
+        clearPendingOffers();
+        return null;
+      }
 
       if (result['success'] == true && result['data'] != null) {
         final requests = result['data'] as List;
@@ -93,69 +210,47 @@ class PickupRequestPollingService {
         }).toList();
 
         if (newRequests.isNotEmpty) {
-          Map<String, dynamic>? selectedRequest;
-
-          if (hasActiveOrder) {
-            try {
-              final position =
-                  await Geolocator.getLastKnownPosition() ??
-                  await Geolocator.getCurrentPosition(
-                    locationSettings: const LocationSettings(
-                      accuracy: LocationAccuracy.high,
-                    ),
-                  );
-
-              double minDistance = double.infinity;
-
-              for (var req in newRequests) {
-                final reqMap = req as Map<String, dynamic>;
-                double pLat =
-                    double.tryParse(
-                      reqMap['pickup_latitude']?.toString() ?? '',
-                    ) ??
-                    0.0;
-                double pLng =
-                    double.tryParse(
-                      reqMap['pickup_longitude']?.toString() ?? '',
-                    ) ??
-                    0.0;
-
-                if (pLat != 0.0 && pLng != 0.0) {
-                  double distance = Geolocator.distanceBetween(
-                    position.latitude,
-                    position.longitude,
-                    pLat,
-                    pLng,
-                  );
-                  if (distance < minDistance) {
-                    minDistance = distance;
-                    selectedRequest = reqMap;
-                  }
-                }
-              }
-
-              // Only allow orders within max distance radius if they are already on a delivery
-              if (minDistance > _maxDistanceRadius) {
-                selectedRequest = null;
-              }
-            } catch (e) {
-              selectedRequest = null;
-            }
-          } else {
-            selectedRequest = newRequests.first as Map<String, dynamic>;
-          }
-
-          if (selectedRequest != null) {
-            await _showPickupNotification(selectedRequest);
-          }
+          final selectedRequest = newRequests.first as Map<String, dynamic>;
+          _currentOffer = selectedRequest;
+          await _showPickupNotification(selectedRequest, generation, statusService);
+          return selectedRequest;
         }
       }
     } catch (e) {
-      debugPrint('🔄 Error checking pickup requests: $e');
+      debugPrint('Error checking pickup requests: $e');
     }
+
+    return null;
   }
 
-  Future<void> _showPickupNotification(Map<String, dynamic> requestData) async {
+  Future<void> _showPickupNotification(
+    Map<String, dynamic> requestData,
+    int generation,
+    CourierStatusService statusService,
+  ) async {
+    // Penjaga akhir sebelum menampilkan notifikasi / layar penawaran baru.
+    if (generation != _pollGeneration ||
+        !_isPolling ||
+        !statusService.canReceiveNewOffers) {
+      clearPendingOffers();
+      return;
+    }
+
+    final presenter = _offerPresenter;
+    if (presenter != null) {
+      _isShowingNotification = true;
+      final requestId = requestData['id'].toString();
+      _shownRequestIds.add(requestId);
+      try {
+        await presenter(requestData);
+      } catch (_) {
+        _shownRequestIds.remove(requestId);
+      } finally {
+        _isShowingNotification = false;
+      }
+      return;
+    }
+
     if (_context == null || !_context!.mounted) return;
 
     _isShowingNotification = true;
@@ -163,7 +258,6 @@ class PickupRequestPollingService {
     _shownRequestIds.add(requestId);
 
     try {
-      // Push detail screen for new pending pickup request
       await Navigator.push(
         _context!,
         MaterialPageRoute(

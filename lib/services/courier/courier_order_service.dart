@@ -83,9 +83,14 @@ class CourierOrderService {
         return {
           'success': true,
           'data': enrichedOrders,
+          'meta': responseData['meta'],
         };
       }
-      return {'success': false, 'message': responseData['message'] ?? 'Gagal mengambil data'};
+      return {
+        'success': false,
+        'message': responseData['message'] ?? 'Gagal mengambil data',
+        'meta': responseData['meta'],
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
@@ -144,9 +149,14 @@ class CourierOrderService {
         return {
           'success': true,
           'data': enrichedOrders,
+          'meta': responseData['meta'],
         };
       }
-      return {'success': false, 'message': responseData['message'] ?? 'Gagal mengambil data'};
+      return {
+        'success': false,
+        'message': responseData['message'] ?? 'Gagal mengambil data',
+        'meta': responseData['meta'],
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
@@ -193,6 +203,8 @@ class CourierOrderService {
         'success': response.statusCode == 200 && responseData['success'] == true,
         'message': responseData['message'] ?? (response.statusCode == 200 ? 'Sukses' : 'Gagal'),
         'data': responseData['data'],
+        'error_code': responseData['error_code'],
+        'courier_status': responseData['courier_status'],
         'statusCode': response.statusCode,
       };
     } catch (e) {
@@ -283,6 +295,7 @@ class CourierOrderService {
                     : 'Penugasan pesanan ini sudah dilepas dari akun kamu.')
                 : 'Pembatalan penugasan tidak dapat diproses saat ini.'),
         'data': responseData['data'],
+        'courier_status': responseData['courier_status'],
       };
     } catch (e) {
       return {

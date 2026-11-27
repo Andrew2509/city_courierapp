@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:city_courierapp/main.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
@@ -10,6 +11,8 @@ import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery
 import 'package:city_courierapp/screens/courier/ci_word/widgets/driver_bottom_navigation.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
+import 'package:city_courierapp/services/courier/courier_status_service.dart';
+import 'package:city_courierapp/services/courier/pickup_request_polling_service.dart';
 
 class DriverShipmentScreen extends StatefulWidget {
   const DriverShipmentScreen({super.key});
@@ -82,13 +85,46 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
     );
   }
 
+  CourierStatusService? _tryReadStatusService() {
+    try {
+      return Provider.of<CourierStatusService>(context, listen: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _fetchShipments() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      final availableResult = await CourierOrderService.getAvailableOrders();
+      final statusService = _tryReadStatusService();
+      if (statusService != null) {
+        await statusService.syncWithServer(silent: true);
+      }
+
       final activeOrderResult = await CourierOrderService.getActiveOrder();
+      final Map<String, dynamic>? activeOrder =
+          activeOrderResult['success'] == true &&
+                  activeOrderResult['data'] is Map<String, dynamic>
+              ? activeOrderResult['data'] as Map<String, dynamic>
+              : null;
+
+      if (statusService != null) {
+        if (activeOrder != null) {
+          statusService.syncFromActiveOrder(activeOrder);
+        } else if (statusService.activeOrder != null || statusService.isOnDelivery) {
+          statusService.syncFromActiveOrder(null);
+          await statusService.syncWithServer(silent: true);
+        }
+      }
+
+      final bool canFetchOffers =
+          activeOrder == null && (statusService?.canReceiveNewOffers ?? true);
+
+      final Map<String, dynamic> availableResult = canFetchOffers
+          ? await CourierOrderService.getAvailableOrders()
+          : {'success': true, 'data': <dynamic>[]};
       final assignedResult = await CourierOrderService.getOrdersByStatus('assigned');
       final pickingUpResult = await CourierOrderService.getOrdersByStatus('picking_up');
       final pickedUpResult = await CourierOrderService.getOrdersByStatus('picked_up');
@@ -100,15 +136,16 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
         setState(() {
           final List<Map<String, dynamic>> combined = [];
 
-          // 1. Pesanan baru yang tersedia
-          if (availableResult['success'] == true && availableResult['data'] is List) {
+          // 1. Pesanan baru hanya ditampilkan jika kurir Online & bebas pesanan aktif
+          if (canFetchOffers &&
+              availableResult['success'] == true &&
+              availableResult['data'] is List) {
             combined.addAll(List<Map<String, dynamic>>.from(availableResult['data']));
           }
 
           // 2. Pesanan aktif saat ini
-          if (activeOrderResult['success'] == true && activeOrderResult['data'] != null) {
-            final active = activeOrderResult['data'] as Map<String, dynamic>;
-            combined.add(active);
+          if (activeOrder != null) {
+            combined.add(activeOrder);
           }
 
           // 3. Status-status lainnya
@@ -246,11 +283,36 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
   }
 
   Future<void> _handleAcceptOrder(Map<String, dynamic> shipment) async {
+    final statusService = _tryReadStatusService();
+    if (statusService != null && !statusService.canReceiveNewOffers) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            statusService.lastErrorMessage ??
+                'Anda sedang Offline atau memiliki pesanan aktif yang belum selesai.',
+          ),
+          backgroundColor: const Color(0xFFFF5A00),
+        ),
+      );
+      return;
+    }
+
     final orderId = shipment['id']?.toString() ?? '';
     final res = await CourierOrderService.acceptPickupRequest(orderId);
     if (!mounted) return;
 
+    final serverSnapshot = res['courier_status'] is Map<String, dynamic>
+        ? res['courier_status'] as Map<String, dynamic>
+        : null;
+
     if (res['success'] == true) {
+      statusService?.syncFromActiveOrder(
+        res['data'] is Map<String, dynamic>
+            ? res['data'] as Map<String, dynamic>
+            : shipment,
+        serverStatusPayload: serverSnapshot,
+      );
+      PickupRequestPollingService.instance.stopPolling(clearContext: false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Pesanan berhasil diterima! Masuk ke Pickup Terjadwal.'),
@@ -259,12 +321,16 @@ class _DriverShipmentScreenState extends State<DriverShipmentScreen> with RouteA
       );
       _fetchShipments();
     } else {
+      if (serverSnapshot != null) {
+        statusService?.applyServerSnapshot(serverSnapshot);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(res['message'] ?? 'Gagal menerima pesanan'),
           backgroundColor: Colors.red,
         ),
       );
+      _fetchShipments();
     }
   }
 

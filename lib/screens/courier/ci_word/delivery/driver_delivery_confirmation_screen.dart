@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:city_courierapp/core/config/app_colors.dart';
 import 'package:city_courierapp/core/config/app_typography.dart';
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_photo_capture_screen.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
+import 'package:city_courierapp/services/courier/courier_status_service.dart';
 
 class DriverDeliveryConfirmationScreen extends StatefulWidget {
   final Map<String, dynamic> order;
@@ -105,6 +107,17 @@ class _DriverDeliveryConfirmationScreenState
       if (mounted) {
         setState(() => _isCompleting = false);
         if (result['success'] == true) {
+          try {
+            final statusService =
+                Provider.of<CourierStatusService>(context, listen: false);
+            final serverSnapshot = result['courier_status'] is Map<String, dynamic>
+                ? result['courier_status'] as Map<String, dynamic>
+                : null;
+            statusService.syncFromActiveOrder(
+              null,
+              serverStatusPayload: serverSnapshot,
+            );
+          } catch (_) {}
           Navigator.pop(context, _photoPath ?? 'completed');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(

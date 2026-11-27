@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 import 'package:city_courierapp/controllers/traffic_controller.dart';
 import 'package:city_courierapp/services/maps/location_repository.dart';
 import 'package:city_courierapp/services/maps/traffic_service.dart';
@@ -11,6 +12,8 @@ import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_delivery
 import 'package:city_courierapp/screens/courier/ci_word/delivery/driver_navigation_screen.dart';
 import 'package:city_courierapp/services/courier/courier_contact_helper.dart';
 import 'package:city_courierapp/services/courier/courier_order_service.dart';
+import 'package:city_courierapp/services/courier/courier_status_service.dart';
+import 'package:city_courierapp/services/courier/pickup_request_polling_service.dart';
 import 'package:city_courierapp/models/shipping/schedule_time_config.dart';
 import 'package:city_courierapp/widgets/maps/traffic_overlay_widgets.dart';
 
@@ -57,6 +60,14 @@ class _DriverDetailShipmentScreenState
     final status = _localCourierCancelStatus ??
         widget.shipment['courier_cancel_status']?.toString();
     return status == 'pending_approval';
+  }
+
+  CourierStatusService? _tryReadStatusService() {
+    try {
+      return Provider.of<CourierStatusService>(context, listen: false);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -1346,6 +1357,20 @@ class _DriverDetailShipmentScreenState
               onPressed: isBusy
                   ? null
                   : () async {
+                      final statusService = _tryReadStatusService();
+                      if (statusService != null && !statusService.canReceiveNewOffers) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              statusService.lastErrorMessage ??
+                                  'Anda tidak dapat menerima pesanan saat Offline atau sedang mengantar pesanan aktif.',
+                            ),
+                            backgroundColor: const Color(0xFFFF5A00),
+                          ),
+                        );
+                        return;
+                      }
+
                       setState(() {
                         _isAccepting = true;
                       });
@@ -1356,7 +1381,17 @@ class _DriverDetailShipmentScreenState
                         setState(() {
                           _isAccepting = false;
                         });
+                        final serverSnapshot = acceptResult['courier_status'] is Map<String, dynamic>
+                            ? acceptResult['courier_status'] as Map<String, dynamic>
+                            : null;
                         if (acceptResult['success'] == true) {
+                          statusService?.syncFromActiveOrder(
+                            acceptResult['data'] is Map<String, dynamic>
+                                ? acceptResult['data'] as Map<String, dynamic>
+                                : widget.shipment,
+                            serverStatusPayload: serverSnapshot,
+                          );
+                          PickupRequestPollingService.instance.stopPolling(clearContext: false);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Pesanan berhasil diterima!'),
@@ -1365,6 +1400,9 @@ class _DriverDetailShipmentScreenState
                           );
                           Navigator.pop(context, true);
                         } else {
+                          if (serverSnapshot != null) {
+                            statusService?.applyServerSnapshot(serverSnapshot);
+                          }
                           final msg = (acceptResult['message'] ?? 'Gagal menerima pesanan').toString();
                           if (msg.toLowerCase().contains('dibatalkan')) {
                             setState(() => _isLocallyCancelled = true);
@@ -1984,6 +2022,15 @@ class _DriverDetailShipmentScreenState
     );
 
     if (!mounted) return;
+    if (result['success'] == true && result['action_taken'] != 'pending_approval') {
+      final serverSnapshot = result['courier_status'] is Map<String, dynamic>
+          ? result['courier_status'] as Map<String, dynamic>
+          : null;
+      _tryReadStatusService()?.syncFromActiveOrder(
+        null,
+        serverStatusPayload: serverSnapshot,
+      );
+    }
     setState(() {
       _isCancellingAssignment = false;
       if (result['success'] == true && result['action_taken'] == 'pending_approval') {

@@ -22,8 +22,33 @@ import 'package:city_courierapp/screens/courier/ci_word/shipment/driver_shipment
 import 'package:city_courierapp/screens/courier/ci_word/profile/driver_profile_screen.dart';
 import 'package:city_courierapp/services/courier/courier_api_service.dart';
 
+typedef DriverActiveOrderFetcher = Future<Map<String, dynamic>> Function();
+typedef DriverAvailableOrdersFetcher = Future<Map<String, dynamic>> Function();
+typedef DriverCourierStatsFetcher = Future<Map<String, dynamic>> Function();
+typedef DriverCourierProfileFetcher = Future<Map<String, dynamic>> Function();
+typedef DriverAcceptOrderHandler = Future<Map<String, dynamic>> Function(String orderId);
+
 class DriverHomeScreen extends StatefulWidget {
-  const DriverHomeScreen({super.key});
+  const DriverHomeScreen({
+    super.key,
+    this.activeOrderFetcher,
+    this.availableOrdersFetcher,
+    this.statsFetcher,
+    this.profileFetcher,
+    this.acceptOrderHandler,
+    this.enableInitialSync = true,
+    this.enablePolling = true,
+    this.enableLiveLocation = true,
+  });
+
+  final DriverActiveOrderFetcher? activeOrderFetcher;
+  final DriverAvailableOrdersFetcher? availableOrdersFetcher;
+  final DriverCourierStatsFetcher? statsFetcher;
+  final DriverCourierProfileFetcher? profileFetcher;
+  final DriverAcceptOrderHandler? acceptOrderHandler;
+  final bool enableInitialSync;
+  final bool enablePolling;
+  final bool enableLiveLocation;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -36,6 +61,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Map<String, dynamic>? _activeOrder;
   List<Map<String, dynamic>> _pendingTasks = [];
   bool _isLoadingHomeData = false;
+  bool _isAcceptingOrder = false;
   String _courierName = 'Kurir';
 
   // Stats from GET /api/courier/stats
@@ -49,43 +75,94 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final statusService = Provider.of<CourierStatusService>(context, listen: false);
-      _statusService = statusService;
-      statusService.syncWithServer();
-      _initLocationService();
-      _fetchHomeData();
-      _fetchCourierProfile();
-      
-      if (statusService.isOnline) {
-        PickupRequestPollingService.instance.startPolling(context);
-      }
-      statusService.addListener(_onStatusChange);
+      _initializeHomeState();
     });
+  }
+
+  Future<void> _initializeHomeState() async {
+    if (!mounted) return;
+    final statusService = Provider.of<CourierStatusService>(context, listen: false);
+    _statusService = statusService;
+    statusService.removeListener(_onStatusChange);
+    statusService.addListener(_onStatusChange);
+
+    if (widget.enableInitialSync) {
+      await statusService.syncWithServer();
+    }
+    if (!mounted) return;
+
+    await _initLocationService();
+    await _fetchHomeData();
+    await _fetchCourierProfile();
+    if (!mounted) return;
+
+    if (widget.enablePolling && statusService.canReceiveNewOffers) {
+      PickupRequestPollingService.instance.startPolling(
+        context,
+        statusService: statusService,
+      );
+    } else {
+      PickupRequestPollingService.instance.stopPolling(clearContext: false);
+    }
   }
 
   Future<void> _fetchHomeData() async {
     if (_isLoadingHomeData) return;
+
+    final statusService = _statusService ??
+        (mounted ? Provider.of<CourierStatusService>(context, listen: false) : null);
 
     setState(() {
       _isLoadingHomeData = true;
     });
 
     try {
-      final activeResult = await CourierOrderService.getActiveOrder();
-      final availableResult = await CourierOrderService.getAvailableOrders();
-      final statsResult = await CourierApiService.getCourierStats();
+      final activeFetcher = widget.activeOrderFetcher ?? CourierOrderService.getActiveOrder;
+      final statsFetcher = widget.statsFetcher ?? CourierApiService.getCourierStats;
+
+      final activeResult = await activeFetcher();
+      Map<String, dynamic>? fetchedActiveOrder;
+      if (activeResult['success'] == true && activeResult['data'] is Map<String, dynamic>) {
+        fetchedActiveOrder = activeResult['data'] as Map<String, dynamic>;
+      }
+
+      if (statusService != null) {
+        if (fetchedActiveOrder != null) {
+          statusService.syncFromActiveOrder(fetchedActiveOrder);
+        } else if (statusService.activeOrder != null || statusService.isOnDelivery) {
+          statusService.syncFromActiveOrder(null);
+          if (widget.enableInitialSync) {
+            await statusService.syncWithServer(silent: true);
+          }
+        }
+      }
+
+      final bool canReceiveOffers =
+          (statusService?.canReceiveNewOffers ?? false) && fetchedActiveOrder == null;
+
+      Map<String, dynamic> availableResult = {'success': true, 'data': <dynamic>[]};
+      if (canReceiveOffers) {
+        final availableFetcher =
+            widget.availableOrdersFetcher ?? CourierOrderService.getAvailableOrders;
+        availableResult = await availableFetcher();
+      } else {
+        PickupRequestPollingService.instance.stopPolling(clearContext: false);
+      }
+
+      final statsResult = await statsFetcher();
 
       if (mounted) {
         setState(() {
-          if (activeResult['success'] == true) {
-            _activeOrder = activeResult['data'];
-          } else {
-            _activeOrder = null;
-          }
+          _activeOrder = fetchedActiveOrder;
 
-          if (availableResult['success'] == true) {
-            final List<dynamic> orders = availableResult['data'];
-            _pendingTasks = orders.map((o) => o as Map<String, dynamic>).toList();
+          if (!canReceiveOffers || _activeOrder != null) {
+            _pendingTasks = [];
+          } else if (availableResult['meta'] is Map &&
+              (availableResult['meta'] as Map)['eligible_for_orders'] == false) {
+            _pendingTasks = [];
+          } else if (availableResult['success'] == true && availableResult['data'] is List) {
+            final List<dynamic> orders = availableResult['data'] as List<dynamic>;
+            _pendingTasks = orders.whereType<Map<String, dynamic>>().toList();
           } else {
             _pendingTasks = [];
           }
@@ -97,6 +174,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             _totalEarnings = ((s['total_earnings'] ?? 0) as num).toDouble();
           }
         });
+
+        if (widget.enablePolling && statusService != null) {
+          if (statusService.canReceiveNewOffers && _activeOrder == null) {
+            PickupRequestPollingService.instance.startPolling(
+              context,
+              statusService: statusService,
+            );
+          } else {
+            PickupRequestPollingService.instance.stopPolling(clearContext: false);
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error fetching home data: $e');
@@ -111,7 +199,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   Future<void> _fetchCourierProfile() async {
     try {
-      final result = await CourierProfileService.getProfile();
+      final profileFetcher = widget.profileFetcher ?? CourierProfileService.getProfile;
+      final result = await profileFetcher();
       if (mounted && result['success'] == true) {
         final data = result['data'];
         final name = data['name'] ?? data['user']?['name'] ?? 'Kurir';
@@ -128,16 +217,39 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     if (!mounted) return;
     final statusService = Provider.of<CourierStatusService>(context, listen: false);
 
-    if (statusService.isWorking) {
-      CourierLiveLocationService.instance.start(statusService);
-      PickupRequestPollingService.instance.startPolling(context);
+    if (widget.enableLiveLocation) {
+      if (statusService.isWorking) {
+        CourierLiveLocationService.instance.start(statusService);
+      } else {
+        CourierLiveLocationService.instance.stop();
+      }
+    }
+
+    if (!statusService.canReceiveNewOffers) {
+      PickupRequestPollingService.instance.stopPolling(clearContext: false);
+      if (_pendingTasks.isNotEmpty) {
+        setState(() {
+          _pendingTasks = [];
+        });
+      }
     } else {
-      CourierLiveLocationService.instance.stop();
-      PickupRequestPollingService.instance.stopPolling();
+      if (_activeOrder != null && statusService.activeOrder == null) {
+        setState(() {
+          _activeOrder = null;
+        });
+        Future.microtask(_fetchHomeData);
+      }
+      if (widget.enablePolling && statusService.activeOrder == null) {
+        PickupRequestPollingService.instance.startPolling(
+          context,
+          statusService: statusService,
+        );
+      }
     }
   }
 
   Future<void> _initLocationService() async {
+    if (!widget.enableLiveLocation) return;
     final statusService = Provider.of<CourierStatusService>(context, listen: false);
     if (statusService.isWorking) {
       CourierLiveLocationService.instance.start(statusService);
@@ -148,14 +260,35 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final statusService = Provider.of<CourierStatusService>(context, listen: false);
     if (statusService.isLoading) return;
 
+    if (statusService.isBusy || _activeOrder != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Status Sedang Mengantar tetap berlaku hingga pesanan aktif selesai atau dibatalkan.',
+            ),
+            backgroundColor: Color(0xFFD97706),
+          ),
+        );
+      }
+      return;
+    }
+
     final isCurrentlyOnline = statusService.isOnline;
     final newStatus = isCurrentlyOnline ? CourierStatus.offline : CourierStatus.online;
+
+    if (newStatus == CourierStatus.offline) {
+      PickupRequestPollingService.instance.stopPolling(clearContext: false);
+      setState(() {
+        _pendingTasks = [];
+      });
+    }
 
     try {
       double? lat;
       double? lng;
 
-      if (newStatus == CourierStatus.online) {
+      if (newStatus == CourierStatus.online && widget.enableLiveLocation) {
         try {
           Position position = await Geolocator.getCurrentPosition(
             locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -167,24 +300,36 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         }
       }
 
-      await statusService.updateStatus(newStatus, latitude: lat, longitude: lng);
+      final success = await statusService.updateStatus(
+        newStatus,
+        latitude: lat,
+        longitude: lng,
+      );
 
       if (mounted) {
-        final success = statusService.currentStatus == newStatus;
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Status Anda sekarang ${newStatus.name}'),
+              content: Text(
+                newStatus == CourierStatus.online
+                    ? 'Status Anda sekarang Online dan siap menerima pesanan'
+                    : 'Status Anda sekarang Offline',
+              ),
               backgroundColor: newStatus == CourierStatus.online ? primaryColor : AppColors.textSecondary,
             ),
           );
+          await _fetchHomeData();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gagal memperbarui status. Silakan coba lagi.'),
+            SnackBar(
+              content: Text(
+                statusService.lastErrorMessage ??
+                    'Gagal memperbarui status. Silakan coba lagi.',
+              ),
               backgroundColor: AppColors.errorColor,
             ),
           );
+          await _fetchHomeData();
         }
       }
     } catch (e) {
@@ -225,11 +370,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   children: [
                     Consumer<CourierStatusService>(
                       builder: (context, statusService, child) {
-                        return _buildBanner(statusService);
+                        return Column(
+                          children: [
+                            _buildBanner(statusService),
+                            _buildSummary(),
+                            _buildOrdersSection(statusService),
+                          ],
+                        );
                       },
                     ),
-                    _buildSummary(),
-                    _buildOrdersSection(),
                   ],
                 ),
               ),
@@ -300,8 +449,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Widget _buildBanner(CourierStatusService statusService) {
-    final bool isOnline = statusService.isOnline;
+    final bool isBusy = _activeOrder != null || statusService.isBusy;
+    final bool isOnline = !isBusy && statusService.isOnline;
     final bool isLoading = statusService.isLoading;
+
+    final String bannerTitle = isBusy
+        ? 'Sedang Mengantar'
+        : (isOnline ? 'Anda Online' : 'Anda Offline');
+    final String bannerSubtitle = isBusy
+        ? 'Sedang mengerjakan pesanan aktif'
+        : (isOnline ? 'Siap Menerima Order' : 'Tidak Menerima Pesanan');
+    final Color statusDotColor = isBusy
+        ? const Color(0xFFFACC15)
+        : (isOnline ? greenColor : Colors.grey);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       height: 160,
@@ -338,7 +499,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Text(
-                  isOnline ? 'Anda Online' : 'Anda Offline',
+                  bannerTitle,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -352,13 +513,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: isOnline ? greenColor : Colors.grey,
+                        color: statusDotColor,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isOnline ? 'Siap Menerima Order' : 'Sedang Istirahat',
+                      bannerSubtitle,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -374,12 +535,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             right: 24,
             top: 24,
             child: GestureDetector(
+              key: const Key('courier_status_toggle'),
               onTap: _toggleOnlineStatus,
               child: Container(
                 width: 64,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFA366),
+                  color: isBusy
+                      ? const Color(0xFFFFB27A).withOpacity(0.85)
+                      : const Color(0xFFFFA366),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 padding: const EdgeInsets.all(3),
@@ -388,7 +552,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
-                      left: isOnline ? 32 : 0,
+                      left: (isOnline || isBusy) ? 32 : 0,
                       top: 0,
                       bottom: 0,
                       child: Container(
@@ -413,7 +577,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                   valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
                                 ),
                               )
-                            : null,
+                            : (isBusy
+                                ? const Icon(
+                                    Icons.local_shipping_rounded,
+                                    size: 14,
+                                    color: primaryColor,
+                                  )
+                                : null),
                       ),
                     ),
                   ],
@@ -551,7 +721,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  Widget _buildOrdersSection() {
+  Widget _buildOrdersSection(CourierStatusService statusService) {
+    final bool isBusy = _activeOrder != null || statusService.isBusy;
+    final bool isOffline = !isBusy && statusService.isOffline;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Column(
@@ -560,9 +733,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Terima Pesanan',
-                style: TextStyle(
+              Text(
+                isBusy
+                    ? 'Pesanan Sedang Dikerjakan'
+                    : (isOffline ? 'Status Ketersediaan' : 'Terima Pesanan'),
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF1A1A1A),
@@ -600,12 +775,166 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 child: CircularProgressIndicator(color: primaryColor),
               ),
             )
-          else if (_activeOrder != null)
-            _buildActiveOrderSection()
+          else if (isBusy) ...[
+            if (_activeOrder != null)
+              _buildActiveOrderSection()
+            else
+              _buildBusyNoticeState(),
+          ] else if (isOffline)
+            _buildOfflineState()
           else if (_pendingTasks.isNotEmpty)
             ..._pendingTasks.map((task) => _buildPendingTaskCard(task))
           else
             _buildEmptyState(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOfflineState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.power_settings_new_rounded,
+              size: 32,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Courier sedang Offline',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Anda sedang tidak menerima penawaran pesanan baru. Aktifkan mode Online untuk mulai menerima pesanan.',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _toggleOnlineStatus,
+              icon: const Icon(Icons.flash_on_rounded, size: 18),
+              label: const Text(
+                'Aktifkan Mode Online',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBusyNoticeState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.local_shipping_rounded,
+              size: 28,
+              color: primaryColor,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Sedang Mengantar Pesanan',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Penawaran pesanan baru disembunyikan hingga pesanan aktif Anda selesai atau dibatalkan.',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _fetchHomeData,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text(
+                'Muat Ulang Status',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: primaryColor,
+                side: const BorderSide(color: primaryColor, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -701,27 +1030,76 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Future<void> _acceptOrderFromHome(Map<String, dynamic> task) async {
+    if (_isAcceptingOrder) return;
+    final statusService = _statusService ??
+        (mounted ? Provider.of<CourierStatusService>(context, listen: false) : null);
+
+    if ((statusService != null && !statusService.canReceiveNewOffers) ||
+        _activeOrder != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              statusService?.lastErrorMessage ??
+                  'Anda tidak dapat menerima pesanan baru saat Offline atau sedang mengantar pesanan aktif.',
+            ),
+            backgroundColor: const Color(0xFFFF5A00),
+          ),
+        );
+      }
+      return;
+    }
+
     final requestId = task['id']?.toString() ?? '';
     if (requestId.isEmpty) return;
 
-    final acceptResult = await CourierOrderService.acceptPickupRequest(requestId);
-    if (!mounted) return;
+    _isAcceptingOrder = true;
+    try {
+      final acceptHandler =
+          widget.acceptOrderHandler ?? CourierOrderService.acceptPickupRequest;
+      final acceptResult = await acceptHandler(requestId);
+      if (!mounted) return;
 
-    if (acceptResult['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pesanan berhasil diterima!'),
-          backgroundColor: Color(0xFF22C55E),
-        ),
-      );
-      await _fetchHomeData();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
-          backgroundColor: const Color(0xFFFF5A00),
-        ),
-      );
+      final serverSnapshot = acceptResult['courier_status'] is Map<String, dynamic>
+          ? acceptResult['courier_status'] as Map<String, dynamic>
+          : null;
+
+      if (acceptResult['success'] == true) {
+        final acceptedOrder = acceptResult['data'] is Map<String, dynamic>
+            ? acceptResult['data'] as Map<String, dynamic>
+            : task;
+        statusService?.syncFromActiveOrder(
+          acceptedOrder,
+          serverStatusPayload: serverSnapshot,
+        );
+        PickupRequestPollingService.instance.stopPolling(clearContext: false);
+
+        setState(() {
+          _activeOrder = acceptedOrder;
+          _pendingTasks = [];
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pesanan berhasil diterima!'),
+            backgroundColor: Color(0xFF22C55E),
+          ),
+        );
+        await _fetchHomeData();
+      } else {
+        if (serverSnapshot != null) {
+          statusService?.applyServerSnapshot(serverSnapshot);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(acceptResult['message'] ?? 'Gagal menerima pesanan'),
+            backgroundColor: const Color(0xFFFF5A00),
+          ),
+        );
+        await _fetchHomeData();
+      }
+    } finally {
+      _isAcceptingOrder = false;
     }
   }
 
